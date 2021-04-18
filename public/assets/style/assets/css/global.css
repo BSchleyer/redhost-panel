@@ -1,0 +1,96 @@
+/* Animations START */
+
+.pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+    
+    @keyframes pulse-red {
+      0% {
+        -moz-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0.6);
+        box-shadow: 0 0 0 0 rgba(142, 71, 71, 0.6);
+      }
+      70% {
+          -moz-box-shadow: 0 0 0 25px rgba(142, 71, 71, 0);
+          box-shadow: 0 0 0 25px rgba(111,71,142, 0);
+      }
+      100% {
+          -moz-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+          box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+      }
+    }
+    
+    @-webkit-keyframes pulse-red {
+      0% {
+        -webkit-box-shadow: 0 0 0 0 rgb(142, 71, 71);
+      }
+      70% {
+        -webkit-box-shadow: 0 0 0 25px rgba(142, 71, 71, 0);
+      }
+      100% {
+          -webkit-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+      }
+    }
+
+    .pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+    
+    @keyframes pulse-red {
+      0% {
+        -moz-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0.6);
+        box-shadow: 0 0 0 0 rgba(142, 71, 71, 0.6);
+      }
+      70% {
+          -moz-box-shadow: 0 0 0 25px rgba(142, 71, 71, 0);
+          box-shadow: 0 0 0 25px rgba(111,71,142, 0);
+      }
+      100% {
+          -moz-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+          box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+      }
+    }
+    
+    @-webkit-keyframes pulse-red {
+      0% {
+        -webkit-box-shadow: 0 0 0 0 rgb(142, 71, 71);
+      }
+      70% {
+        -webkit-box-shadow: 0 0 0 25px rgba(142, 71, 71, 0);
+      }
+      100% {
+          -webkit-box-shadow: 0 0 0 0 rgba(142, 71, 71, 0);
+      }
+    }
+
+.pulse-green {
+    animation: pulse-green 2s infinite;
+  }
+    
+    @keyframes pulse-green {
+      0% {
+        -moz-box-shadow: 0 0 0 0 rgba(71, 142, 75, 0.6);
+        box-shadow: 0 0 0 0 rgba(71, 142, 75, 0.6);
+      }
+      70% {
+          -moz-box-shadow: 0 0 0 25px rgba(71, 142, 75, 0);
+          box-shadow: 0 0 0 25px rgba(71, 142, 75, 0);
+      }
+      100% {
+          -moz-box-shadow: 0 0 0 0 rgba(71, 142, 75, 0);
+          box-shadow: 0 0 0 0 rgba(71, 142, 75, 0);
+      }
+    }
+    
+    @-webkit-keyframes pulse-green {
+      0% {
+        -webkit-box-shadow: 0 0 0 0 rgb(71, 142, 83);
+      }
+      70% {
+        -webkit-box-shadow: 0 0 0 25px rgba(71, 142, 75, 0);
+      }
+      100% {
+          -webkit-box-shadow: 0 0 0 0 rgba(71, 142, 89, 0);
+      }
+    }
+
+/* Animations END */
