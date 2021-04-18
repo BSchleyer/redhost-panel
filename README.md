@@ -4,8 +4,6 @@ Daher damit der Tobias B. der Meinung ist, dieses Panel an tausenden Menschen zu
 
 ### Zu beachten ist allerdings, dass die Hälfte der Funktionen und weiteres entfernt wurde. Das hat Rücksicht auf die Arbeit des eigentlichen Entwicklers und einigen Sicherheitsaspekten.
 
-Daher damit alle Files zu groß für Github sind, habe ich eine .zip-Datei nochmal auf unserem Download-Server gepackt. Bitte eher den Link benutzen, anstatt es hier aus der Repository herunterzuladen oder über git zu nutzen.
-
 ## Update 07.04.2021 - 23:32 Uhr
 Ich habe den Bug von dem Support-PIN und dem HCaptcha gefixt. Damit sollten die Probleme von den beiden genannten Sachen verschwinden.
 Update kann unter dem o.g. Link heruntergeladen werden.
