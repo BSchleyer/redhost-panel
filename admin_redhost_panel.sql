@@ -217,6 +217,9 @@ CREATE TABLE `settings` (
   `rootserver` enum('own','venocix') NOT NULL DEFAULT 'venocix'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+INSERT INTO `settings` (`login`, `register`, `webspace`, `teamspeak`, `vps`, `psc_fees`, `default_traffic_limit`, `rootserver`) VALUES
+(1, 1, 1, 1, 1, 0, 1000, 'venocix');
+
 -- --------------------------------------------------------
 
 --
