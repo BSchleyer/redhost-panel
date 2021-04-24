@@ -207,8 +207,8 @@ CREATE TABLE `queue` (
 --
 
 CREATE TABLE `settings` (
-  `login` int(11) NOT NULL DEFALT '1',
-  `register` int(11) NOT NULL DEFALT '1',
+  `login` int(11) NOT NULL DEFAULT '1',
+  `register` int(11) NOT NULL DEFAULT '1',
   `webspace` int(11) NOT NULL DEFAULT '1',
   `teamspeak` int(11) NOT NULL DEFAULT '1',
   `vps` int(11) NOT NULL DEFAULT '1',
