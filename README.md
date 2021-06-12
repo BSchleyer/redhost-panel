@@ -12,3 +12,5 @@ Im Gegensatz zu der von mir veröffentlichten Version, beinhaltet dieses Update 
 
 
 ### Nochmal als Link: https://dl.bschleyer.de/cp.red-host.eu.zip
+
+# KEIN SUPPORT!
