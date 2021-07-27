@@ -80,73 +80,74 @@ if($status->result->state == 'running'){
     $state = '<span class="badge badge-danger">Offline</span>';
 }
 
-if($available_traffic > $serverInfos['curr_traffic']) {
+if (isset($_POST['sendStop'])) {
+    $error = null;
 
-    if (isset($_POST['sendStop'])) {
-        $error = null;
-
-        if ($status->result->state == 'stopped') {
-            $error = 'Dein Server ist bereits gestoppt';
-        }
-
-        if (empty($error)) {
-
-            $serverStatus = 'OFFLINE';
-            $venocix->stop($vm_id);
-            echo sendSweetSuccess('Dein Server wird nun gestoppt');
-
-        } else {
-            echo sendError($error);
-        }
+    if ($status->result->state == 'stopped') {
+        $error = 'Dein Server ist bereits gestoppt';
     }
 
-    if (isset($_POST['sendStart'])) {
-        $error = null;
+    if (empty($error)) {
 
-        if ($status->result->state == 'running') {
-            $error = 'Dein Server ist bereits gestartet';
-        }
+        $serverStatus = 'OFFLINE';
+        $venocix->stop($vm_id);
+        echo sendSweetSuccess('Dein Server wird nun gestoppt');
 
-        if (empty($error)) {
+    } else {
+        echo sendError($error);
+    }
+}
 
-            $serverStatus = 'ONLINE';
-            $venocix->start($vm_id);
-            echo sendSweetSuccess('Dein Server wird nun gestartet');
+if (isset($_POST['sendStart'])) {
+    $error = null;
 
-        } else {
-            echo sendError($error);
-        }
+    if ($status->result->state == 'running') {
+        $error = 'Dein Server ist bereits gestartet';
     }
 
-    if (isset($_POST['sendRestart'])) {
-        $error = null;
+    if (empty($error)) {
 
-        if ($status->result->state == 'stopped') {
-            $error = 'Dein Server ist bereits gestoppt';
-        }
+        $serverStatus = 'ONLINE';
+        $venocix->start($vm_id);
+        echo sendSweetSuccess('Dein Server wird nun gestartet');
 
-        if (empty($error)) {
+    } else {
+        echo sendError($error);
+    }
+}
 
-            $serverStatus = 'ONLINE';
-            $venocix->reboot($vm_id);
-            echo sendSweetSuccess('Dein Server wurde nun neugestartet');
+if (isset($_POST['sendRestart'])) {
+    $error = null;
 
-        } else {
-            echo sendError($error);
-        }
+    if ($status->result->state == 'stopped') {
+        $error = 'Dein Server ist bereits gestoppt';
     }
 
-    if (isset($_POST['setNewRootpassword'])) {
-        $error = null;
+    if (empty($error)) {
 
-        if (empty($error)) {
+        $serverStatus = 'ONLINE';
+        $venocix->reboot($vm_id);
+        echo sendSweetSuccess('Dein Server wurde nun neugestartet');
 
-            $discord->callWebhook('@everyone bei dem Rootserver #'.$id.' soll das Rootpasswort geändert werden!','https://discordapp.com/api/webhooks/773552489013182495/hldzSH6vih95w6DpfLDAvEfoMNzfTmHHalbvO_Ele3hSUbG0fdyYsOa6XhdpxlsIWx4K');
+    } else {
+        echo sendError($error);
+    }
+}
 
-            echo sendSuccess('Eine Rootpasswort Änderung wurde angefragt');
-        } else {
-            echo sendError($error);
-        }
+if (isset($_POST['resetRootPW'])) {
+    $error = null;
+
+    if (empty($error)) {
+
+        $response = $venocix->resetRootPW($vm_id);
+
+        $update = $db->prepare("UPDATE `vm_servers` SET `password` = :password WHERE `id` = :id");
+        $update->execute(array(":password" => $response->result->password, ":id" => $id));
+
+        echo sendSuccess('Eine Rootpasswort Änderung wurde angefragt');
+        header("refresh:2");
+    } else {
+        echo sendError($error);
     }
 }
 
@@ -195,4 +196,61 @@ if(isset($_POST['saveRDNS'])){
     } else {
         echo sendError($error);
     }
+}
+
+if(isset($_POST['reinstallServer'])){
+
+    $error = null;
+
+    if(!isset($_POST['serverOS'])){
+        $error = "Betriebssystem wurde nicht gefunden!";
+    }
+
+    if(is_null($error)){
+
+        $SQL0 = $db->prepare("SELECT * FROM vm_server_os WHERE id = :id");
+        $SQL0->execute(array(":id" => $_POST['serverOS']));
+        $response = $SQL0->fetch(PDO::FETCH_ASSOC);
+
+        $json = $venocix->reinstallVM($vm_id, $response['template']);
+
+        $SQL = $db->prepare("INSERT INTO `vm_tasks`(`service_id`, `task`) VALUES (:service_id, :task)");
+        $SQL->execute(array(":service_id" => $vm_id, ":task" => $json));
+
+        echo sendSuccess('Dein Server wird nun neu installiert. Bitte habe einen Augenblick geduld!');
+
+    } else {
+        echo sendError($error);
+    }
+
+}
+
+if(isset($_POST['createBackup'])){
+    $venocix->createBackup($vm_id);
+    echo sendSweetSuccess("Dein Backup wird erstellt");
+}
+
+if(isset($_POST['restoreBackup'])){
+    $error = null;
+
+    if(!isset($_POST['backupChoice'])){
+        $error = "Bitte wähle ein Backup aus!";
+    }
+
+    if(is_null($error)){
+        $venocix->restoreBackup($vm_id, $_POST['backupChoice']);
+        echo sendSweetSuccess("Das Backup wird eingespielt!");
+    } else {
+        echo sendSweetError($error);
+    }
+
+}
+
+if(isset($_POST['installSoftware'])){
+    $venocix->installSoftware($vm_id, $serverInfos['password'], $_POST['software']);
+    echo sendSweetSuccess("Die Software wird nun installiert");
+}
+if(isset($_POST['uninstallSoftware'])){
+    $venocix->uninstallSoftware($vm_id, $serverInfos['password'], $_POST['software']);
+    echo sendSweetSuccess("Die Software wird nun entfernt");
 }

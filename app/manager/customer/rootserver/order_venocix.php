@@ -124,6 +124,7 @@ if(isset($_POST['order'])){
         }
 
         $_SESSION['success_msg'] = 'Vielen Dank! Dein Produkt wird gleich eingerichtet';
+        $discord->callWebhook($username.' hat soeben einen Rootserver gekauft!');
         header('Location: '.env('URL').'manage/rootserver');
 
     } else {
