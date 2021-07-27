@@ -26,4 +26,10 @@ class Discord extends Controller
         $response = curl_exec( $ch );
         curl_close( $ch );
     }
+
+    public function sendPN($message, $id){
+        $SQL = self::db()->prepare("INSERT INTO `discord_queue`(`user_id`, `message`) VALUES (:id,:message)");
+        $SQL->execute(array(":id" => $id, ":message" => $message));
+    }
+
 }
