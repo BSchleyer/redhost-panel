@@ -1,7 +1,7 @@
 <?php
 $currPage = 'front_Rootserver bestellen';
-include BASE_PATH.'app/controller/PageController.php';
-include BASE_PATH.'app/manager/customer/rootserver/order.php';
+include BASE_PATH . 'app/controller/PageController.php';
+include BASE_PATH . 'app/manager/customer/rootserver/order.php';
 ?>
 <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
     <?php if($user->sessionExists($_COOKIE['session_token'])){ ?>

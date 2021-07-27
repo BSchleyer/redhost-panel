@@ -1,7 +1,7 @@
 <?php
 $currPage = 'back_Rootserver verlängern';
-include BASE_PATH.'app/controller/PageController.php';
-include BASE_PATH.'app/manager/customer/rootserver/renew.php';
+include BASE_PATH . 'app/controller/PageController.php';
+include BASE_PATH . 'app/manager/customer/rootserver/renew.php';
 ?>
 <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
     <div class="subheader py-2 py-lg-4 subheader-solid" id="kt_subheader">

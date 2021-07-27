@@ -1,6 +1,6 @@
 <?php
 $currPage = 'back_Rootserver';
-include BASE_PATH.'app/controller/PageController.php';
+include BASE_PATH . 'app/controller/PageController.php';
 
 $items = 0;
 
@@ -163,7 +163,7 @@ if(isset($_POST['saveCustomName'])){
                                 <div class="card-footer">
                                     <div class="row align-items-center text-center">
                                         <div class="col-md-6">
-                                            <?php if($row['state'] == 'PENDING'){ ?>
+                                            <?php if($row['state'] == 'PENDING' | !is_null($row['locked']) | !is_null($row['job_id'])){ ?>
                                                 <button disabled="" class="btn btn-block btn-outline-primary">
                                                     <b>Verwalten</b>
                                                 </button>

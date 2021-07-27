@@ -1,11 +1,11 @@
 <?php
 $currPage = 'front_Rootserver bestellen';
-include BASE_PATH.'app/controller/PageController.php';
+include BASE_PATH . 'app/controller/PageController.php';
 
 if($helper->getSetting('rootserver') == 'own'){
-    include BASE_PATH.'app/manager/customer/rootserver/order.php';
+    include BASE_PATH . 'app/manager/customer/rootserver/order.php';
 } elseif($helper->getSetting('rootserver') == 'venocix') {
-    include BASE_PATH.'app/manager/customer/rootserver/order_venocix.php';
+    include BASE_PATH . 'app/manager/customer/rootserver/order_venocix.php';
 }
 ?>
 <div class="content d-flex flex-column flex-column-fluid" id="kt_content">
