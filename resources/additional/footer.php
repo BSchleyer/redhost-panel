@@ -3,12 +3,12 @@
         <div class="text-dark order-2 order-md-1">
 			<i class="fas fa-cog fa-spin"></i> <?= env('VERSION_DATE'); ?>
 			• <font style="font-size: 110%;">2021©
-            <a href="" class="text-dark-75 text-hover-primary">REDHost</a></font>
+            <a href="" class="text-dark-75 text-hover-primary"><?= env('app_name') ?></a></font>
         </div>
         <div class="nav nav-dark">
-            <a target="_blank" href="https://cp.red-host.eu/agb" class="nav-link pl-0 pr-5">AGB</a>
-			<a target="_blank" href="https://cp.red-host.eu/datenschutz" class="nav-link pl-0 pr-5">Datenschutz</a>
-            <a target="_blank" href="https://cp.red-host.eu/impressum" class="nav-link pl-0 pr-0">Impressum</a>
+            <a target="_blank" href="<?= $helper->url() ?>agb" class="nav-link pl-0 pr-5">AGB</a>
+			<a target="_blank" href="<?= $helper->url() ?>datenschutz" class="nav-link pl-0 pr-5">Datenschutz</a>
+            <a target="_blank" href="<?= $helper->url() ?>impressum" class="nav-link pl-0 pr-0">Impressum</a>
         </div>
 
         Support bis zum 03.01. eingeschränkt! Mehr dazu im Dashboard. Wir wünschen einen Guten Rutsch ins Jahr 2021

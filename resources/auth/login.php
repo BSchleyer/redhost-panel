@@ -24,7 +24,7 @@ include BASE_PATH.'app/manager/customer/auth/login.php';
 							Neu hier?
                             <a href="<?= env('URL'); ?>register" class="text-primary font-weight-bolder">Account erstellen</a><br>
 							oder Lieber die
-                            <a href="https://cp.red-host.eu/order/webspace" class="text-primary font-weight-bolder">Produkte ansehen</a>
+                            <a href="<?= env('URL') ?>order/webspace" class="text-primary font-weight-bolder">Produkte ansehen</a>
 						</div>
 					</div>
 

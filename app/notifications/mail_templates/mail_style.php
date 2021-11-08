@@ -1,11 +1,5 @@
 ﻿<?php
 
-$name = 'Startyournode';
-$siteDomain = 'startyournode.com';
-$url = 'https://www.startyournode.com/';
-$cdnUrl = $url.'assets/style/';
-$picUrl = $url.'assets/images/';
-
 $emailBody = '
 <!DOCTYPE html>
 <html>
@@ -108,8 +102,8 @@ $emailBody = '
       <table class="footer">
         <tr>
           <td>
-            <a href="https://cp.red-host.eu/tickets">Support</a> <a href="https://dc.red-host.eu">Discord</a> <a href="https://cp.red-host.eu/datenschutz">Datenschutz</a><br>
-            © 2020 REDHost
+            <a href="'. env("URL") .'tickets">Support</a> <a href="'. env("URL_DISCORD") .'">Discord</a> <a href="'. env("URL") .'datenschutz">Datenschutz</a><br>
+            © 2020 '. env("APP_NAME") .'
           </td>
         </tr>
       </table>

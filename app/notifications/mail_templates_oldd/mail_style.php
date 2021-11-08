@@ -1,11 +1,5 @@
 ﻿<?php
 
-$name = 'Startyournode';
-$siteDomain = 'startyournode.com';
-$url = 'https://www.startyournode.com/';
-$cdnUrl = $url.'assets/style/';
-$picUrl = $url.'assets/images/';
-
 $emailBody = '
 <!DOCTYPE html>
 <html>
@@ -21,7 +15,7 @@ $emailBody = '
 '.$mailContent.'
         <div style="background-color: #F5F5F5; padding: 40px; text-align: center;">
             <div style="margin-bottom: 20px;">
-               <a href="https://cp.red-host.eu/datenschutz" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Datenschutz</a><a href="https://cp.red-host.eu/tickets/" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Ticket-Support</a><a href="https://dc.red-host.eu/" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Discord</a>
+               <a href="'. env("URL") .'datenschutz" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Datenschutz</a><a href="'. env("URL") .'tickets/" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Ticket-Support</a><a href="'. env("URL_DISCORD") .'" style="text-decoration: underline; font-size: 14px; letter-spacing: 1px; margin: 0px 15px; color: #261D1D;">Discord</a>
             </div>
          </div>
       </div>

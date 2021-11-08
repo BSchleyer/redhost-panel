@@ -20,7 +20,7 @@
                 $SQL->execute(array(":user_id" => $userid));
                 if ($SQL->rowCount() != 0) {
                 ?>
-				<div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open('https://cp.red-host.eu/tickets');">
+				<div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open('<?= $helper->url() ?>tickets');">
                     <a href="#" class="btn btn-icon btn-light-primary pulse pulse-primary mr-5">
                         <i class="flaticon2-bell-5"></i>
                         <span class="pulse-ring"></span>
@@ -28,21 +28,21 @@
                 </div>
                 <?php } ?>
 
-                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open('https://uptime.red-host.eu');">
+                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open(<?= env('URL_STATUS') ?>);">
                     <div class="btn btn-icon btn-clean btn-dropdown btn-lg mr-1 pulse pulse-primary">
                         <i class="fas fa-chart-bar"></i>
                         <span class="pulse-ring"></span>
                     </div>
                 </div>
 			
-                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open('https://twitter.com/REDHostEU');">
+                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open(<?= env('url_twitter') ?>);">
                     <div class="btn btn-icon btn-clean btn-dropdown btn-lg mr-1 pulse pulse-primary">
                         <i class="fab fa-twitter"></i>
                         <span class="pulse-ring"></span>
                     </div>
                 </div>
 
-                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open('https://dc.red-host.eu');">
+                <div class="topbar-item" data-toggle="dropdown" data-offset="10px,0px" onclick="window.open(<?= env('url_discord') ?>);">
                     <div class="btn btn-icon btn-clean btn-dropdown btn-lg mr-1 pulse pulse-primary">
                         <i class="fab fa-discord"></i>
                         <span class="pulse-ring"></span>
