@@ -1,11 +1,5 @@
 ﻿<?php
 
-$name = 'Startyournode';
-$siteDomain = 'startyournode.com';
-$url = 'https://www.startyournode.com/';
-$cdnUrl = $url.'assets/style/';
-$picUrl = $url.'assets/images/';
-
 $emailBody = '
 <!DOCTYPE html>
 <html>
@@ -109,7 +103,7 @@ $emailBody = '
         <tr>
           <td>
             <a href="'. env("URL") .'tickets">Support</a> <a href="'. env("URL_DISCORD") .'">Discord</a> <a href="'. env("URL") .'datenschutz">Datenschutz</a><br>
-            © 2020 REDHost
+            © 2020 '. env("APP_NAME") .'
           </td>
         </tr>
       </table>

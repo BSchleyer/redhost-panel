@@ -1,11 +1,5 @@
 ﻿<?php
 
-$name = 'Startyournode';
-$siteDomain = 'startyournode.com';
-$url = 'https://www.startyournode.com/';
-$cdnUrl = $url.'assets/style/';
-$picUrl = $url.'assets/images/';
-
 $emailBody = '
 <!DOCTYPE html>
 <html>

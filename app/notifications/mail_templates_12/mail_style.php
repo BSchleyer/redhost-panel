@@ -16,7 +16,7 @@ $emailBody = '
         width: 100%;
       }
       body{
-        font-family: 'Nunito', sans-serif;
+        font-family: \'Nunito\', sans-serif;
         padding: 0;
         margin: 0;
       }
@@ -105,7 +105,7 @@ $emailBody = '
         <tr>
           <td>
             <a href="#">test</a> <a href="#">test</a> <a href="#">test</a><br>
-            © 2020 REDHost
+            © 2020 '. env("app_name") .'
           </td>
         </tr>
       </table>
