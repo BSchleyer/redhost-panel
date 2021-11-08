@@ -96,8 +96,8 @@ if(isset($_POST['login'])){
 <form method='post' id='login_again'>
     <input hidden name='login' value='1'>
     <input hidden name='legal_accepted' value='1'>
-    <input hidden name='email' value='".$_POST[email]."'>
-    <input hidden name='password' value='".$_POST[password]."'>
+    <input hidden name='email' value='".$_POST['email']."'>
+    <input hidden name='password' value='".$_POST['password']."'>
 </form>";
 
         }
