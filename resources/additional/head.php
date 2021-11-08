@@ -119,7 +119,7 @@ if(isset($_POST['saveSettings'])){
 
 	<link rel="stylesheet" type="text/css" href="<?= $helper->cdnUrl(); ?>assets/css/cookie/cookieconsent.min.css"/>
 	<script src="<?= $helper->cdnUrl(); ?>assets/js/cookie/cookieconsent.min.js"></script>
-	<script>window.addEventListener("load", function(){window.wpcc.init({"colors":{"popup":{"background":"#222222","text":"#ffffff","border":"#e6b3b3"},"button":{"background":"#9e2033","text":"#ffffff"}},"position":"bottom-right","corners":"small","content":{"href":"https://cp.red-host.eu/datenschutz","message":"Diese Seite verwendet Cookies. Durch die Nutzung unserer Seite erklären Sie sich damit einverstanden, dass wir Cookies setzen.","link":"Mehr Erfahren","button":"Okay"}})});</script>
+	<script>window.addEventListener("load", function(){window.wpcc.init({"colors":{"popup":{"background":"#222222","text":"#ffffff","border":"#e6b3b3"},"button":{"background":"#9e2033","text":"#ffffff"}},"position":"bottom-right","corners":"small","content":{"href":"<?= $helper->url() ?>datenschutz","message":"Diese Seite verwendet Cookies. Durch die Nutzung unserer Seite erklären Sie sich damit einverstanden, dass wir Cookies setzen.","link":"Mehr Erfahren","button":"Okay"}})});</script>
 
     <!-- Cookie popup END -->
     

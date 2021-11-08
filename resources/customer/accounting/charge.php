@@ -46,7 +46,7 @@ include BASE_PATH.'app/manager/customer/payment/check_payments.php';
                                         <b>Hinweis:</b> Es ist kein Abo. Der Betrag wird nur einmalig fällig,<br>
                                         es entstehen <u>keine</u> weiteren Kosten. Keine Kündigung notwendig!<br>
                                         Mit dieser Zahlung wird nur das Guthaben des Kundenkontos aufgeladen.<br>
-                                        Guthaben kann <u>nicht</u> wieder ausgezahlt werden. (siehe <a target="_blank" href="https://cp.red-host.eu/agb">AGBs</a> §3.3)
+                                        Guthaben kann <u>nicht</u> wieder ausgezahlt werden. (siehe <a target="_blank" href="<?= $helper->url() ?>agb">AGBs</a> §3.3)
                                         </p>
                                     </font>
                                 </center>
