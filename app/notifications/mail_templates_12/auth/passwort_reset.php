@@ -20,7 +20,7 @@ $mailContent = '<div style="padding: 60px 70px; border-top: 1px solid rgba(0,0,0
             </h4>
             <div style="color: #A5A5A5; font-size: 12px;">
                <p>
-                 Erstelle eine <a href="'.$helper->url().'tickets" style="text-decoration: underline; color: #4B72FA;">Supportanfrage</a> oder schreiben uns eine Mail <a href="mailto:support@red-host.eu" style="text-decoration: underline; color: #4B72FA;">support@red-host.eu</a>
+                 Erstelle eine <a href="'.$helper->url().'tickets" style="text-decoration: underline; color: #4B72FA;">Supportanfrage</a> oder schreiben uns eine Mail <a href="mailto:'. env("SUPPORT_EMAIL") .'" style="text-decoration: underline; color: #4B72FA;">support@red-host.eu</a>
                </p>
             </div>
          </div>';
