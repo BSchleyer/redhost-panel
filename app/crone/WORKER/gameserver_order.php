@@ -36,7 +36,7 @@ $feature_limits = [
     'databases' => 1,
     'allocations' => 1
 ];
-$response = $pterodactyl->create('GameServer by RED-Host.EU', $user->getDataById($userid, 'pterodactyl_id'),5, $limits, $feature_limits);
+$response = $pterodactyl->create('GameServer by ' . env('APP_NAME'), $user->getDataById($userid, 'pterodactyl_id'),5, $limits, $feature_limits);
 
 if(!is_numeric($response->id)){
     $update = $db->prepare("UPDATE `queue` SET `retries` = :retries, `error_log` = :error_log WHERE `id` = :id");

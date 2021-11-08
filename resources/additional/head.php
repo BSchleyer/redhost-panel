@@ -51,7 +51,7 @@ if(isset($_POST['saveSettings'])){
 	
 	
     <meta property="og:description" content="REDHost.EU - Dein Anbieter für Web, Teamspeak, Root & vServer Hosting"> 
-    <meta property="og:url" content="https://red-host.eu"> 
+    <meta property="og:url" content="<?= env('FRONT_URL') ?>">
     <meta property="og:type" content="article">
 	
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />

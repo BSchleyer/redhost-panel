@@ -42,7 +42,7 @@
             <ul class="menu-nav">
 
                 <li class="menu-item" aria-haspopup="true"> <!-- menu-item-active -->
-                    <a target="_blank" href="https://red-host.eu" class="menu-link">
+                    <a target="_blank" href="<?= env('FRONT_URL') ?>" class="menu-link">
                         <span class="svg-icon menu-icon">
                           <!--begin::Svg Icon | path:C:\wamp64\www\keenthemes\themes\metronic\theme\html\demo1\dist/../src/media/svg/icons\Layout\Layout-top-panel-3.svg-->
                             <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">

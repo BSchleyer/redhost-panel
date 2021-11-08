@@ -108,7 +108,7 @@ $emailBody = '
       <table class="footer">
         <tr>
           <td>
-            <a href="https://cp.red-host.eu/tickets">Support</a> <a href="https://dc.red-host.eu">Discord</a> <a href="https://cp.red-host.eu/datenschutz">Datenschutz</a><br>
+            <a href="'. env("URL") .'tickets">Support</a> <a href="'. env("URL_DISCORD") .'">Discord</a> <a href="'. env("URL") .'datenschutz">Datenschutz</a><br>
             © 2020 REDHost
           </td>
         </tr>
