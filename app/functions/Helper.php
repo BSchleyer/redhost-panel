@@ -7,7 +7,8 @@ class helper extends Controller
 
     public function protect($string)
     {
-        $protection = htmlspecialchars(trim($string), ENT_QUOTES);
+        $protection = htmlspecialchars(trim($string), ENT_HTML401);
+        
         return $protection;
     }
 
@@ -30,6 +31,7 @@ class helper extends Controller
     {
         $string = $this->xssFix($string);
         $string = str_replace(array("\r\n", "\r", "\n"), "<br />", $string);
+        
         return $string;
     }
 
