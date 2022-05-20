@@ -47,7 +47,7 @@ class helper extends Controller
         return $date->format('d.m.Y');
     }
 
-    public function generateRandomString($length = 10, $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    public static function generateRandomString($length = 10, $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
     {
         $charactersLength = strlen($characters);
         $randomString = '';
