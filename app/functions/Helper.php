@@ -2,7 +2,7 @@
 
 $helper = new Helper();
 
-class helper extends Controller
+class Helper extends Controller
 {
 
     public function protect($string)
