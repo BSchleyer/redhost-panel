@@ -63,8 +63,6 @@ if(isset($_POST['register'])){
 
         //$discord->callWebhook('Soeben hat sich ein neuer Benutzer Registriert: '.$_POST['username']);
 
-        $user->renewSupportPin($user_id);
-
         $SQL = $db->prepare("UPDATE `users` SET `verify_code` = :verify_code WHERE `id` = :user_id");
         $SQL->execute(array(":verify_code" => $verify_code, ":user_id" => $user_id));
 
