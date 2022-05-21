@@ -1,11 +1,24 @@
 <?php
-array_push($success, 'Kundenprodukte wurden geladen');
-$state = 'success';
 
-$support_pin = $helper->protect($_POST['support_pin']);
+$post = json_decode(file_get_contents("php://input"),true);
+$discord_id = $post['discord_id'];
 
-$SQL = $db->prepare("SELECT * FROM `users` WHERE `s_pin` = :s_pin");
-$SQL->execute(array(":s_pin" => $support_pin));
-$userInfos = $SQL->fetch(PDO::FETCH_ASSOC);
+$SQL = $db->prepare("SELECT * FROM `users` WHERE `discord_id` = :discord_id");
+$SQL->execute(array(":discord_id" => $discord_id));
+if($SQL->rowCount() == 1) {
+    $row = $SQL->fetch(PDO::FETCH_ASSOC);
 
-$res->data->productCount = $user->serviceCount($userInfos['id']);
+    array_push($success, 'Produkte wurden geladen');
+    $state = 'success';
+
+    $user->renewSupportPin($row['id']);
+
+	  $res->data->productCount = $user->activeProducts($userInfos['id']);
+    $res->data->discord_id_used = $discord_id;
+    $res->data->username = $row['username'];
+} else {
+    array_push($error, 'Kein Benutzer gefunden.');
+    $state = 'error';
+	
+    $res->data->discord_id_used = $discord_id;
+}
