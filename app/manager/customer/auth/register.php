@@ -62,6 +62,8 @@ if(isset($_POST['register'])){
         $user_id = $user->create($helper->xssFix($_POST['username']), $helper->xssFix($_POST['email']), $_POST['password'],'pending','customer');
 
         //$discord->callWebhook('Soeben hat sich ein neuer Benutzer Registriert: '.$_POST['username']);
+        
+        $user->renewSupportPin($user_id);
 
         $SQL = $db->prepare("UPDATE `users` SET `verify_code` = :verify_code WHERE `id` = :user_id");
         $SQL->execute(array(":verify_code" => $verify_code, ":user_id" => $user_id));
