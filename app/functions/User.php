@@ -258,6 +258,25 @@ class User extends Controller
 
         return $count;
     }
+    
+    public function activeCount($user_id)
+    {
+        $count = 0;
+
+        $SQL = self::db()->prepare("SELECT * FROM `teamspeaks` WHERE `user_id` = :user_id AND `deleted_at` IS NULL AND `state` = 'ACTIVE'");
+        $SQL->execute(array(":user_id" => $user_id));
+        $count = $count + $SQL->rowCount();
+
+        $SQL = self::db()->prepare("SELECT * FROM `vm_servers` WHERE `user_id` = :user_id AND `deleted_at` IS NULL' AND `state` = 'active'");
+        $SQL->execute(array(":user_id" => $user_id));
+        $count = $count + $SQL->rowCount();
+
+        $SQL = self::db()->prepare("SELECT * FROM `webspace` WHERE `user_id` = :user_id AND `deleted_at` IS NULL AND `state` = 'active'");
+        $SQL->execute(array(":user_id" => $user_id));
+        $count = $count + $SQL->rowCount();
+
+        return $count;
+    }
 
     public function teamspeakCount($user_id)
     {
