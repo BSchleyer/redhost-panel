@@ -330,7 +330,7 @@ class User extends Controller
     public function renewSupportPin($userid, $token = null)
     {
         if(is_null($token)){
-            $token = Helper::generateRandomString(5,'1234567890');
+            $token = (new Helper)->generateRandomString(5,'1234567890');
         }
 
         $SQL = self::db()->prepare("UPDATE `users` SET `s_pin` = :s_pin WHERE `id` = :id");
