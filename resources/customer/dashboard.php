@@ -9,6 +9,10 @@ if(isset($_POST['renewPin'])){
     echo sendSuccess('Support Pin wurde erneuert');
 }
 
+if(is_null($s_pin) || empty($s_pin)) {
+    $user->renewSupportPin($userid);
+}
+
 //echo sendSweetInfo('test');
 
 ?>
