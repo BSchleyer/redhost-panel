@@ -59,7 +59,7 @@ class User extends Controller
 
     public function generateSessionToken($data)
     {
-        $session_token = helper::generateRandomString(30);
+        $session_token = (new Helper)->generateRandomString(30);
 
         $SQL = self::db()->prepare("UPDATE `users` SET `session_token` = :session_token WHERE `email` = :email OR `username` = :username");
         $SQL->execute(array(":session_token" => $session_token, ":email" => $data, ":username" => $data));
