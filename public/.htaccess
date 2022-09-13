@@ -3,98 +3,27 @@
     RewriteEngine on
     RewriteBase /
 
-	#auth
-	RewriteRule ^login?$ index.php?page=auth_login [L]
-	RewriteRule ^register?$ index.php?page=auth_register [L]
-	RewriteRule ^logout?$ index.php?page=auth_logout [L]
-	RewriteRule ^activate/([A-Za-z0-9-]+)?$ index.php?page=auth_activate&key=$1 [NC,L]
-	RewriteRule ^passwort_reset?$ index.php?page=auth_forgot_password [L]
-    RewriteRule ^passwort_reset/([A-Za-z0-9-]+)?$ index.php?page=auth_forgot_password&key=$1 [NC,L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*[^/])$ /$1/ [R=301,NC,L]
 
-	#index
-	RewriteRule ^/?$ index.php?page=dashboard [L]
-    RewriteRule ^dashboard?$ index.php?page=dashboard [L]
-    RewriteRule ^profile?$ index.php?page=profile [L]
+    # errors
+    RewriteRule ^404/?$ index.php?page=404 [L]
+    ErrorDocument 404 /index.php?page=404
 
-    #accounting
-    RewriteRule ^accounting/charge?$ index.php?page=accounting_charge [L]
-    RewriteRule ^d/([A-Za-z0-9-]+)?$ index.php?page=accounting_donate&id=$1 [L]
-    RewriteRule ^accounting/transactions?$ index.php?page=accounting_transactions [L]
-	RewriteRule ^accounting/invoice/([A-Za-z0-9-]+)?$ index.php?page=accounting_invoice&id=$1 [NC,L]
+    # debug mode
+    RewriteRule ^debug/?$ index.php?&page=debug [L]
 
-    #support
-    RewriteRule ^tickets?$ index.php?page=tickets [L]
-    RewriteRule ^ticket/([A-Za-z0-9-]+)?$ index.php?page=ticket&id=$1 [NC,L]
+    # auth pages
+    RewriteRule ^auth/login/?$ index.php?page=auth_login [L]
+    RewriteRule ^auth/register/?$ index.php?page=auth_register [L]
+    RewriteRule ^auth/register/confirm/([A-Za-z0-9-]+)/?$ index.php?page=auth_register_conform&key=$1 [NC,L]
+    RewriteRule ^auth/logout/?$ index.php?page=auth_logout [L]
+    RewriteRule ^auth/forgot-password/?$ index.php?page=auth_forgot_password [L]
+    RewriteRule ^auth/forgot-password/reset/([A-Za-z0-9-]+)/?$ index.php?page=auth_forgot_password&key=$1 [NC,L]
 
-    #webspace
-    RewriteRule ^order/webspace?$ index.php?page=order_webspace [L]
-    RewriteRule ^manage/webspace?$ index.php?page=manage_webspaces [L]
-    RewriteRule ^manage/webspace/([A-Za-z0-9-]+)?$ index.php?page=manage_webspace&id=$1 [L]
-    RewriteRule ^renew/webspace/([A-Za-z0-9-]+)?$ index.php?page=renew_webspace&id=$1 [L]
+    # customer pages
+    RewriteRule ^/?$ index.php?page=customer_index [L]
+    RewriteRule ^index/?$ index.php?page=customer_index [L]
 
-    #teamspeak
-    RewriteRule ^order/teamspeak?$ index.php?page=order_teamspeak [L]
-    RewriteRule ^manage/teamspeak?$ index.php?page=manage_teamspeaks [L]
-    RewriteRule ^manage/teamspeak/([A-Za-z0-9-]+)?$ index.php?page=manage_teamspeak&id=$1 [L]
-    RewriteRule ^reconfigure/teamspeak/([A-Za-z0-9-]+)?$ index.php?page=reconfigure_teamspeak&id=$1 [L]
-    RewriteRule ^renew/teamspeak/([A-Za-z0-9-]+)?$ index.php?page=renew_teamspeak&id=$1 [L]
-
-    #LXC Server
-    RewriteRule ^order/vserver?$ index.php?page=order_vserver [L]
-    RewriteRule ^order/vserver/custom?$ index.php?page=order_vserver_custom [L]
-    RewriteRule ^order/vserver/packs?$ index.php?page=order_vserver_packs [L]
-    RewriteRule ^order/vserver/game?$ index.php?page=order_vserver_game [L]
-    RewriteRule ^manage/vserver?$ index.php?page=manage_vservers [L]
-    RewriteRule ^manage/vserver/([A-Za-z0-9-]+)?$ index.php?page=manage_vserver&id=$1 [L]
-    RewriteRule ^reconfigure/vserver/([A-Za-z0-9-]+)?$ index.php?page=reconfigure_vserver&id=$1 [L]
-    RewriteRule ^renew/vserver/([A-Za-z0-9-]+)?$ index.php?page=renew_vserver&id=$1 [L]
-
-    #KMV Rootserver
-    RewriteRule ^order/rootserver?$ index.php?page=order_rootserver [L]
-    RewriteRule ^manage/rootserver?$ index.php?page=manage_rootservers [L]
-    RewriteRule ^manage/rootserver/([A-Za-z0-9-]+)?$ index.php?page=manage_rootserver&id=$1 [L]
-    RewriteRule ^renew/rootserver/([A-Za-z0-9-]+)?$ index.php?page=renew_rootserver&id=$1 [L]
-
-    #gameserver
-    RewriteRule ^order/gameserver?$ index.php?page=order_gameserver [L]
-    RewriteRule ^manage/gameserver?$ index.php?page=manage_gameservers [L]
-    RewriteRule ^manage/gameserver/([A-Za-z0-9-]+)?$ index.php?page=manage_gameserver&id=$1 [L]
-    RewriteRule ^renew/gameserver/([A-Za-z0-9-]+)?$ index.php?page=renew_gameserver&id=$1 [L]
-    RewriteRule ^reconfigure/gameserver/([A-Za-z0-9-]+)?$ index.php?page=reconfigure_gameserver&id=$1 [L]
-
-    #system
-    RewriteRule ^crone/worker_queue/([A-Za-z0-9-]+)?$ index.php?page=worker_queue&key=$1 [L]
-    RewriteRule ^crone/runtime_queue/([A-Za-z0-9-]+)?$ index.php?page=runtime_queue&key=$1 [L]
-    RewriteRule ^ajax/getload/([A-Za-z0-9-]+)?$ index.php?page=get_load&id=$1 [L]
-    RewriteRule ^crone/traffic_queue/([A-Za-z0-9-]+)?$ index.php?page=traffic_queue&key=$1 [L]
-    RewriteRule ^dsgvo?$ index.php?page=dsgvo [L]
-
-    #debug
-    RewriteRule ^DEBUG?$ index.php?page=DEBUG [L]
-
-    #
-    RewriteRule ^impressum?$ index.php?page=impressum [L]
-    RewriteRule ^datenschutz?$ index.php?page=datenschutz [L]
-    RewriteRule ^agb?$ index.php?page=agb [L]
-
-    #api
-    RewriteRule ^api/v1/discord/([A-Za-z0-9-]+)?$ index.php?page=api_v1_discord&action=$1 [NC,L]
-
-    #team
-    RewriteRule ^team/tickets?$ index.php?page=team_tickets [L]
-    RewriteRule ^team/ticket/([A-Za-z0-9-]+)?$ index.php?page=team_ticket&id=$1 [NC,L]
-    RewriteRule ^team/users?$ index.php?page=team_users [L]
-    RewriteRule ^team/user/([A-Za-z0-9-]+)?$ index.php?page=team_user&id=$1 [NC,L]
-    RewriteRule ^team/spin_login?$ index.php?page=team_spin_login [L]
-    RewriteRule ^team/login_back?$ index.php?page=team_login_back [L]
-    RewriteRule ^team/transactions?$ index.php?page=team_transactions [L]
-    RewriteRule ^team/system?$ index.php?page=team_system [L]
-    RewriteRule ^team/ipam?$ index.php?page=team_ipam [L]
-    RewriteRule ^team/orders?$ index.php?page=team_orders [L]
-    RewriteRule ^team/order/([A-Za-z0-9-]+)?$ index.php?page=team_order&id=$1 [NC,L]
 
 </IfModule>
-<Files 403.shtml>
-    order allow,deny
-    allow from all
-</Files>

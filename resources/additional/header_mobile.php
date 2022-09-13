@@ -1,6 +1,25 @@
+<?php
+/*
+ * *************************************************************************
+ *  * Copyright 2006-2022 (C) Björn Schleyer, Schleyer-EDV - All rights reserved.
+ *  *
+ *  * Made in Gelsenkirchen with-&hearts; by Björn Schleyer
+ *  *
+ *  * @project     RED-Host Panel
+ *  * @file        header_mobile.php
+ *  * @author      BjörnSchleyer
+ *  * @site        www.schleyer-edv.de
+ *  * @date        16.8.2022
+ *  * @time        22:45
+ *
+ */
+
+
+?>
+
 <div id="kt_header_mobile" class="header-mobile align-items-center header-mobile-fixed">
     <a href="<?= env('URL'); ?>">
-        <img alt="Logo" src="https://i.imgur.com/bbXzd80.png" width="125" />
+        <img alt="Logo" src="<?= $helper->url(); ?>assets/images/logos/logo.png" width="125" />
     </a>
 
     <div class="d-flex align-items-center">
