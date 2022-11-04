@@ -61,7 +61,7 @@
     <div class="offcanvas-content pr-5 mr-n5">
         <div class="d-flex align-items-center mt-5">
             <div class="symbol symbol-100 mr-5">
-                <div class="symbol-label" <?php if($datasavingmode == 0){ ?>style="background-image:url('https://api.cookiemc.de/200/<?= $username; ?>.png?ssl=1')"<?php } ?>></div>
+                <div class="symbol-label" <?php if($datasavingmode == 0){ ?>style="background-image:url('https://api.multiavatar.com/<?= $username ?>.svg')"<?php } ?>></div>
                 <i class="symbol-badge bg-success"></i>
             </div>
             <div class="d-flex flex-column">

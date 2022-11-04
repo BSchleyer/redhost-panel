@@ -274,7 +274,7 @@ if(isset($_POST['saveReason'])){
                             <div class="row">
                                 <div class="col-md-1">
                                 <div class="symbol symbol-100 mr-5">
-                                    <div class="symbol-label" style="background-image:url('https://api.cookiemc.de/200/<?= $userInfos['username'] ?>.png?ssl=1')"></div>
+                                    <div class="symbol-label" style="background-image:url('https://api.multiavatar.com/<?= $userInfos['username'] ?>.svg')"></div>
                                 </div>
                                 </div>
                                 <div class="col-md-6">

@@ -56,7 +56,7 @@
                     <span class="text-dark-50 font-weight-bolder font-size-base d-none d-md-inline mr-3"><?= $username; ?></span>
                     <span class="symbol symbol-35 symbol-light-success">
                         <?php if($datasavingmode == 0){ ?>
-                            <img src="https://api.cookiemc.de/50/<?= $username; ?>.png?ssl=1">
+                            <img src="https://api.multiavatar.com/<?= $username; ?>.svg">
                         <?php } ?>
                     </span>
                 </div>
