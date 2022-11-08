@@ -1,4 +1,4 @@
-s<?php
+<?php
 $currPage = 'front_Teamspeak bestellen';
 include BASE_PATH.'app/controller/PageController.php';
 include BASE_PATH.'app/manager/customer/teamspeak/order.php';
