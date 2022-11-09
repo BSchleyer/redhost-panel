@@ -35,8 +35,8 @@ if(isset($_POST['createTicket'])){
         $SQL = $db->prepare("INSERT INTO `ticket_message`(`ticket_id`, `writer_id`, `message`) VALUES (:ticket_id,:writer_id,:message)");
         $SQL->execute(array(":ticket_id" => $ticket_id, ":writer_id" => $userid, ":message" => $_POST['message']));
 
-        //$discord->callWebhook('Neues Ticket: '.$_POST['title']);
-        //$discord->callWebhook('Neues Ticket: '.$_POST['title'], 'https://discordapp.com/api/webhooks/767905875909541921/hIJK4Nf2seIWGIeCH8B-SOfwdcFVEZzAqJWkZtQpkkyP53-zgKF2Q40sXUQBflBxz5-K');
+        $discord->callWebhook('Neues Ticket: '.$_POST['title']);
+        $discord->callWebhook('Neues Ticket: '.$_POST['title'], env("DISCORD_WEBHOOK_URL"));
 
         $SQL = $db -> prepare("SELECT * FROM `users` WHERE `role` = 'support' OR `role` = 'admin'");
         $SQL->execute();
