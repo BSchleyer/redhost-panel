@@ -282,7 +282,7 @@ if(isset($_POST['saveReason'])){
                                         <br>
                                         &nbsp;&nbsp;<i style="cursor: pointer;" class="fas fa-copy copy-btn" data-clipboard-text="<?= $userInfos['id'] ?>" data-toggle="tooltip" data-placement="left" title="Kopieren"></i> Kundennummer: <?= $userInfos['id'] ?>
                                         <br>
-                                        &nbsp;&nbsp;<i style="cursor: pointer;" class="fas fa-copy copy-btn" data-clipboard-text="<?= $userInfos['username'] ?>" data-toggle="tooltip" data-placement="left" title="Kopieren"></i> Nutzername: <?= $userInfos['username'] ?>
+                                        &nbsp;&nbsp;<i style="cursor: pointer;" class="fas fa-copy copy-btn" data-clipboard-text="<?= $helper->xssFix($userInfos['username']); ?> ?>" data-toggle="tooltip" data-placement="left" title="Kopieren"></i> Nutzername: <?= $userInfos['username'] ?>
                                         <br>
                                         &nbsp;&nbsp;<i style="cursor: pointer;" class="fas fa-copy copy-btn" data-clipboard-text="<?= $userInfos['email'] ?>" data-toggle="tooltip" data-placement="left" title="Kopieren"></i> E-Mail: <?= $userInfos['email']; ?>
                                         <br>
