@@ -190,41 +190,41 @@ if(isset($_POST['saveMailSettings'])){
                                 <div class="row">
                                     <div class="col-md-6">
                                         <label>Vorname</label>
-                                        <input name="firstname" class="form-control" value="<?= $firstname; ?>">
+                                        <input name="firstname" class="form-control" value="<?= $helper->xssFix($firstname); ?>">
                                     </div>
 
                                     <div class="col-md-6">
                                         <label>Nachname</label>
-                                        <input name="lastname" class="form-control" value="<?= $lastname; ?>">
+                                        <input name="lastname" class="form-control" value="<?= $helper->xssFix($lastname); ?>">
                                     </div>
                                 </div>
                                 <br>
                                 <div class="row">
                                     <div class="col-md-5">
                                         <label>Straße</label>
-                                        <input name="street" class="form-control" value="<?= $street; ?>">
+                                        <input name="street" class="form-control" value="<?= $helper->xssFix($street); ?>">
                                     </div>
 
                                     <div class="col-md-2">
                                         <label>Haus Nr.</label>
-                                        <input name="number" class="form-control" value="<?= $number; ?>">
+                                        <input name="number" class="form-control" value="<?= $helper->xssFix($number); ?>">
                                     </div>
 
                                     <div class="col-md-5">
                                         <label>Postleitzahl</label>
-                                        <input name="postcode" class="form-control" value="<?= $postcode; ?>">
+                                        <input name="postcode" class="form-control" value="<?= $helper->xssFix($postcode); ?>">
                                     </div>
                                 </div>
                                 <br>
                                 <div class="row">
                                     <div class="col-md-6">
                                         <label>Stadt</label>
-                                        <input name="city" class="form-control" value="<?= $city; ?>">
+                                        <input name="city" class="form-control" value="<?= $helper->xssFix($city); ?>">
                                     </div>
 
                                     <div class="col-md-6">
                                         <label>Land</label>
-                                        <input name="country" class="form-control" value="<?= $country; ?>">
+                                        <input name="country" class="form-control" value="<?= $helper->xssFix($country); ?>">
                                     </div>
                                 </div>
 
