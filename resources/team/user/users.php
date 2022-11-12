@@ -80,7 +80,7 @@ if(isset($_POST['createUser'])){
                                         ?>
                                         <tr>
                                             <th scope="row"><?= $row['id']; ?></th>
-                                            <td><?= $row['username']; ?></td>
+                                            <td><?= $helper->xssFix($row['username']); ?></td>
                                             <td><?= $row['email']; ?></td>
                                             <td><?= $row['amount']; ?>€</td>
                                             <td><?= $helper->formatDate($row['created_at']); ?></td>
