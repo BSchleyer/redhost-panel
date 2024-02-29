@@ -67,7 +67,7 @@ if(isset($_POST['order'])){
     $addresses = $_POST['addresses'];
     $runtime = $_POST['duration'];
     $rootpassword = $helper->generateRandomString('20');
-    $hostname = 'vm'.$helper->generateRandomString(5,'1234567890').'.'.env('APP_DOMAIN');
+    $hostname = 'vm'.$helper->generateRandomString(5,'1234567890').'.'.env('FRONT_URL');
 
     if($site->validateRootserverOS($_POST['serverOS']) == false){
         $error = 'serverOS does not exists';
