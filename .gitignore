@@ -3,3 +3,4 @@ composer.lock
 storage
 .idea
 .git
+.env
