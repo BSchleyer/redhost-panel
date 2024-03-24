@@ -1,0 +1,50 @@
+{
+  "name": "schleyer-edv/redhost-panel",
+  "type": "project",
+  "description": "A hosting system from the old RED-Host project",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Björn Schleyer",
+      "email": "mail@bschleyer.de",
+      "homepage": "https://www.bschleyer.de",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": ">=8.0",
+    "ext-json": "*",
+    "ext-pdo": "*",
+    "planetteamspeak/ts3-php-framework": "^1.1",
+    "plesk/api-php-lib": "^1.0",
+    "lumaserv/proxmoxve": "^4.0",
+    "hcgcloud/pterodactyl-sdk": "^1.0",
+    "guzzlehttp/guzzle": "^6.3",
+    "phpmailer/phpmailer": "^6.1",
+    "vlucas/phpdotenv": "^4.1",
+    "filp/whoops": "^2.7",
+    "symfony/var-dumper": "^5.0",
+    "phpseclib/phpseclib": "^2.0",
+    "corsinvest/cv4pve-api-php": "^8.0",
+    "robthree/twofactorauth": "^1.8",
+    "mollie/mollie-api-php": "^2.0",
+    "paypal/rest-api-sdk-php": "^1.6",
+    "stripe/stripe-php": "^12.2",
+    "sentry/sdk": "3.1.1"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

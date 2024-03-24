@@ -1,0 +1,34 @@
+version: '3.7'
+services:
+
+  php-apache-environment:
+    container_name: "redhost-php"
+    build:
+      context: ./.docker
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - '.:/var/www/html/'
+    ports:
+      - '8080:80'
+    networks:
+      - redhost-network
+  redis:
+    container_name: "redhost-redis"
+    image: 'redis:alpine'
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'redis:/data'
+    networks:
+      - redhost-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      retries: 3
+      timeout: 5s
+
+networks:
+  redhost-network:
+volumes:
+  redis:
