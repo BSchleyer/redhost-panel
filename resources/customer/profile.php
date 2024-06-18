@@ -149,7 +149,7 @@ if(isset($_POST['useCode'])) {
 
         $code->useCode($code_use, $userid);
         $user->addMoney($codeDetails['amount'], $userid);
-        $user->addTransaction($userid, $codeDetails['amount'], 'Gutschein eingelöst');
+        $user->addTransaction($userid, $codeDetails['amount'], 'Gutschein eingelöst (Code: ' . $code_use . ')');
 
         echo sendSuccess('Gutschein wurde eingelöst.');
     } else {
