@@ -92,6 +92,7 @@
     RewriteRule ^team/ipam?$ index.php?page=team_ipam [L]
     RewriteRule ^team/orders?$ index.php?page=team_orders [L]
     RewriteRule ^team/order/([A-Za-z0-9-]+)?$ index.php?page=team_order&id=$1 [NC,L]
+    RewriteRule ^team/codes/list?$ index.php?page=team_code_list [L]
 
 </IfModule>
 <Files 403.shtml>

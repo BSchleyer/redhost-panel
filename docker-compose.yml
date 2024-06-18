@@ -1,0 +1,39 @@
+version: '3.7'
+services:
+
+  php-apache-environment:
+    container_name: "redhost-php"
+    build:
+      context: ./.docker
+      dockerfile: Dockerfile
+    volumes:
+      - '.:/var/www/html'
+    ports:
+      - '8080:80'
+    depends_on:
+      - mysql
+  mysql:
+    image: mysql
+    restart: always
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: '4cTSsY82un5LHpcpEzGXNB4QT9dsCs'
+      MYSQL_DATABASE: 'redhost'
+      MYSQL_USER: 'redhost_user'
+      MYSQL_PASSWORD: '4cTSsY82un5'
+    volumes:
+      - 'sail-mysql:/var/lib/mysql'
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    depends_on:
+      - mysql
+    ports:
+      - '8081:80'
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: redhost_user
+      PMA_PASSWORD: 4cTSsY82un5
+volumes:
+  sail-mysql:
+    driver: local

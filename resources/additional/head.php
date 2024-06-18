@@ -2,30 +2,32 @@
 
 $datasavingmode = $user->getDataById($userid,'datasavingmode');
 $darkmode = $user->getDataById($userid,'darkmode');
+$preloader = $user->getDataById($userid,'preloader');
+$livechat = $user->getDataById($userid,'livechat');
 
 if(isset($_POST['saveSettings'])){
     if(isset($_POST['datasavingmode'])){
-        $datasavingmode = true;
+        $datasavingmode = 1;
     } else {
-        $datasavingmode = false;
+        $datasavingmode = 0;
     }
 
     if(isset($_POST['darkmode'])){
-        $darkmode = true;
+        $darkmode = 1;
     } else {
-        $darkmode = false;
+        $darkmode = 0;
     }
 
     if(isset($_POST['livechat'])){
-        $livechat = true;
+        $livechat = 1;
     } else {
-        $livechat = false;
+        $livechat = 0;
     }
 
     if(isset($_POST['preloader'])){
-        $preloader = true;
+        $preloader = 1;
     } else {
-        $preloader = false;
+        $preloader = 0;
     }
 
     $SQL = $db->prepare("UPDATE `users` SET `datasavingmode` = :datasavingmode, `darkmode` = :darkmode, `livechat` = :livechat, `preloader` = :preloader WHERE `id` = :id");
