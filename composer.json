@@ -4,7 +4,6 @@
         "plesk/api-php-lib": "^1.0",
         "lumaserv/proxmoxve": "^4.0",
 		"hcgcloud/pterodactyl-sdk": "^1.0",
-
         "guzzlehttp/guzzle": "^6.3",
         "phpmailer/phpmailer": "^6.1",
         "vlucas/phpdotenv": "^4.1",

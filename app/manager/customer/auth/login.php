@@ -25,7 +25,7 @@ if(isset($_POST['login'])){
         $error = 'Das angegebene Passwort stimmt nicht';
 
         //setze cookie für 30 min nach fehlerhaftem login
-        setcookie('7apwy35m2budptd7', 'y', time()+'1800','/');
+        setcookie('7apwy35m2budptd7', 'y', time()+'1800', '/');
     }
 
     if($helper->getSetting('login') == 0){

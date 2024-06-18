@@ -6,11 +6,17 @@ class Cashbox extends Controller
 
     public function click($box_id, $ip_addr)
     {
+        if(is_null($ip_addr)) {
+            $user_addr = '127.0.0.1';
+        } else {
+            $user_addr = $user->getIP();
+        }
+
         $SQL = self::db()->prepare('SELECT * FROM `cashbox_clicks` WHERE `box_id` = :box_id AND `ip_addr` = :ip_addr');
         $SQL->execute(array(":box_id" => $box_id, ":ip_addr" => $ip_addr));
         if($SQL->rowCount() == 0){
             $insert = self::db()->prepare('INSERT INTO `cashbox_clicks`(`box_id`, `ip_addr`) VALUES (?, ?)');
-            $insert->execute(array($box_id, $ip_addr));
+            $insert->execute(array($box_id, $user_addr));
         }
     }
 

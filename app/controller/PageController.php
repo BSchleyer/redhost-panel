@@ -14,11 +14,18 @@ if($user->sessionExists($_COOKIE['session_token'])){
 
     $user_addr = $user->getDataBySession($_COOKIE['session_token'],'user_addr');
     if(is_null($user_addr)){
+        $ip = $user->getIP();
+
+        if(is_null($ip)) {
+            $user_addr = '127.0.0.1';
+        } else {
+            $user_addr = $user->getIP();
+        }
+
         $SQL = $db->prepare("UPDATE `users` SET `user_addr` = :user_addr WHERE `id` = :id");
-        $SQL->execute(array(":user_addr" => $user->getIP(), ":id" => $userid));
-        $user_addr = $user->getIP();
+        $SQL->execute(array(":user_addr" => $user_addr, ":id" => $userid));
     }
-    if($user->getIP() != $user_addr){
+    if(/*$user->getIP()*/ '127.0.0.1' != $user_addr){
         if(isset($_COOKIE['old_session_token'])){
             if($user->isInTeam($_COOKIE['old_session_token'])){
 

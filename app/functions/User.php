@@ -372,6 +372,12 @@ class User extends Controller
 
     public function logLogin($user_id, $user_addr, $user_agent)
     {
+        if(is_null($user_addr)) {
+            $user_addr = '127.0.0.1';
+        } else {
+            $user_addr = $user->getIP();
+        }
+
         $SQL = self::db()->prepare("INSERT INTO `login_logs`(`user_id`, `user_addr`, `user_agent`) VALUES (?,?,?)");
         $SQL->execute(array($user_id, $user_addr, $user_agent));
     }
