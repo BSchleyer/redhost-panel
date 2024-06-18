@@ -102,6 +102,7 @@ if(isset($_GET['page'])) {
         case "team_ipam": include($team."ip_manager.php");  break;
         case "team_orders": include($team."orders/list.php");  break;
         case "team_order": include($team."orders/manage.php");  break;
+        case "team_code_list": include($team."codes/list.php");  break;
 
     }
 

@@ -127,6 +127,37 @@ if(isset($_POST['saveMailSettings'])){
 
 }
 
+
+if(isset($_POST['useCode'])) {
+
+    $error = null;
+
+    $code_use = $helper->xssFix($_POST['code']);
+
+    $SQL5 = $db->prepare("SELECT * FROM `code_used` WHERE `code` = :code AND `user_id` = :user_id");
+    $SQL5->execute(array(":code" => $code_use, ":user_id" => $userid));
+    while ($codeUsedDetails = $SQL5->fetch(PDO::FETCH_ASSOC)) {
+
+        if (!empty($codeUsedDetails) OR !$codeUsedDetails['id'] == "") {
+            $error = 'Dieser Code wurde bereits verwendet';
+        }
+    }
+
+    if(empty($error)) {
+
+        $codeDetails = $code->getCode($code_use);
+
+        $code->useCode($code_use, $userid);
+        $user->addMoney($codeDetails['amount'], $userid);
+        $user->addTransaction($userid, $codeDetails['amount'], 'Gutschein eingelöst');
+
+        echo sendSuccess('Gutschein wurde eingelöst.');
+    } else {
+        echo sendError($error);
+    }
+
+}
+
 ?>
 
 <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -353,8 +384,25 @@ if(isset($_POST['saveMailSettings'])){
                             </form>
                         </div>
                     </div>
-                </div>
 
+                    <div class="card shadow mb-5">
+                        <div class="card-header">
+                            <h3 style="margin-bottom: 0px">
+                                Gutschein einlösen
+                            </h3>
+                        </div>
+
+                        <div class="card-body">
+                            <form method="post">
+                                <input class="form-control mb-4" name="code" placeholder="Gutscheincode eingeben">
+
+                                <button type="submit" name="useCode" class="btn btn-outline-primary btn-block">
+                                    <b><i class="fas fa-wallet"></i> Gutschein einlösen</b>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -543,6 +543,15 @@
                                     <span class="menu-text">Offene Bestellungen</span>
                                 </a>
                             </li>
+
+                            <li class="menu-item" aria-haspopup="true">
+                                <a href="<?= env('URL'); ?>team/codes/list" class="menu-link">
+                                    <i class="menu-bullet menu-bullet-dot">
+                                        <span></span>
+                                    </i>
+                                    <span class="menu-text">Gutscheincodes</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </li>
