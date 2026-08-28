@@ -36,14 +36,14 @@ if (!function_exists('sendError')) {
         "hideEasing": "linear",
         "showMethod": "fadeIn",
         "hideMethod": "fadeOut" };
-toastr.error("' . $message . '", "' . $title . '");</script>';
+toastr.error(' . json_encode($message) . ', ' . json_encode($title) . ');</script>';
     }
 }
 
 if (!function_exists('sendInfo')) {
     function sendInfo($message, $title = _ALERT_INFO)
     {
-        return '<script>toastr.options = { 
+        return '<script>toastr.options = {
     "closeButton": false,
         "debug": false,
         "newestOnTop": true,
@@ -60,7 +60,7 @@ if (!function_exists('sendInfo')) {
         "showMethod": "fadeIn",
         "hideMethod": "fadeOut"
 };
-toastr.info("' . $message . '", "' . $title . '");</script>';
+toastr.info(' . json_encode($message) . ', ' . json_encode($title) . ');</script>';
     }
 }
 
@@ -82,7 +82,7 @@ if (!function_exists('sendSuccess')) {
         "hideEasing": "linear",
         "showMethod": "fadeIn",
         "hideMethod": "fadeOut" };
-toastr.success("' . $message . '", "' . $title . '");</script>';
+toastr.success(' . json_encode($message) . ', ' . json_encode($title) . ');</script>';
     }
 }
 
@@ -104,7 +104,7 @@ if (!function_exists('sendWarning')) {
         "hideEasing": "linear",
         "showMethod": "fadeIn",
         "hideMethod": "fadeOut" };
-toastr.warning("' . $message . '", "' . $title . '");</script>';
+toastr.warning(' . json_encode($message) . ', ' . json_encode($title) . ');</script>';
     }
 }
 
@@ -115,27 +115,27 @@ toastr.warning("' . $message . '", "' . $title . '");</script>';
 if (!function_exists('sendSweetError')) {
     function sendSweetError($message, $title = _ALERT_ERROR)
     {
-        return '<script> Swal.fire( "' . $title . '", "' . $message . '", "error" ); </script>';
+        return '<script> Swal.fire( ' . json_encode($title) . ', ' . json_encode($message) . ', "error" ); </script>';
     }
 }
 
 if (!function_exists('sendSweetInfo')) {
     function sendSweetInfo($message, $title = _ALERT_INFO)
     {
-        return '<script> Swal.fire( "' . $title . '", "' . $message . '", "info"); </script>';
+        return '<script> Swal.fire( ' . json_encode($title) . ', ' . json_encode($message) . ', "info"); </script>';
     }
 }
 
 if (!function_exists('sendSweetSuccess')) {
     function sendSweetSuccess($message, $title = _ALERT_SUCCESS)
     {
-        return '<script> Swal.fire("' . $title . '", "' . $message . '", "success"); </script>';
+        return '<script> Swal.fire(' . json_encode($title) . ', ' . json_encode($message) . ', "success"); </script>';
     }
 }
 
 if (!function_exists('sendSweetWarning')) {
     function sendSweetWarning($message, $title = _ALERT_WARNING)
     {
-        return '<script> Swal.fire( "' . $title . '", "' . $message . '", "warning"); </script>';
+        return '<script> Swal.fire( ' . json_encode($title) . ', ' . json_encode($message) . ', "warning"); </script>';
     }
 }
