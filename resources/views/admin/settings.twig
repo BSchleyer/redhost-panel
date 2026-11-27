@@ -1,0 +1,109 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ title|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ title|t }}</h1><p class="muted">{{ 'Changes take effect immediately and are recorded in the audit log.'|t }}</p></div></div>
+
+{% if page == 'branding' %}
+<div class="grid grid-2">
+    {% for kind, current in {logo: logo, favicon: favicon} %}
+    <div class="card">
+        <div class="card-header"><h2>{{ kind|humanize|t }}</h2></div>
+        <div class="card-body">
+            {% if current %}<p><img class="logo-preview" src="{{ current }}" alt="{{ kind }}"></p>{% else %}<p class="muted">{{ 'Not set – the brand name is shown instead.'|t }}</p>{% endif %}
+            <form method="post" action="/admin/branding/upload" enctype="multipart/form-data">
+                {{ csrf_field() }}
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <div class="form-row"><input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/x-icon">
+                    <div class="help">{{ 'PNG, JPEG, WebP or ICO, max. 1 MB. SVG is not accepted for security reasons.'|t }}</div>
+                    {% if error('file') %}<div class="field-error">{{ error('file')|t }}</div>{% endif %}
+                </div>
+                <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Upload'|t }}</button></div>
+            </form>
+            {% if current %}
+            <form method="post" action="/admin/branding/remove" class="mt-1" data-confirm="{{ 'Remove this file?'|t }}">{{ csrf_field() }}<input type="hidden" name="kind" value="{{ kind }}"><button class="btn btn-sm btn-outline" type="submit">{{ 'Remove'|t }}</button></form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if page == 'payments' %}
+<div class="alert alert-info">
+    {{ 'Webhook endpoints to register with the providers'|t }}:
+    <div class="mt-1"><strong>Stripe:</strong> <code id="wh-stripe">{{ webhook_urls.stripe }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-stripe">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, charge.refunded)</span></div>
+    <div class="mt-1"><strong>PayPal:</strong> <code id="wh-paypal">{{ webhook_urls.paypal }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-paypal">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.REFUNDED)</span></div>
+</div>
+{% endif %}
+
+{% for section in sections %}
+<form method="post" action="/admin/settings/{{ page }}" novalidate>
+    {{ csrf_field() }}
+    <input type="hidden" name="group" value="{{ section.group }}">
+    <div class="card">
+        <div class="card-header"><h2>{{ section.label|t }}</h2>
+            {% if section.group in ['payments_paypal', 'payments_stripe'] and can('payments.settings') %}
+                <button class="btn btn-sm btn-outline" type="submit" formaction="/admin/payments/{{ section.group|replace({'payments_': ''}) }}/test" formnovalidate>{{ 'Test connection'|t }}</button>
+            {% endif %}
+        </div>
+        <div class="card-body form-grid">
+            {{ f.settings_fields(section.definitions, section.values, section.secrets_set) }}
+        </div>
+        <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+    </div>
+</form>
+{% endfor %}
+
+{% if page == 'email' %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Test SMTP connection'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/admin/email/test" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('recipient', 'Send a test e-mail to (optional)', auth_user.email, 'email') }}
+            <button class="btn btn-outline" type="submit">{{ 'Test connection'|t }}</button>
+        </form>
+        <p class="help">{{ 'Save the SMTP settings first. The test connects and authenticates without changing anything.'|t }}</p>
+    </div>
+</div>
+{% endif %}
+
+{% if system %}
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Environment'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'Application version'|t }}</dt><dd>{{ system.app_version }}</dd>
+                <dt>{{ 'Environment'|t }}</dt><dd>{{ system.environment }} {% if system.debug %}<span class="badge badge-danger">{{ 'debug output enabled'|t }}</span>{% endif %}</dd>
+                <dt>PHP</dt><dd>{{ system.php_version }}</dd>
+                <dt>{{ 'Database'|t }}</dt><dd>{{ system.db_version }} <span class="badge {{ system.db_status == 'connected' ? 'badge-success' : 'badge-danger' }}">{{ system.db_status|t }}</span></dd>
+                <dt>{{ 'Pending migrations'|t }}</dt><dd>{% if system.pending_migrations|length > 0 %}<span class="badge badge-warning">{{ system.pending_migrations|length }}</span> <code>bin/nebrix migrate</code>{% else %}{{ 'none'|t }}{% endif %}</dd>
+                <dt>{{ 'Storage writable'|t }}</dt><dd>{{ system.storage_writable ? 'yes'|t : 'no'|t }} / {{ 'uploads'|t }}: {{ system.uploads_writable ? 'yes'|t : 'no'|t }}</dd>
+                <dt>{{ 'Log level'|t }}</dt><dd>{{ system.log_level }}</dd>
+                <dt>{{ 'Sessions'|t }}</dt><dd>{{ 'idle timeout'|t }} {{ system.session_idle }} min · {{ 'lifetime'|t }} {{ system.session_lifetime }} h · {{ 'secure cookies'|t }}: {{ system.secure_cookies ? 'yes'|t : 'no'|t }}</dd>
+                <dt>{{ 'Server time (UTC)'|t }}</dt><dd>{{ system.server_time }}</dd>
+            </dl>
+            <p class="mt-2">{% for ext, loaded in system.extensions %}<span class="badge {{ loaded ? 'badge-success' : (ext in system.required_extensions ? 'badge-danger' : 'badge-neutral') }}">{{ ext }}</span> {% endfor %}</p>
+            <p class="help">{{ 'Infrastructure settings such as the database, APP_KEY and debug output are configured in the .env file, not here.'|t }}</p>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Workers & scheduled tasks'|t }}</h2></div>
+        <div class="card-body">
+            <p>{{ 'Queue'|t }}: {{ system.jobs.pending }} {{ 'pending'|t }} · {{ system.jobs.running }} {{ 'running'|t }} · {{ system.jobs.failed }} {{ 'failed'|t }}</p>
+            <ul class="timeline">
+                {% for task in system.scheduler %}
+                    <li><strong>{{ task.task }}</strong>: {{ task.last_finished_at|dt }} <span class="badge {{ task.last_status|status_class }}">{{ task.last_status|default('–') }}</span>{% if task.last_message %} <span class="small muted">{{ task.last_message }}</span>{% endif %}</li>
+                {% else %}
+                    <li class="muted">{{ 'No scheduled task has run yet. Add a cron job: * * * * * php bin/nebrix schedule:run'|t }}</li>
+                {% endfor %}
+            </ul>
+            <form method="post" action="/admin/system/cache/clear" class="mt-2">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Clear template cache'|t }}</button></form>
+            <p class="help">{{ 'Application updates are installed with git/composer and bin/nebrix migrate – see UPGRADE_GUIDE.md. For security reasons the panel never executes server commands.'|t }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

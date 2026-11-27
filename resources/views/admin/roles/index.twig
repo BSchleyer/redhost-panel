@@ -1,0 +1,29 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Roles & permissions'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Roles & permissions'|t }}</h1><p class="muted">{{ 'Permissions are enforced on the server for every request.'|t }}</p></div></div>
+<div class="grid grid-2">
+    <div class="card"><div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Role'|t }}</th><th>{{ 'Users'|t }}</th><th>{{ 'Permissions'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for r in roles %}
+            <tr><td><strong>{{ r.name }}</strong>{% if r.is_system %} <span class="badge badge-neutral">{{ 'system'|t }}</span>{% endif %}<div class="small muted">{{ r.description }}</div></td><td>{{ r.user_count }}</td>
+                <td>{% if r.slug == 'super_admin' %}{{ 'all'|t }}{% elseif not r.is_staff %}–{% else %}{{ r.permission_count }}{% endif %}</td>
+                <td class="actions">{% if r.is_staff %}<a class="btn btn-sm btn-outline" href="/admin/roles/{{ r.id }}">{{ 'Edit'|t }}</a>{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div></div>
+    <form method="post" action="/admin/roles" novalidate>
+        {{ csrf_field() }}
+        <div class="card">
+            <div class="card-header"><h2>{{ 'New staff role'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', '', 'text', {required: true}) }}
+                {{ f.input('description', 'Description') }}
+            </div>
+            <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Create role'|t }}</button></div>
+        </div>
+    </form>
+</div>
+{% endblock %}

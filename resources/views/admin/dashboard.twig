@@ -1,0 +1,73 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Admin dashboard'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Dashboard'|t }}</h1><p class="muted">{{ 'Overview of customers, sales, infrastructure and background processing.'|t }}</p></div></div>
+
+{% for note in stats.notifications %}
+    <div class="alert alert-{{ note.level == 'error' ? 'danger' : note.level }}">{{ note.message|t }}{% if note.link %} <a href="{{ note.link }}">{{ 'Open'|t }} &rarr;</a>{% endif %}</div>
+{% endfor %}
+
+<div class="grid grid-4">
+    <div class="card stat"><div class="stat-label">{{ 'Customers'|t }}</div><div class="stat-value">{{ stats.customers_total }}</div><div class="stat-hint">{{ stats.customers_active }} {{ 'active'|t }} · {{ stats.customers_suspended }} {{ 'suspended'|t }} · {{ stats.customers_pending }} {{ 'pending'|t }}</div></div>
+    <div class="card stat"><div class="stat-label">{{ 'Orders'|t }}</div><div class="stat-value">{{ stats.orders_total }}</div><div class="stat-hint">{{ stats.orders_pending }} {{ 'awaiting payment'|t }}</div></div>
+    <div class="card stat"><div class="stat-label">{{ 'Revenue this month'|t }}</div><div class="stat-value">{{ stats.revenue_month|money(stats.currency) }}</div><div class="stat-hint">{{ 'Total'|t }}: {{ stats.revenue_total|money(stats.currency) }}</div></div>
+    <div class="card stat"><div class="stat-label">{{ 'Active services'|t }}</div><div class="stat-value">{{ stats.services_active }}</div><div class="stat-hint">{{ stats.products_active }} {{ 'active products'|t }} · {{ stats.invoices_unpaid }} {{ 'unpaid invoices'|t }} · {{ stats.tickets_open }} {{ 'open tickets'|t }}</div></div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Recent transactions'|t }}</h2>{% if can('transactions.view') %}<a href="/admin/transactions" class="small">{{ 'All'|t }}</a>{% endif %}</div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Gateway'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for t in stats.recent_transactions %}
+                <tr><td>{{ t.created_at|dt }}</td><td>{{ t.email }}</td><td>{{ t.gateway|humanize }}</td><td class="text-right">{% if t.type == 'refund' %}−{% endif %}{{ t.amount|money(t.currency) }}</td><td><span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></td></tr>
+            {% else %}<tr><td colspan="5" class="empty">{{ 'No transactions yet.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Recent registrations'|t }}</h2>{% if can('customers.view') %}<a href="/admin/customers" class="small">{{ 'All'|t }}</a>{% endif %}</div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Customer'|t }}</th><th>{{ 'Registered'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for c in stats.recent_customers %}
+                <tr><td>{% if can('customers.view') %}<a href="/admin/customers/{{ c.id }}">{{ c.email }}</a>{% else %}{{ c.email }}{% endif %}</td><td>{{ c.created_at|dt }}</td><td><span class="badge {{ c.status|status_class }}">{{ c.status|t }}</span></td></tr>
+            {% else %}<tr><td colspan="3" class="empty">{{ 'No customers yet.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Server & integration health'|t }}</h2>{% if can('integrations.view') %}<a href="/admin/integrations" class="small">{{ 'Manage'|t }}</a>{% endif %}</div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Integration'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Health'|t }}</th><th>{{ 'Last check'|t }}</th></tr></thead>
+            <tbody>
+            {% for i in stats.integrations %}
+                <tr><td>{{ i.name }}{% if not i.is_enabled %} <span class="badge badge-neutral">{{ 'disabled'|t }}</span>{% endif %}</td><td>{{ i.type|humanize }}</td><td><span class="badge {{ i.health_status|status_class }}" title="{{ i.health_message }}">{{ i.health_status|t }}</span></td><td>{{ i.last_checked_at|dt }}</td></tr>
+            {% else %}<tr><td colspan="4" class="empty">{{ 'No integrations configured yet.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Background tasks'|t }}</h2>{% if can('jobs.view') %}<a href="/admin/jobs" class="small">{{ 'Jobs'|t }}</a>{% endif %}</div>
+        <div class="card-body">
+            <p>{{ 'Queue'|t }}:
+                <span class="badge badge-warning">{{ stats.jobs.pending }} {{ 'pending'|t }}</span>
+                <span class="badge badge-info">{{ stats.jobs.running }} {{ 'running'|t }}</span>
+                <span class="badge badge-danger">{{ stats.jobs.failed }} {{ 'failed'|t }}</span>
+                <span class="badge badge-success">{{ stats.jobs.completed }} {{ 'completed'|t }}</span>
+            </p>
+            <ul class="timeline">
+            {% for task in stats.scheduler %}
+                <li><strong>{{ task.task }}</strong> – {{ 'last run'|t }} {{ task.last_finished_at|dt }} <span class="badge {{ task.last_status|status_class }}">{{ task.last_status|default('–')|t }}</span></li>
+            {% else %}
+                <li class="muted">{{ 'The scheduler has not run yet.'|t }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

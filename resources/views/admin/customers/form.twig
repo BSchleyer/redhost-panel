@@ -1,0 +1,32 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set c = customer ? customer.attributes : {} %}
+{% block title %}{{ customer ? 'Edit customer'|t : 'New customer'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ customer ? 'Edit customer'|t : 'New customer'|t }}</h1><p class="muted"><a href="{{ customer ? '/admin/customers/' ~ customer.id : '/admin/customers' }}">&larr; {{ 'Back'|t }}</a></p></div></div>
+<form method="post" action="{{ customer ? '/admin/customers/' ~ customer.id : '/admin/customers' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="card-body form-grid">
+            {{ f.input('email', 'E-mail address', c.email|default(''), 'email', {required: true}) }}
+            {{ f.select('customer_group_id', 'Customer group', groups, c.customer_group_id|default(''), {placeholder: '– none –'}) }}
+            {{ f.input('first_name', 'First name', c.first_name|default(''), 'text', {required: true}) }}
+            {{ f.input('last_name', 'Last name', c.last_name|default(''), 'text', {required: true}) }}
+            {{ f.input('company', 'Company', c.company|default('')) }}
+            {{ f.input('vat_id', 'VAT ID', c.vat_id|default('')) }}
+            {{ f.input('address_line1', 'Address', c.address_line1|default('')) }}
+            {{ f.input('address_line2', 'Address line 2', c.address_line2|default('')) }}
+            {{ f.input('postcode', 'Postcode', c.postcode|default('')) }}
+            {{ f.input('city', 'City', c.city|default('')) }}
+            {{ f.input('country', 'Country (ISO code)', c.country|default(''), 'text', {maxlength: 2}) }}
+            {{ f.input('phone', 'Phone', c.phone|default(''), 'tel') }}
+            {{ f.select('language', 'Language', {en: 'English', de: 'Deutsch'}, c.language|default('en')) }}
+        </div>
+        <div class="card-body">{{ f.textarea('notes', 'Internal notes (not visible to the customer)', c.notes|default('')) }}</div>
+        <div class="card-footer form-actions">
+            <button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button>
+            {% if not customer %}<span class="help">{{ 'The customer receives an e-mail with a link to set a password.'|t }}</span>{% endif %}
+        </div>
+    </div>
+</form>
+{% endblock %}

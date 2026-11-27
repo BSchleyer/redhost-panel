@@ -1,0 +1,33 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Products'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Products'|t }}</h1></div>{% if can('products.manage') %}<a class="btn btn-primary" href="/admin/products/create">{{ 'New product'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            {{ f.select('category', 'Category', {'': 'All'}|merge(categories), filters.category, {'data-autosubmit': true}) }}
+            {{ f.select('active', 'State', {'': 'All', '1': 'Active', '0': 'Archived'}, filters.active, {'data-autosubmit': true}) }}
+            <div class="form-row"><label for="q">{{ 'Search'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}"></div>
+            <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Product'|t }}</th><th>{{ 'Category'|t }}</th><th class="text-right">{{ 'Price'|t }}</th><th>{{ 'Stock'|t }}</th><th>{{ 'Provisioning'|t }}</th><th>{{ 'Services'|t }}</th><th>{{ 'State'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for p in products %}
+            <tr>
+                <td><strong>{{ p.name }}</strong><div class="small muted mono">{{ p.slug }}</div></td>
+                <td>{{ categories[p.category]|default(p.category)|t }}</td>
+                <td class="text-right nowrap">{{ p.price|money(p.currency) }}<div class="small muted">{{ p.billing_cycle|humanize|t }}{% if p.setup_fee > 0 %} + {{ p.setup_fee|money(p.currency) }} {{ 'setup'|t }}{% endif %}</div></td>
+                <td>{{ p.stock is null ? '∞' : p.stock }}</td>
+                <td>{% if p.auto_provision %}{{ p.integration_name|default('–') }}{% else %}<span class="muted">{{ 'manual'|t }}</span>{% endif %}</td>
+                <td>{{ p.active_services }}</td>
+                <td>{% if not p.is_active %}<span class="badge badge-neutral">{{ 'archived'|t }}</span>{% elseif not p.is_visible %}<span class="badge badge-warning">{{ 'hidden'|t }}</span>{% else %}<span class="badge badge-success">{{ 'on sale'|t }}</span>{% endif %}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/products/{{ p.id }}/edit">{{ can('products.manage') ? 'Edit'|t : 'View'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="8" class="empty">{{ 'No products found.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

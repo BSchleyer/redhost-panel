@@ -1,0 +1,34 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ role.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ role.name }}</h1><p class="muted"><a href="/admin/roles">&larr; {{ 'Roles'|t }}</a></p></div>
+    {% if not role.is_system %}<form method="post" action="/admin/roles/{{ role.id }}/delete" data-confirm="{{ 'Delete this role?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Delete role'|t }}</button></form>{% endif %}
+</div>
+{% if locked %}
+    <div class="alert alert-info">{{ 'The super administrator role always holds every permission and cannot be restricted.'|t }}</div>
+{% else %}
+<form method="post" action="/admin/roles/{{ role.id }}" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="card-body form-grid">
+            {{ f.input('name', 'Name', role.name, 'text', {required: true}) }}
+            {{ f.input('description', 'Description', role.description) }}
+        </div>
+    </div>
+    <div class="grid grid-2">
+    {% for group, permissions in groups %}
+        <div class="card">
+            <div class="card-header"><h2>{{ group|t }}</h2></div>
+            <div class="card-body">
+                {% for permission, description in permissions %}
+                    <label class="checkbox"><input type="checkbox" name="permissions[]" value="{{ permission }}"{% if permission in granted %} checked{% endif %}> <span>{{ description|t }} <code class="small muted">{{ permission }}</code></span></label>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save role'|t }}</button></div>
+</form>
+{% endif %}
+{% endblock %}

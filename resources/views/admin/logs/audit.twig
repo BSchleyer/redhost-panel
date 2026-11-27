@@ -1,0 +1,24 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Audit log'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Audit log'|t }}</h1><p class="muted">{{ 'Append-only record of administrative and security-relevant actions.'|t }}</p></div></div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="form-row"><label for="a">{{ 'Action starts with'|t }}</label><input id="a" type="search" name="action" value="{{ filters.action }}" placeholder="customer."></div>
+            <div class="form-row"><label for="tt">{{ 'Target type'|t }}</label><input id="tt" type="text" name="target_type" value="{{ filters.target_type }}"></div>
+            <div class="form-row"><label for="ti">{{ 'Target ID'|t }}</label><input id="ti" type="text" name="target_id" value="{{ filters.target_id }}"></div>
+            <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Time'|t }}</th><th>{{ 'Actor'|t }}</th><th>{{ 'Action'|t }}</th><th>{{ 'Target'|t }}</th><th>{{ 'Details'|t }}</th><th>IP</th></tr></thead>
+        <tbody>
+        {% for e in result.items %}
+            <tr><td class="nowrap">{{ e.created_at|dt }}</td><td>{{ e.actor_email|default('system') }}</td><td><code>{{ e.action }}</code></td><td>{{ e.target_type }}{% if e.target_id %} #{{ e.target_id }}{% endif %}</td><td class="small mono">{{ e.details }}</td><td class="mono small">{{ e.ip }}</td></tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No entries.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 50} %}
+</div>
+{% endblock %}

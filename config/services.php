@@ -7,6 +7,7 @@ use Nebrix\Core\Config;
 use Nebrix\Core\Container;
 use Nebrix\Database\Connection;
 use Nebrix\Mail\MailTemplates;
+use Nebrix\Settings\BrandingAssets;
 use Nebrix\Settings\SettingsRepository;
 
 /*
@@ -20,4 +21,6 @@ return static function (Container $c, Config $config, string $basePath): void {
         $config,
         require $basePath . '/config/mail_templates.php',
     ));
+
+    $c->set(BrandingAssets::class, static fn (): BrandingAssets => new BrandingAssets($config->string('paths.uploads')));
 };

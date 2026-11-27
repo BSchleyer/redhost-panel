@@ -15,11 +15,11 @@ This file is the single source of truth for modernization progress. It is update
 | Phase | Scope | Status |
 |---|---|---|
 | A | Codebase audit, architecture documentation | [x] |
-| B | PHP 8.4 compatibility, Composer modernization | [ ] |
-| C | Security remediation (core primitives) | [ ] |
-| D | Database & core architecture (migrations, container, HTTP kernel) | [ ] |
-| E | Authentication, 2FA, password reset, RBAC | [ ] |
-| F | Administration panel | [ ] |
+| B | PHP 8.4 compatibility, Composer modernization | [x] |
+| C | Security remediation (core primitives) | [x] |
+| D | Database & core architecture (migrations, container, HTTP kernel) | [x] |
+| E | Authentication, 2FA, password reset, RBAC | [x] |
+| F | Administration panel | [x] |
 | G | Integration architecture + Proxmox VE | [ ] |
 | H | Pterodactyl, Nextcloud, TeamSpeak 3 | [ ] |
 | I | PayPal & Stripe | [ ] |
@@ -35,34 +35,34 @@ This file is the single source of truth for modernization progress. It is update
 - [x] This roadmap
 
 ### Phase B – PHP 8.4 & dependencies
-- [ ] New `composer.json` (PSR-4 `Nebrix\`, PHP `~8.3.0 || ~8.4.0`, stable deps, dev tools), commit `composer.lock`
-- [ ] Remove unused/abandoned packages (see AUDIT §6)
-- [ ] Docker image on `php:8.4-apache`, non-root, hardened Apache vhost
-- [ ] Remove broken skeleton files (`software/`, `debug/`, `system.php`) after replacement
+- [x] New `composer.json` (PSR-4 `Nebrix\`, PHP `~8.3.0 || ~8.4.0`, stable deps, dev tools), commit `composer.lock`
+- [x] Remove unused/abandoned packages (see AUDIT §6)
+- [x] Docker image on `php:8.4-apache`, non-root, hardened Apache vhost
+- [x] Remove broken skeleton files (`software/`, `debug/`, `system.php`) after replacement
 
 ### Phase C/D – Core
-- [ ] Config/env loader, service container, error handler (no debug output in production)
-- [ ] PDO connection (utf8mb4, strict mode, exceptions, no emulated prepares), transactions
-- [ ] Migration runner + initial schema (`nx_` prefix, FKs, indexes)
-- [ ] Request/Response, router, middleware pipeline
-- [ ] Security headers + CSP, CSRF, session (DB, hashed IDs), rate limiter, encrypter, validator, URL & redirect guards
-- [ ] Twig view layer with auto-escaping, layout, CSS/JS assets (no inline JS)
-- [ ] CLI `bin/nebrix`
+- [x] Config/env loader, service container, error handler (no debug output in production)
+- [x] PDO connection (utf8mb4, strict mode, exceptions, no emulated prepares), transactions
+- [x] Migration runner + initial schema (`nx_` prefix, FKs, indexes)
+- [x] Request/Response, router, middleware pipeline
+- [x] Security headers + CSP, CSRF, session (DB, hashed IDs), rate limiter, encrypter, validator, URL & redirect guards
+- [x] Twig view layer with auto-escaping, layout, CSS/JS assets (no inline JS)
+- [x] CLI `bin/nebrix`
 
 ### Phase E – Auth & RBAC
-- [ ] Register, e-mail verification, login, logout, throttling, login history
-- [ ] Password reset (hashed, expiring, single-use tokens)
-- [ ] TOTP 2FA with recovery codes
-- [ ] Roles (Super Administrator, Administrator, Support, Finance, Customer), configurable permissions, gate + middleware
-- [ ] Audit log
+- [x] Register, e-mail verification, login, logout, throttling, login history
+- [x] Password reset (hashed, expiring, single-use tokens)
+- [x] TOTP 2FA with recovery codes
+- [x] Roles (Super Administrator, Administrator, Support, Finance, Customer), configurable permissions, gate + middleware
+- [x] Audit log
 
 ### Phase F – Admin panel
-- [ ] Dashboard KPIs, health, notifications, job status
-- [ ] General / branding / e-mail (SMTP + test) / system settings
-- [ ] E-mail templates editor
-- [ ] Customers, customer groups
-- [ ] Products (all categories, billing cycles, tax, stock, provisioning)
-- [ ] Staff, roles & permissions, audit log, login history
+- [x] Dashboard KPIs, health, notifications, job status
+- [x] General / branding / e-mail (SMTP + test) / system settings
+- [x] E-mail templates editor
+- [x] Customers, customer groups
+- [x] Products (all categories, billing cycles, tax, stock, provisioning)
+- [x] Staff, roles & permissions, audit log, login history
 
 ### Phase G/H – Integrations
 - [ ] Integration registry, encrypted credentials, health checks, logs, enable/disable
@@ -99,8 +99,13 @@ This file is the single source of truth for modernization progress. It is update
 ## Session log
 
 ### Session 1 (2026-11-27)
-- Completed Phase A.
-- **Next step:** Phase B – rewrite `composer.json`, install dependencies, create the core skeleton.
+- Completed Phase A (audit) – commit `37d2d02`.
+- Completed Phases B–D (core, schema, security primitives) – commit `cf9911f`.
+- Completed Phase E (auth, 2FA, reset, verification, RBAC gate, job queue, mailer) – commit `6305abb`. 81 tests green on PHP 8.4.28 + MariaDB 11.4; PHPStan level 6 clean.
+- Environment notes: Composer dist downloads from GitHub are blocked in this sandbox; dependencies were installed with `--prefer-source` (PHPStan from a locally built archive). Tests run in Docker (`php:8.4-cli` + `pdo_mysql`, `mariadb:11.4`).
+- Completed Phase F (admin dashboard, settings pages, branding uploads, SMTP test, mail templates, customers, groups, products with per-category provisioning schema, staff with escalation guards, roles/permissions matrix, audit log, login history, jobs). 114 tests green.
+- Admin pages for orders, invoices, transactions, services, integrations and tickets are linked in the navigation and are implemented in phases G–K.
+- **Next step:** Phase G – integration architecture + Proxmox VE.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.

@@ -1,0 +1,26 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ template.name|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ template.name|t }}</h1><p class="muted"><a href="/admin/mail-templates">&larr; {{ 'All templates'|t }}</a></p></div></div>
+<div class="grid grid-2">
+    <form method="post" action="/admin/mail-templates/{{ template.key }}" novalidate>
+        {{ csrf_field() }}
+        <div class="card">
+            <div class="card-body">
+                {{ f.input('subject', 'Subject', template.subject, 'text', {required: true}) }}
+                {{ f.textarea('html', 'Body (HTML)', template.html, {class: 'code', rows: 16}) }}
+                <p class="help">{{ 'Available placeholders'|t }}: {% for v in template.variables|merge(['company_name', 'support_email', 'app_url']) %}<code>{{ '{{ ' ~ v ~ ' }}' }}</code> {% endfor %}</p>
+                <p class="help">{{ 'Use class="button" on links to render them as buttons. Values are HTML-escaped automatically.'|t }}</p>
+            </div>
+            <div class="card-footer form-actions"><button class="btn btn-primary" type="submit">{{ 'Save template'|t }}</button></div>
+        </div>
+    </form>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Preview'|t }}</h2>
+            {% if template.customized %}<form method="post" action="/admin/mail-templates/{{ template.key }}/reset" data-confirm="{{ 'Discard your changes and restore the default template?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset to default'|t }}</button></form>{% endif %}
+        </div>
+        <iframe class="mail-preview" src="/admin/mail-templates/{{ template.key }}/preview" sandbox title="{{ 'Preview'|t }}"></iframe>
+    </div>
+</div>
+{% endblock %}

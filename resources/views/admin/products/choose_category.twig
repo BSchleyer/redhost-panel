@@ -1,0 +1,13 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'New product'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'New product'|t }}</h1><p class="muted">{{ 'Choose the product category.'|t }}</p></div></div>
+<div class="grid grid-4">
+    {% for key, cat in categories %}
+        <a class="card stat" href="/admin/products/create?category={{ key }}">
+            <div class="stat-label">{{ cat.integration ? ('Automated via :name'|t({name: cat.integration|humanize})) : 'Manual provisioning'|t }}</div>
+            <div class="stat-value small">{{ cat.label|t }}</div>
+        </a>
+    {% endfor %}
+</div>
+{% endblock %}

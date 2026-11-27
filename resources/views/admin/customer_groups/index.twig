@@ -1,0 +1,33 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Customer groups'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Customer groups'|t }}</h1><p class="muted">{{ 'Groups grant discounts, restrict ordering and can limit products to members.'|t }}</p></div></div>
+<div class="grid grid-2">
+    <div class="card"><div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Group'|t }}</th><th>{{ 'Discount'|t }}</th><th>{{ 'Members'|t }}</th><th>{{ 'Permissions'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for g in groups %}
+            <tr><td><strong>{{ g.name }}</strong><div class="small muted">{{ g.description }}</div></td><td>{{ (g.discount_bp / 100)|number_format(2) }} %</td><td>{{ g.member_count }}</td>
+                <td class="small">{{ g.can_order ? 'may order'|t : 'no ordering'|t }} · {{ g.can_manage_services ? 'self-service'|t : 'no self-service'|t }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/customer-groups/{{ g.id }}">{{ 'Edit'|t }}</a>
+                    <form method="post" action="/admin/customer-groups/{{ g.id }}/delete" class="inline" data-confirm="{{ 'Delete this group? Members keep their accounts.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete'|t }}</button></form></td></tr>
+        {% else %}<tr><td colspan="5" class="empty">{{ 'No groups yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div></div>
+    <form method="post" action="{{ editing ? '/admin/customer-groups/' ~ editing.id : '/admin/customer-groups' }}" novalidate>
+        {{ csrf_field() }}
+        <div class="card">
+            <div class="card-header"><h2>{{ editing ? 'Edit group'|t : 'New group'|t }}</h2>{% if editing %}<a href="/admin/customer-groups" class="small">{{ 'Cancel'|t }}</a>{% endif %}</div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', editing.name|default(''), 'text', {required: true}) }}
+                {{ f.input('description', 'Description', editing.description|default('')) }}
+                {{ f.input('discount_percent', 'Discount (%)', editing ? (editing.discount_bp / 100)|number_format(2, '.', '') : '0', 'text', {inputmode: 'decimal'}) }}
+                {{ f.checkbox('can_order', 'Members may place orders', editing ? editing.can_order : true) }}
+                {{ f.checkbox('can_manage_services', 'Members may manage their services (power actions, reinstall)', editing ? editing.can_manage_services : true) }}
+            </div>
+            <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button></div>
+        </div>
+    </form>
+</div>
+{% endblock %}

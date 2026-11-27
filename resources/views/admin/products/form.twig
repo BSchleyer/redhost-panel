@@ -1,0 +1,66 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set p = product ?? {} %}
+{% block title %}{{ product ? product.name : 'New product'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ product ? product.name : 'New product'|t }}</h1><p class="muted">{{ definition.label|t }} · <a href="/admin/products">&larr; {{ 'All products'|t }}</a></p></div></div>
+<form method="post" action="{{ product ? '/admin/products/' ~ product.id : '/admin/products' }}" novalidate>
+    {{ csrf_field() }}
+    <input type="hidden" name="category" value="{{ category }}">
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Product'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', p.name|default(''), 'text', {required: true}) }}
+                {{ f.input('slug', 'URL slug', p.slug|default(''), 'text', {required: true, help: 'Lowercase letters, digits and dashes, e.g. vps-small.'}) }}
+                {{ f.textarea('description', 'Description', p.description|default('')) }}
+                {{ f.textarea('features', 'Features (one per line)', p.features|default('')) }}
+                {{ f.input('sort_order', 'Sort order', p.sort_order|default(0), 'number') }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Pricing & availability'|t }}</h2></div>
+            <div class="card-body form-grid">
+                {{ f.input('price', 'Price (net)', price, 'text', {required: true, inputmode: 'decimal'}) }}
+                {{ f.select('billing_cycle', 'Billing cycle', cycles, p.billing_cycle|default('monthly')) }}
+                {{ f.input('setup_fee', 'Setup fee (net)', setup_fee, 'text', {inputmode: 'decimal'}) }}
+                {{ f.select('currency', 'Currency', currencies, p.currency|default(currencies|keys|first)) }}
+                {{ f.input('tax_rate', 'Tax rate (%)', tax_rate, 'text', {inputmode: 'decimal', help: 'Added on top of the net price, e.g. 19.00'}) }}
+                {{ f.input('stock', 'Stock (empty = unlimited)', p.stock ?? '', 'number') }}
+                {{ f.select('customer_group_id', 'Only for customer group', groups, p.customer_group_id ?? '', {placeholder: '– everyone –'}) }}
+            </div>
+            <div class="card-body">
+                {{ f.checkbox('is_active', 'Active (can be ordered and renewed)', product ? p.is_active : true) }}
+                {{ f.checkbox('is_visible', 'Visible in the store', product ? p.is_visible : true) }}
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Provisioning'|t }}</h2></div>
+        <div class="card-body">
+            {% if definition.integration %}
+                <div class="form-grid">
+                    {{ f.select('integration_id', 'Integration (' ~ definition.integration|humanize ~ ')', integrations, p.integration_id ?? '', integrations|length == 0 ? {placeholder: '– none –', help: 'Add an integration under Integrations first.'} : {placeholder: '– none –'}) }}
+                    {{ f.checkbox('auto_provision', 'Provision automatically after payment', product ? p.auto_provision : true) }}
+                </div>
+            {% else %}
+                <p class="muted">{{ 'This category is provisioned manually by staff after payment.'|t }}</p>
+            {% endif %}
+            <div class="form-grid">
+            {% for key, field in definition.config %}
+                {% set name = 'config_' ~ key %}
+                {% set value = config[key] ?? field.default ?? '' %}
+                {% if field.type|default('') == 'bool' %}
+                    {{ f.checkbox(name, field.label, value) }}
+                {% elseif field.type|default('') == 'json' %}
+                    {{ f.textarea(name, field.label, value is iterable ? value|json_encode : value, {class: 'code', help: field.help|default('')}) }}
+                {% else %}
+                    {{ f.input(name, field.label, value, 'text', field.help is defined ? {help: field.help} : {}) }}
+                {% endif %}
+            {% endfor %}
+            </div>
+        </div>
+        {% if can('products.manage') %}<div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save product'|t }}</button></div>{% endif %}
+    </div>
+</form>
+{% endblock %}

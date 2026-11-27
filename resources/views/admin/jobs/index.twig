@@ -1,0 +1,26 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Background jobs'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Background jobs'|t }}</h1><p class="muted">{{ 'Provisioning, e-mails and other asynchronous work processed by the worker (bin/nebrix queue:work).'|t }}</p></div></div>
+<div class="tabs">
+    <a href="/admin/jobs" class="{{ status == '' ? 'is-active' : '' }}">{{ 'All'|t }}</a>
+    {% for s, count in counts %}<a href="/admin/jobs?status={{ s }}" class="{{ status == s ? 'is-active' : '' }}">{{ s|t }} ({{ count }})</a>{% endfor %}
+</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>#</th><th>{{ 'Type'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Attempts'|t }}</th><th>{{ 'Next run / finished'|t }}</th><th>{{ 'Last error'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for j in result.items %}
+        <tr><td class="mono">{{ j.id }}</td><td><code>{{ j.type }}</code>{% if j.unique_key %}<div class="small muted mono">{{ j.unique_key }}</div>{% endif %}</td>
+            <td><span class="badge {{ j.status|status_class }}">{{ j.status|t }}</span></td><td>{{ j.attempts }} / {{ j.max_attempts }}</td>
+            <td class="nowrap">{{ j.status == 'pending' ? j.available_at|dt : j.finished_at|dt }}</td>
+            <td class="small">{{ j.last_error|default('')|slice(0, 300) }}</td>
+            <td class="actions">{% if can('jobs.manage') %}
+                {% if j.status in ['failed', 'cancelled'] %}<form method="post" action="/admin/jobs/{{ j.id }}/retry" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Retry'|t }}</button></form>{% endif %}
+                {% if j.status in ['pending', 'failed'] %}<form method="post" action="/admin/jobs/{{ j.id }}/cancel" class="inline" data-confirm="{{ 'Cancel this job?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Cancel'|t }}</button></form>{% endif %}
+            {% endif %}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">{{ 'No jobs.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'partials/pagination.twig' with {total: result.total, per_page: 50} %}
+</div>
+{% endblock %}

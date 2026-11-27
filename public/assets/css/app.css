@@ -263,3 +263,4 @@ form.inline { display: inline; }
 .mt-2 { margin-top: 1rem; }
 .mb-0 { margin-bottom: 0; }
 .gap { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.mail-preview { width: 100%; min-height: 520px; border: 0; background: #f4f5fa; border-radius: 0 0 var(--radius) var(--radius); }

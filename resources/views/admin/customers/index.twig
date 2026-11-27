@@ -1,0 +1,33 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Customers'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Customers'|t }}</h1></div>{% if can('customers.manage') %}<a class="btn btn-primary" href="/admin/customers/create">{{ 'New customer'|t }}</a>{% endif %}</div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="form-row"><label for="q">{{ 'Search'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}" placeholder="{{ 'Name, e-mail, company or ID'|t }}"></div>
+            {{ f.select('status', 'Status', {'': 'All', 'active': 'Active', 'pending': 'Pending', 'suspended': 'Suspended', 'closed': 'Closed'}, filters.status, {'data-autosubmit': true}) }}
+            {{ f.select('group', 'Group', groups, filters.group, {'data-autosubmit': true, placeholder: 'All'}) }}
+            <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>#</th><th>{{ 'Customer'|t }}</th><th>{{ 'Company'|t }}</th><th>{{ 'Status'|t }}</th><th class="text-right">{{ 'Credit'|t }}</th><th>{{ 'Registered'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for c in result.items %}
+            <tr>
+                <td class="mono">{{ c.id }}</td>
+                <td><a href="/admin/customers/{{ c.id }}">{{ (c.first_name ~ ' ' ~ c.last_name)|trim|default(c.email) }}</a><div class="small muted">{{ c.email }}</div></td>
+                <td>{{ c.company|default('–') }}</td>
+                <td><span class="badge {{ c.status|status_class }}">{{ c.status|t }}</span>{% if c.two_factor_enabled_at %} <span class="badge badge-info">2FA</span>{% endif %}</td>
+                <td class="text-right">{{ c.credit_balance|money }}</td>
+                <td>{{ c.created_at|d }}</td>
+                <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/customers/{{ c.id }}">{{ 'Open'|t }}</a></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No customers found.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

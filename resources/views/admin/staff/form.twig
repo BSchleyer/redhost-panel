@@ -1,0 +1,26 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ member ? 'Edit staff member'|t : 'Add staff member'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ member ? 'Edit staff member'|t : 'Add staff member'|t }}</h1><p class="muted"><a href="/admin/staff">&larr; {{ 'Staff'|t }}</a></p></div></div>
+<form method="post" action="{{ member ? '/admin/staff/' ~ member.id : '/admin/staff' }}" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="card-body form-grid">
+            {% if member %}
+                <div class="form-row"><label>{{ 'E-mail address'|t }}</label><input type="email" value="{{ member.email }}" disabled></div>
+                {{ f.select('status', 'Status', {active: 'Active', suspended: 'Suspended'}, member.status) }}
+            {% else %}
+                {{ f.input('email', 'E-mail address', '', 'email', {required: true}) }}
+            {% endif %}
+            {{ f.input('first_name', 'First name', member ? member.firstName : '', 'text', {required: true}) }}
+            {{ f.input('last_name', 'Last name', member ? member.lastName : '', 'text', {required: true}) }}
+            {{ f.select('role_id', 'Role', roles, member ? member.roleId : null) }}
+        </div>
+        <div class="card-footer form-actions">
+            <button class="btn btn-primary" type="submit">{{ 'Save'|t }}</button>
+            <span class="help">{{ member ? 'Changing the role signs the staff member out of all sessions.'|t : 'The staff member receives an e-mail with a link to set a password.'|t }}</span>
+        </div>
+    </div>
+</form>
+{% endblock %}

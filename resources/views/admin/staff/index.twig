@@ -1,0 +1,26 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Staff'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Staff'|t }}</h1><p class="muted">{{ 'Administrators, support and finance employees.'|t }}</p></div>{% if can('staff.manage') %}<a class="btn btn-primary" href="/admin/staff/create">{{ 'Add staff member'|t }}</a>{% endif %}</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Role'|t }}</th><th>{{ 'Status'|t }}</th><th>2FA</th><th>{{ 'Last sign-in'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for m in result.items %}
+        <tr>
+            <td><strong>{{ (m.first_name ~ ' ' ~ m.last_name)|trim|default(m.email) }}</strong><div class="small muted">{{ m.email }}</div></td>
+            <td><span class="badge badge-info">{{ m.role_name }}</span></td>
+            <td><span class="badge {{ m.status|status_class }}">{{ m.status|t }}</span></td>
+            <td>{% if m.two_factor_enabled_at %}<span class="badge badge-success">{{ 'on'|t }}</span>{% else %}<span class="badge badge-warning">{{ 'off'|t }}</span>{% endif %}</td>
+            <td>{{ m.last_login_at|dt }}</td>
+            <td class="actions">
+                {% if can('staff.manage') and (m.role_slug != 'super_admin' or auth_user.isSuperAdmin) %}
+                    <a class="btn btn-sm btn-outline" href="/admin/staff/{{ m.id }}/edit">{{ 'Edit'|t }}</a>
+                    <form method="post" action="/admin/staff/{{ m.id }}/password-reset" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset password'|t }}</button></form>
+                    {% if m.two_factor_enabled_at and m.id != auth_user.id %}<form method="post" action="/admin/staff/{{ m.id }}/two-factor/reset" class="inline" data-confirm="{{ 'Reset two-factor authentication for this staff member?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset 2FA'|t }}</button></form>{% endif %}
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

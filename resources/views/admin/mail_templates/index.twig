@@ -1,0 +1,13 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'E-mail templates'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'E-mail templates'|t }}</h1><p class="muted">{{ 'Customize the e-mails sent by the platform. Placeholders like {{ name }} are replaced automatically.'|t }}</p></div></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Template'|t }}</th><th>{{ 'Subject'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for tpl in templates %}
+        <tr><td>{{ tpl.name|t }}</td><td>{{ tpl.subject }}</td><td>{% if tpl.customized %}<span class="badge badge-info">{{ 'customized'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'default'|t }}</span>{% endif %}</td><td class="actions"><a class="btn btn-sm btn-outline" href="/admin/mail-templates/{{ tpl.key }}">{{ 'Edit'|t }}</a></td></tr>
+    {% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

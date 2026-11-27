@@ -1,0 +1,147 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% set c = customer.attributes %}
+{% block title %}{{ customer.displayName }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ customer.displayName }} <span class="badge {{ customer.status|status_class }}">{{ customer.status|t }}</span></h1>
+        <p class="muted">#{{ customer.id }} · {{ customer.email }} {% if not customer.isEmailVerified %}<span class="badge badge-warning">{{ 'e-mail not verified'|t }}</span>{% endif %} {% if customer.hasTwoFactor %}<span class="badge badge-info">2FA</span>{% endif %}</p></div>
+    {% if can('customers.manage') and customer.status != 'closed' %}<a class="btn btn-primary" href="/admin/customers/{{ customer.id }}/edit">{{ 'Edit'|t }}</a>{% endif %}
+</div>
+
+<div class="grid grid-3">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Contact & billing'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'Company'|t }}</dt><dd>{{ c.company|default('–') }}</dd>
+                <dt>{{ 'Address'|t }}</dt><dd>{{ c.address_line1|default('–') }}{% if c.address_line2 %}<br>{{ c.address_line2 }}{% endif %}<br>{{ c.postcode }} {{ c.city }} {{ c.country }}</dd>
+                <dt>{{ 'Phone'|t }}</dt><dd>{{ c.phone|default('–') }}</dd>
+                <dt>{{ 'VAT ID'|t }}</dt><dd>{{ c.vat_id|default('–') }}</dd>
+                <dt>{{ 'Group'|t }}</dt><dd>{{ group ? group.name : '–' }}</dd>
+                <dt>{{ 'Registered'|t }}</dt><dd>{{ c.created_at|dt }}</dd>
+                <dt>{{ 'Last sign-in'|t }}</dt><dd>{{ c.last_login_at|dt }} {% if c.last_login_ip %}<span class="mono small">{{ c.last_login_ip }}</span>{% endif %}</dd>
+                <dt>{{ 'Active sessions'|t }}</dt><dd>{{ active_sessions }}</dd>
+            </dl>
+            {% if c.notes %}<hr><p class="small"><strong>{{ 'Notes'|t }}:</strong><br><span class="message-body">{{ c.notes }}</span></p>{% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Credit balance'|t }}</h2><strong>{{ customer.creditBalance|money(currency) }}</strong></div>
+        <div class="card-body">
+            {% if can('customers.credit') and customer.status != 'closed' %}
+            <form method="post" action="/admin/customers/{{ customer.id }}/credit" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('amount', 'Amount (negative to deduct)', '', 'text', {placeholder: '10.00', inputmode: 'decimal'}) }}
+                {{ f.input('reason', 'Reason', '', 'text', {placeholder: 'Goodwill credit'}) }}
+                <button class="btn btn-outline" type="submit">{{ 'Adjust balance'|t }}</button>
+            </form>
+            {% endif %}
+            <ul class="timeline mt-2">
+                {% for entry in credit_history %}
+                    <li>{{ entry.created_at|d }} · <strong>{{ entry.amount > 0 ? '+' : '' }}{{ entry.amount|money(currency) }}</strong> · {{ entry.reason }}{% if entry.actor_email %} <span class="small muted">({{ entry.actor_email }})</span>{% endif %}</li>
+                {% else %}<li class="muted">{{ 'No credit movements.'|t }}</li>{% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Account actions'|t }}</h2></div>
+        <div class="card-body">
+            {% if can('customers.manage') and customer.status != 'closed' %}
+                <form method="post" action="/admin/customers/{{ customer.id }}/status" novalidate class="mb-0">
+                    {{ csrf_field() }}
+                    {% if customer.status == 'suspended' %}
+                        <input type="hidden" name="status" value="active"><button class="btn btn-success btn-block" type="submit">{{ 'Reactivate account'|t }}</button>
+                    {% else %}
+                        <input type="hidden" name="status" value="suspended">
+                        {{ f.input('reason', 'Suspension reason', '', 'text') }}
+                        <button class="btn btn-danger btn-block" type="submit" data-confirm="{{ 'Suspend this account?'|t }}">{{ 'Suspend account'|t }}</button>
+                    {% endif %}
+                </form>
+                <hr>
+                <div class="gap">
+                    <form method="post" action="/admin/customers/{{ customer.id }}/password-reset" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Send password reset'|t }}</button></form>
+                    {% if not customer.isEmailVerified %}
+                        <form method="post" action="/admin/customers/{{ customer.id }}/verification" class="inline">{{ csrf_field() }}<input type="hidden" name="action" value="resend"><button class="btn btn-sm btn-outline" type="submit">{{ 'Resend confirmation'|t }}</button></form>
+                        <form method="post" action="/admin/customers/{{ customer.id }}/verification" class="inline" data-confirm="{{ 'Mark the e-mail address as verified without confirmation?'|t }}">{{ csrf_field() }}<input type="hidden" name="action" value="mark"><button class="btn btn-sm btn-outline" type="submit">{{ 'Mark verified'|t }}</button></form>
+                    {% endif %}
+                    {% if customer.hasTwoFactor %}
+                        <form method="post" action="/admin/customers/{{ customer.id }}/two-factor/reset" class="inline" data-confirm="{{ 'Disable two-factor authentication for this customer? Only do this after verifying their identity.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset 2FA'|t }}</button></form>
+                    {% endif %}
+                    <form method="post" action="/admin/customers/{{ customer.id }}/sessions/revoke" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Sign out everywhere'|t }}</button></form>
+                </div>
+            {% endif %}
+            {% if can('customers.delete') and customer.status != 'closed' %}
+                <hr>
+                <form method="post" action="/admin/customers/{{ customer.id }}/close" novalidate data-confirm="{{ 'Close the account and erase personal data? This cannot be undone.'|t }}">
+                    {{ csrf_field() }}
+                    {{ f.input('confirm_email', 'Close account – type the e-mail address to confirm', '', 'text', {help: 'Personal data is erased; invoices and transactions are kept for accounting.'}) }}
+                    <button class="btn btn-danger btn-sm" type="submit">{{ 'Close account and erase data'|t }}</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Services'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>#</th><th>{{ 'Service'|t }}</th><th>{{ 'Product'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Next due'|t }}</th><th class="text-right">{{ 'Recurring'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for s in services %}
+            <tr><td class="mono">{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.product_name|default('–') }}</td><td><span class="badge {{ s.status|status_class }}">{{ s.status|t }}</span></td><td>{{ s.next_due_at|d }}</td><td class="text-right">{{ s.recurring_amount|money(s.currency) }} / {{ s.billing_cycle|humanize|t }}</td><td class="actions">{% if can('services.view') %}<a class="btn btn-sm btn-outline" href="/admin/services/{{ s.id }}">{{ 'Open'|t }}</a>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No services.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Invoices'|t }}</h2></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Number'|t }}</th><th>{{ 'Date'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for i in invoices %}
+                <tr><td>{% if can('invoices.view') %}<a href="/admin/invoices/{{ i.id }}">{{ i.number }}</a>{% else %}{{ i.number }}{% endif %}</td><td>{{ i.created_at|d }}</td><td class="text-right">{{ i.total|money(i.currency) }}</td><td><span class="badge {{ i.status|status_class }}">{{ i.status|t }}</span></td></tr>
+            {% else %}<tr><td colspan="4" class="empty">{{ 'No invoices.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Orders'|t }}</h2></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Number'|t }}</th><th>{{ 'Date'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for o in orders %}
+                <tr><td>{% if can('orders.view') %}<a href="/admin/orders/{{ o.id }}">{{ o.number }}</a>{% else %}{{ o.number }}{% endif %}</td><td>{{ o.created_at|d }}</td><td class="text-right">{{ o.total|money(o.currency) }}</td><td><span class="badge {{ o.status|status_class }}">{{ o.status|t }}</span></td></tr>
+            {% else %}<tr><td colspan="4" class="empty">{{ 'No orders.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Transactions'|t }}</h2></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Gateway'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+            <tbody>
+            {% for t in transactions %}
+                <tr><td>{{ t.created_at|dt }}</td><td>{{ t.gateway|humanize }} {{ t.type == 'refund' ? '(refund)'|t : '' }}</td><td class="text-right">{{ t.amount|money(t.currency) }}</td><td><span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></td></tr>
+            {% else %}<tr><td colspan="4" class="empty">{{ 'No transactions.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Support & sign-ins'|t }}</h2></div>
+        <div class="card-body">
+            <ul class="timeline">
+                {% for tk in tickets %}<li>{% if can('tickets.view') %}<a href="/admin/tickets/{{ tk.id }}">{{ tk.subject }}</a>{% else %}{{ tk.subject }}{% endif %} <span class="badge {{ tk.status|status_class }}">{{ tk.status|humanize|t }}</span> <span class="small muted">{{ tk.updated_at|dt }}</span></li>{% else %}<li class="muted">{{ 'No tickets.'|t }}</li>{% endfor %}
+            </ul>
+            {% if logins|length > 0 %}<hr><ul class="timeline">{% for l in logins %}<li class="small">{{ l.created_at|dt }} · {{ l.success ? 'success'|t : l.reason|humanize|t }} · <span class="mono">{{ l.ip }}</span></li>{% endfor %}</ul>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
