@@ -195,10 +195,15 @@ final class PterodactylProvisioner implements Provisioner
     {
         [, $client] = $this->client($service);
 
-        return $client->hasClientApi() ? ['start' => 'Start', 'restart' => 'Restart', 'stop' => 'Stop', 'kill' => 'Kill'] : [];
+        return $client->hasClientApi() ? [
+            'start' => ServiceAction::simple('Start'),
+            'restart' => ServiceAction::simple('Restart'),
+            'stop' => ServiceAction::simple('Stop', 'Stop the server?'),
+            'kill' => ServiceAction::simple('Kill', 'Kill the server process? Unsaved data is lost.', true),
+        ] : [];
     }
 
-    public function perform(Service $service, string $action): string
+    public function perform(Service $service, string $action, array $input = []): string
     {
         [, $client] = $this->client($service);
         if (!in_array($action, ['start', 'restart', 'stop', 'kill'], true)) {
@@ -207,5 +212,10 @@ final class PterodactylProvisioner implements Provisioner
         $client->power((string) $service->remote('identifier', ''), $action);
 
         return 'The power signal has been sent.';
+    }
+
+    public function prepareReinstall(Service $service, array $input): void
+    {
+        throw new IntegrationException('Reinstalling is not supported for this service type.');
     }
 }

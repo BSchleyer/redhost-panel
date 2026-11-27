@@ -30,11 +30,7 @@
         <div class="card-header"><h2>{{ 'Management'|t }}</h2></div>
         <div class="card-body">
             {% if actions|length > 0 %}
-                <div class="gap">
-                {% for action, label in actions %}
-                    <form method="post" action="/services/{{ service.id }}/action" class="inline"{% if action in ['stop', 'kill', 'reset_password'] %} data-confirm="{{ 'Are you sure?'|t }}"{% endif %}>{{ csrf_field() }}<input type="hidden" name="action" value="{{ action }}"><button class="btn btn-outline" type="submit">{{ label|t }}</button></form>
-                {% endfor %}
-                </div>
+                {% include 'partials/service_actions.twig' with {actions: actions, url: '/services/' ~ service.id ~ '/action'} only %}
             {% elseif service.status == 'active' %}
                 <p class="muted">{{ 'No remote actions are available for this service.'|t }}</p>
             {% endif %}

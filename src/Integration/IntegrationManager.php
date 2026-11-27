@@ -7,6 +7,7 @@ namespace Nebrix\Integration;
 use Closure;
 use GuzzleHttp\ClientInterface;
 use Nebrix\Core\Config;
+use Nebrix\Integration\Hetzner\RobotClient;
 use Nebrix\Integration\Http\ApiClient;
 use Nebrix\Integration\Nextcloud\NextcloudClient;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
@@ -101,6 +102,15 @@ class IntegrationManager
         );
     }
 
+    public function hetznerRobot(Integration $integration, bool $allowDisabled = false): RobotClient
+    {
+        $this->assertType($integration, IntegrationType::HETZNER_ROBOT, $allowDisabled);
+
+        return new RobotClient($this->api($integration, [
+            'Authorization' => 'Basic ' . base64_encode((string) $integration->config('username') . ':' . $integration->secret('password')),
+        ]));
+    }
+
     public function testConnection(Integration $integration): HealthResult
     {
         try {
@@ -109,6 +119,7 @@ class IntegrationManager
                 IntegrationType::PTERODACTYL => $this->pterodactyl($integration, true)->healthCheck(),
                 IntegrationType::NEXTCLOUD => $this->nextcloud($integration, true)->healthCheck(),
                 IntegrationType::TEAMSPEAK => $this->teamspeak($integration, true)->healthCheck(),
+                IntegrationType::HETZNER_ROBOT => $this->hetznerRobot($integration, true)->healthCheck((string) $integration->config('pool_prefix', 'nebrix-free')),
                 default => HealthResult::down('Unsupported integration type.'),
             };
         } catch (Throwable $exception) {

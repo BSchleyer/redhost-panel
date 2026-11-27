@@ -79,9 +79,14 @@ final class ProductCategory
             ],
             self::DEDICATED => [
                 'label' => 'Dedicated server',
-                'integration' => null,
+                'integration' => 'hetzner_robot',
                 'config' => [
                     'hardware' => ['label' => 'Hardware description', 'rules' => 'nullable|string|max:500'],
+                    'mode' => ['label' => 'Hetzner: provisioning mode', 'rules' => 'required|in:pool,order', 'default' => 'pool', 'type' => 'select', 'options' => ['pool' => 'Assign a free server from the pool', 'order' => 'Order a new server at Hetzner']],
+                    'server_product' => ['label' => 'Hetzner: server model (pool filter or order product ID)', 'rules' => 'nullable|string|max:50|regex:/^[A-Za-z0-9._ -]*$/', 'help' => 'Pool: part of the Robot product name, e.g. "AX41". Order: product ID from the Robot order API, e.g. "AX41-NVMe". Leave empty for manual fulfilment.'],
+                    'location' => ['label' => 'Hetzner: location', 'rules' => 'nullable|string|max:20|regex:/^[A-Z0-9-]*$/', 'help' => 'e.g. FSN1, NBG1, HEL1 – empty = any.'],
+                    'image' => ['label' => 'Hetzner: operating system image', 'rules' => 'nullable|string|max:100|regex:/^[A-Za-z0-9 ._()+-]*$/', 'default' => 'Debian 12 base', 'help' => 'Exact image name as listed by Robot (Linux installation).'],
+                    'reinstall_images' => ['label' => 'Hetzner: images offered for reinstall (one per line)', 'rules' => 'nullable|string|max:2000', 'type' => 'text'],
                 ],
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE],

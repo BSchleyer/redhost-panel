@@ -53,6 +53,11 @@
             {% endif %}
         </div></div>
         {% endif %}
+        {% if can('services.manage') and remote_actions|length > 0 %}
+        <div class="card"><div class="card-header"><h2>{{ 'Remote actions'|t }}</h2></div><div class="card-body">
+            {% include 'partials/service_actions.twig' with {actions: remote_actions, url: '/admin/services/' ~ service.id ~ '/remote'} only %}
+        </div></div>
+        {% endif %}
         <div class="card"><div class="card-header"><h2>{{ 'Jobs'|t }}</h2></div><div class="table-wrap"><table class="table"><tbody>
             {% for j in jobs %}<tr><td class="mono small">{{ j.type }}</td><td><span class="badge {{ j.status|status_class }}">{{ j.status }}</span></td><td>{{ j.attempts }}/{{ j.max_attempts }}</td><td class="small">{{ j.last_error|default('')|slice(0, 200) }}</td></tr>{% else %}<tr><td class="empty">{{ 'No jobs.'|t }}</td></tr>{% endfor %}
         </tbody></table></div></div>

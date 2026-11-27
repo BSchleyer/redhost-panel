@@ -12,6 +12,9 @@ use Nebrix\Http\Request;
 use Nebrix\Http\Response;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Provisioning\ProvisionerRegistry;
+use Nebrix\Provisioning\ServiceAction;
+use Nebrix\Provisioning\ServiceActionRunner;
+use Nebrix\Provisioning\ServiceStateException;
 use Nebrix\Repository\CustomerGroupRepository;
 use Nebrix\Security\RateLimiter;
 use Nebrix\Service\Service;
@@ -33,6 +36,7 @@ final class ServiceController extends Controller
         private readonly OrderRepository $orders,
         private readonly RateLimiter $limiter,
         private readonly LoggerInterface $logger,
+        private readonly ServiceActionRunner $runner,
     ) {
     }
 
@@ -48,11 +52,11 @@ final class ServiceController extends Controller
         $liveError = null;
         $actions = [];
 
-        if ($service->isActive() && $this->provisioners->supports($service->category)) {
+        if ($service->isActive() && $this->provisioners->supportsService($service)) {
             $provisioner = $this->provisioners->for($service->category);
             try {
                 $live = $provisioner->status($service);
-                $actions = $this->mayManage($request) ? $provisioner->actions($service) : [];
+                $actions = $this->mayManage($request) ? $this->runner->available($service) : [];
             } catch (IntegrationException $exception) {
                 // Customers get a generic message; details are in the integration log.
                 $this->logger->notice('Live status unavailable', ['service' => $id, 'message' => $exception->getMessage()]);
@@ -91,24 +95,29 @@ final class ServiceController extends Controller
     {
         $service = $this->find($request, $id);
         $data = $this->validate($request, ['action' => 'required|alpha_dash|max:30']);
-        if (!$service->isActive() || !$this->mayManage($request) || !$this->provisioners->supports($service->category)) {
+        if (!$service->isActive() || !$this->mayManage($request) || !$this->provisioners->supportsService($service)) {
             throw HttpException::forbidden();
         }
 
-        $provisioner = $this->provisioners->for($service->category);
-        if (!array_key_exists((string) $data['action'], $provisioner->actions($service))) {
-            throw HttpException::forbidden();
+        try {
+            $definition = $this->runner->available($service)[(string) $data['action']] ?? throw HttpException::forbidden();
+        } catch (IntegrationException $exception) {
+            $this->logger->warning('Service actions unavailable', ['service' => $id, 'message' => $exception->getMessage()]);
+            $this->flash($request, 'error', 'The action could not be executed. Please try again later or contact support.');
+
+            return $this->redirect('/services/' . $id);
         }
 
-        $key = 'service-action:' . $id;
-        if (!$this->limiter->attempt($key, 10, 300)) {
+        if (!$this->limiter->attempt('service-action:' . $id, 10, 300)
+            || ($definition->mode === ServiceAction::REINSTALL && !$this->limiter->attempt('service-reinstall:' . $id, 3, 3600))) {
             throw HttpException::tooManyRequests();
         }
 
         try {
-            $message = $provisioner->perform($service, (string) $data['action']);
-            $this->audit($request, 'service.action', 'service', $id, ['action' => $data['action']]);
+            $message = $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp());
             $this->flash($request, 'success', $message);
+        } catch (ServiceStateException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
         } catch (IntegrationException $exception) {
             $this->logger->warning('Customer service action failed', ['service' => $id, 'action' => $data['action'], 'message' => $exception->getMessage()]);
             $this->flash($request, 'error', 'The action could not be executed. Please try again later or contact support.');

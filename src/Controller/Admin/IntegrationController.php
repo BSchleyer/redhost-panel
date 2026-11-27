@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Controller\Admin;
 
 use Nebrix\Authorization\Permission;
+use Nebrix\Database\Connection;
 use Nebrix\Http\Controller;
 use Nebrix\Http\HttpException;
 use Nebrix\Http\Request;
@@ -31,6 +32,7 @@ final class IntegrationController extends Controller
         private readonly IntegrationManager $manager,
         private readonly IntegrationLogger $logs,
         private readonly UrlGuard $guard,
+        private readonly Connection $db,
     ) {
     }
 
@@ -175,6 +177,25 @@ final class IntegrationController extends Controller
                     $client = $this->manager->teamspeak($integration, true);
                     $resources['servers'] = $client->listServers();
                     $client->disconnect();
+                    break;
+                case IntegrationType::HETZNER_ROBOT:
+                    $prefix = (string) $integration->config('pool_prefix', 'nebrix-free');
+                    $assigned = [];
+                    foreach ($this->db->fetchAll("SELECT `id`, `remote` FROM `nx_services` WHERE `integration_id` = ? AND `status` NOT IN ('terminated', 'cancelled')", [$integration->id]) as $row) {
+                        $remote = json_decode((string) $row['remote'], true);
+                        if (is_array($remote) && isset($remote['server_number'])) {
+                            $assigned[(int) $remote['server_number']] = (int) $row['id'];
+                        }
+                    }
+                    $resources['dedicated'] = [];
+                    foreach ($this->manager->hetznerRobot($integration, true)->servers() as $server) {
+                        $name = (string) ($server['server_name'] ?? '');
+                        $number = (int) ($server['server_number'] ?? 0);
+                        $resources['dedicated'][] = $server + [
+                            'pool_state' => isset($assigned[$number]) ? 'assigned' : (str_starts_with($name, 'nebrix-wipe-') ? 'wipe' : (str_starts_with($name, $prefix) ? 'free' : 'unmanaged')),
+                            'service_id' => $assigned[$number] ?? null,
+                        ];
+                    }
                     break;
                 default:
                     $resources['health'] = $this->manager->testConnection($integration);

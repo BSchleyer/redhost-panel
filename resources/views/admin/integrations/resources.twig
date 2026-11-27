@@ -1,5 +1,18 @@
 {% extends 'layouts/admin.twig' %}
-{% block title %}{{ 'Remote resources'|t }}{% endblock %}
+{% block title %}{{ 'Remote resources'|t }}
+{% if resources.dedicated is defined %}
+<div class="card"><div class="card-header"><h2>{{ 'Dedicated servers'|t }}</h2></div>
+<div class="card-body small muted">{{ 'Free: name starts with the pool prefix. Wipe: returned by a terminated service – wipe the disks, then rename the server to the pool prefix in Robot.'|t }}</div>
+<div class="table-wrap"><table class="table">
+    <thead><tr><th>#</th><th>{{ 'Name'|t }}</th><th>{{ 'Model'|t }}</th><th>{{ 'Location'|t }}</th><th>IPv4</th><th>{{ 'Status'|t }}</th><th>{{ 'Pool'|t }}</th></tr></thead>
+    <tbody>{% for s in resources.dedicated %}<tr>
+        <td class="mono">{{ s.server_number }}</td><td>{{ s.server_name|default('') }}</td><td>{{ s.product|default('') }}</td><td>{{ s.dc|default('') }}</td><td class="mono">{{ s.server_ip|default('') }}</td>
+        <td>{{ s.status|default('') }}{% if s.cancelled|default(false) %} <span class="badge badge-danger">{{ 'cancelled'|t }}</span>{% endif %}</td>
+        <td><span class="badge {{ s.pool_state == 'free' ? 'badge-success' : (s.pool_state == 'assigned' ? 'badge-info' : (s.pool_state == 'wipe' ? 'badge-warning' : 'badge-neutral')) }}">{{ s.pool_state|t }}</span>{% if s.service_id %} <a href="/admin/services/{{ s.service_id }}">#{{ s.service_id }}</a>{% endif %}</td>
+    </tr>{% else %}<tr><td colspan="7" class="empty">{{ 'No servers.'|t }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}
 {% block content %}
 <div class="page-header"><div><h1>{{ 'Remote resources'|t }} – {{ integration.name }}</h1><p class="muted"><a href="/admin/integrations/{{ integration.id }}">&larr; {{ 'Back'|t }}</a></p></div></div>
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
@@ -41,4 +54,17 @@
 {% endif %}
 
 {% if resources.health is defined %}<div class="alert alert-info">{{ resources.health.status }}: {{ resources.health.message }}</div>{% endif %}
+
+{% if resources.dedicated is defined %}
+<div class="card"><div class="card-header"><h2>{{ 'Dedicated servers'|t }}</h2></div>
+<div class="card-body small muted">{{ 'Free: name starts with the pool prefix. Wipe: returned by a terminated service – wipe the disks, then rename the server to the pool prefix in Robot.'|t }}</div>
+<div class="table-wrap"><table class="table">
+    <thead><tr><th>#</th><th>{{ 'Name'|t }}</th><th>{{ 'Model'|t }}</th><th>{{ 'Location'|t }}</th><th>IPv4</th><th>{{ 'Status'|t }}</th><th>{{ 'Pool'|t }}</th></tr></thead>
+    <tbody>{% for s in resources.dedicated %}<tr>
+        <td class="mono">{{ s.server_number }}</td><td>{{ s.server_name|default('') }}</td><td>{{ s.product|default('') }}</td><td>{{ s.dc|default('') }}</td><td class="mono">{{ s.server_ip|default('') }}</td>
+        <td>{{ s.status|default('') }}{% if s.cancelled|default(false) %} <span class="badge badge-danger">{{ 'cancelled'|t }}</span>{% endif %}</td>
+        <td><span class="badge {{ s.pool_state == 'free' ? 'badge-success' : (s.pool_state == 'assigned' ? 'badge-info' : (s.pool_state == 'wipe' ? 'badge-warning' : 'badge-neutral')) }}">{{ s.pool_state|t }}</span>{% if s.service_id %} <a href="/admin/services/{{ s.service_id }}">#{{ s.service_id }}</a>{% endif %}</td>
+    </tr>{% else %}<tr><td colspan="7" class="empty">{{ 'No servers.'|t }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
 {% endblock %}

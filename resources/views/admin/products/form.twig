@@ -52,6 +52,10 @@
                 {% set value = config[key] ?? field.default ?? '' %}
                 {% if field.type|default('') == 'bool' %}
                     {{ f.checkbox(name, field.label, value) }}
+                {% elseif field.type|default('') == 'select' %}
+                    {{ f.select(name, field.label, field.options, value, field.help is defined ? {help: field.help} : {}) }}
+                {% elseif field.type|default('') == 'text' %}
+                    {{ f.textarea(name, field.label, value, field.help is defined ? {help: field.help} : {}) }}
                 {% elseif field.type|default('') == 'json' %}
                     {{ f.textarea(name, field.label, value is iterable ? value|json_encode : value, {class: 'code', help: field.help|default('')}) }}
                 {% else %}

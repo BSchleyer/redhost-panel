@@ -233,10 +233,15 @@ final class TeamSpeakProvisioner implements Provisioner
 
     public function actions(Service $service): array
     {
-        return ['start' => 'Start', 'stop' => 'Stop', 'restart' => 'Restart', 'privilege_key' => 'Create admin privilege key'];
+        return [
+            'start' => ServiceAction::simple('Start'),
+            'stop' => ServiceAction::simple('Stop', 'Stop the server? Connected users are disconnected.'),
+            'restart' => ServiceAction::simple('Restart', 'Restart the server? Connected users are disconnected.'),
+            'privilege_key' => ServiceAction::simple('Create admin privilege key'),
+        ];
     }
 
-    public function perform(Service $service, string $action): string
+    public function perform(Service $service, string $action, array $input = []): string
     {
         if (!array_key_exists($action, $this->actions($service))) {
             throw new IntegrationException('Unsupported action.');
@@ -261,5 +266,10 @@ final class TeamSpeakProvisioner implements Provisioner
         });
 
         return $message;
+    }
+
+    public function prepareReinstall(Service $service, array $input): void
+    {
+        throw new IntegrationException('Reinstalling is not supported for this service type.');
     }
 }

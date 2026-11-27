@@ -1,0 +1,22 @@
+{# Provisioner actions of a service. Parameters: actions (key => ServiceAction), url (POST target). #}
+{% import 'macros/forms.twig' as f %}
+<div class="gap">
+{% for key, a in actions %}{% if a.fields|length == 0 %}
+    <form method="post" action="{{ url }}" class="inline"{% if a.confirm %} data-confirm="{{ a.confirm|t }}"{% endif %}>{{ csrf_field() }}<input type="hidden" name="action" value="{{ key }}"><button class="btn {{ a.danger ? 'btn-danger' : 'btn-outline' }}" type="submit">{{ a.label|t }}</button></form>
+{% endif %}{% endfor %}
+</div>
+{% for key, a in actions %}{% if a.fields|length > 0 %}
+    <form method="post" action="{{ url }}" class="mt-2" novalidate{% if a.confirm %} data-confirm="{{ a.confirm|t }}"{% endif %}>
+        {{ csrf_field() }}<input type="hidden" name="action" value="{{ key }}">
+        <h3>{{ a.label|t }}</h3>
+        {% for name, field in a.fields %}
+            {% if field.options is defined %}
+                {{ f.select(name, field.label, field.options, field.default|default('')) }}
+            {% else %}
+                {{ f.input(name, field.label, field.default|default(''), field.type|default('text')) }}
+            {% endif %}
+            {% if field.help is defined %}<p class="small muted">{{ field.help|t }}</p>{% endif %}
+        {% endfor %}
+        <button class="btn {{ a.danger ? 'btn-danger' : 'btn-outline' }}" type="submit">{{ a.label|t }}</button>
+    </form>
+{% endif %}{% endfor %}

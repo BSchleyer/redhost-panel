@@ -154,7 +154,7 @@ class ProvisioningService
     public function suspend(int $serviceId): void
     {
         $service = $this->services->find($serviceId) ?? throw new PermanentJobFailure('Service not found.');
-        if ($service->status === Service::STATUS_SUSPENDED && $this->provisioners->supports($service->category) && $service->externalId !== null) {
+        if ($service->status === Service::STATUS_SUSPENDED && $this->provisioners->supportsService($service) && $service->externalId !== null) {
             $this->provisioners->for($service->category)->suspend($service);
         }
     }
@@ -165,7 +165,7 @@ class ProvisioningService
         if ($service->status !== Service::STATUS_SUSPENDED) {
             return;
         }
-        if ($this->provisioners->supports($service->category) && $service->externalId !== null) {
+        if ($this->provisioners->supportsService($service) && $service->externalId !== null) {
             $this->provisioners->for($service->category)->unsuspend($service);
         }
         $this->services->update($serviceId, ['status' => Service::STATUS_ACTIVE, 'suspended_at' => null, 'suspension_reason' => null]);
@@ -177,7 +177,7 @@ class ProvisioningService
         if ($service->status === Service::STATUS_TERMINATED) {
             return;
         }
-        if ($this->provisioners->supports($service->category) && ($service->externalId !== null || $service->remote !== [])) {
+        if ($this->provisioners->supportsService($service) && ($service->externalId !== null || $service->remote !== [])) {
             $this->provisioners->for($service->category)->terminate($service);
         }
 

@@ -6,10 +6,13 @@ namespace Nebrix\Provisioning;
 
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Core\Container;
+use Nebrix\Service\Service;
 
 /**
- * Maps product categories to provisioners. Categories without an automated
- * integration (dedicated servers, webhosting, domains) are set up by staff.
+ * Maps product categories to provisioners. A service is provisioned
+ * automatically only when it has an integration assigned; without one (e.g.
+ * dedicated servers that are not managed through Hetzner) staff fulfil it
+ * manually.
  */
 class ProvisionerRegistry
 {
@@ -19,6 +22,7 @@ class ProvisionerRegistry
         ProductCategory::MINECRAFT => PterodactylProvisioner::class,
         ProductCategory::NEXTCLOUD => NextcloudProvisioner::class,
         ProductCategory::TEAMSPEAK => TeamSpeakProvisioner::class,
+        ProductCategory::DEDICATED => HetznerRobotProvisioner::class,
     ];
 
     public function __construct(private readonly Container $container)
@@ -28,6 +32,12 @@ class ProvisionerRegistry
     public function supports(string $category): bool
     {
         return isset(self::MAP[$category]);
+    }
+
+    /** True when the service is managed through an integration. */
+    public function supportsService(Service $service): bool
+    {
+        return isset(self::MAP[$service->category]) && $service->integrationId !== null;
     }
 
     public function for(string $category): Provisioner

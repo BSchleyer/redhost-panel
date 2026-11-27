@@ -13,7 +13,9 @@ use Nebrix\Http\Request;
 use Nebrix\Http\Response;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Provisioning\ProvisionerRegistry;
+use Nebrix\Provisioning\ServiceActionRunner;
 use Nebrix\Provisioning\ServiceManager;
+use Nebrix\Provisioning\ServiceStateException;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 use RuntimeException;
@@ -25,6 +27,7 @@ final class ServiceController extends Controller
         private readonly ServiceManager $manager,
         private readonly ProvisionerRegistry $provisioners,
         private readonly Connection $db,
+        private readonly ServiceActionRunner $runner,
     ) {
     }
 
@@ -50,9 +53,11 @@ final class ServiceController extends Controller
         $service = $this->find($id);
         $live = null;
         $liveError = null;
-        if ($service->isActive() && $this->provisioners->supports($service->category)) {
+        $remoteActions = [];
+        if ($service->isActive() && $this->provisioners->supportsService($service)) {
             try {
                 $live = $this->provisioners->for($service->category)->status($service);
+                $remoteActions = $this->runner->available($service);
             } catch (IntegrationException $exception) {
                 $liveError = $exception->getMessage();
             }
@@ -75,8 +80,25 @@ final class ServiceController extends Controller
             ),
             'live' => $live,
             'live_error' => $liveError,
-            'automated' => $this->provisioners->supports($service->category),
+            'automated' => $this->provisioners->supportsService($service),
+            'remote_actions' => $remoteActions,
         ]);
+    }
+
+    /** Provisioner actions (power, reinstall, …) executed by staff. */
+    public function remote(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        $service = $this->find($id);
+        $data = $this->validate($request, ['action' => 'required|alpha_dash|max:30']);
+
+        try {
+            $this->flash($request, 'success', $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp()));
+        } catch (ServiceStateException|IntegrationException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
+        }
+
+        return $this->redirect('/admin/services/' . $id);
     }
 
     public function credentials(Request $request, int $id): Response

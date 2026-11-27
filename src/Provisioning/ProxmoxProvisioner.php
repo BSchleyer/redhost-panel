@@ -339,12 +339,17 @@ final class ProxmoxProvisioner implements Provisioner
 
     public function actions(Service $service): array
     {
-        return ['start' => 'Start', 'shutdown' => 'Shut down', 'reboot' => 'Reboot', 'stop' => 'Force stop'];
+        return [
+            'start' => ServiceAction::simple('Start'),
+            'shutdown' => ServiceAction::simple('Shut down', 'Shut the server down?'),
+            'reboot' => ServiceAction::simple('Reboot', 'Reboot the server?'),
+            'stop' => ServiceAction::simple('Force stop', 'Force-stop the server? Unsaved data may be lost.', true),
+        ];
     }
 
-    public function perform(Service $service, string $action): string
+    public function perform(Service $service, string $action, array $input = []): string
     {
-        if (!array_key_exists($action, $this->actions($service))) {
+        if (!in_array($action, ['start', 'shutdown', 'reboot', 'stop'], true)) {
             throw new IntegrationException('Unsupported action.');
         }
 
@@ -375,5 +380,10 @@ final class ProxmoxProvisioner implements Provisioner
         }
 
         return $password;
+    }
+
+    public function prepareReinstall(Service $service, array $input): void
+    {
+        throw new IntegrationException('Reinstalling is not supported for this service type.');
     }
 }

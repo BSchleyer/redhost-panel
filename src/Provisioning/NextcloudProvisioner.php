@@ -116,10 +116,10 @@ final class NextcloudProvisioner implements Provisioner
 
     public function actions(Service $service): array
     {
-        return ['reset_password' => 'Generate a new password'];
+        return ['reset_password' => ServiceAction::simple('Generate a new password', 'Generate a new password? The current password stops working.')];
     }
 
-    public function perform(Service $service, string $action): string
+    public function perform(Service $service, string $action, array $input = []): string
     {
         if ($action !== 'reset_password') {
             throw new IntegrationException('Unsupported action.');
@@ -131,5 +131,10 @@ final class NextcloudProvisioner implements Provisioner
         $this->services->setCredentials($service->id, ['password' => $password] + $this->services->credentials($service));
 
         return 'A new password has been set. You can view it under access data.';
+    }
+
+    public function prepareReinstall(Service $service, array $input): void
+    {
+        throw new IntegrationException('Reinstalling is not supported for this service type.');
     }
 }

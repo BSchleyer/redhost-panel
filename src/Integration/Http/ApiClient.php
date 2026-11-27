@@ -39,7 +39,7 @@ class ApiClient
 
     /**
      * @param array<string, mixed> $options query, json, form_params, headers, action
-     * @return array{status: int, json: mixed, body: string}
+     * @return array{status: int, json: mixed, body: string, headers: array<string, list<string>>}
      *
      * @throws IntegrationException
      */
@@ -97,7 +97,12 @@ class ApiClient
             );
         }
 
-        return ['status' => $status, 'json' => $json, 'body' => $body];
+        $headers = [];
+        foreach ($response->getHeaders() as $name => $values) {
+            $headers[strtolower((string) $name)] = array_values(array_map('strval', $values));
+        }
+
+        return ['status' => $status, 'json' => $json, 'body' => $body, 'headers' => $headers];
     }
 
     /**
@@ -109,6 +114,8 @@ class ApiClient
         if (is_array($json)) {
             $candidates[] = $json['errors'][0]['detail'] ?? null;          // Pterodactyl
             $candidates[] = $json['ocs']['meta']['message'] ?? null;       // Nextcloud
+            $candidates[] = isset($json['error']['code'], $json['error']['message']) && is_string($json['error']['message'])
+                ? $json['error']['code'] . ': ' . $json['error']['message'] : null;  // Hetzner Robot
             $candidates[] = $json['message'] ?? null;                      // generic
             $candidates[] = is_array($json['errors'] ?? null) && !isset($json['errors'][0]) ? json_encode($json['errors']) : null; // Proxmox parameter errors
         } elseif ($body !== '' && strlen($body) < 300 && !str_contains($body, '<')) {
@@ -127,7 +134,7 @@ class ApiClient
     private function sanitize(string $message): string
     {
         // Strip anything that looks like a credential or token from error messages.
-        $message = (string) preg_replace('/(PVEAPIToken=)[^\s"]+|Bearer\s+[A-Za-z0-9._~+\/=-]+|ptl[ac]_[A-Za-z0-9]+/i', '$1[redacted]', $message);
+        $message = (string) preg_replace('/(PVEAPIToken=)[^\s"]+|(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+|ptl[ac]_[A-Za-z0-9]+/i', '$1[redacted]', $message);
 
         return mb_substr(trim($message), 0, 300);
     }

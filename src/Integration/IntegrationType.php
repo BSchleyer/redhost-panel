@@ -15,6 +15,7 @@ final class IntegrationType
     public const PTERODACTYL = 'pterodactyl';
     public const NEXTCLOUD = 'nextcloud';
     public const TEAMSPEAK = 'teamspeak';
+    public const HETZNER_ROBOT = 'hetzner_robot';
 
     /**
      * @return array<string, array{label: string, description: string, config: array<string, array{label: string, rules: string, default?: mixed, help?: string, type?: string}>, secrets: array<string, array{label: string, rules: string, help?: string, required?: bool}>}>
@@ -72,6 +73,23 @@ final class IntegrationType
                 ],
                 'secrets' => [
                     'query_password' => ['label' => 'ServerQuery password', 'rules' => 'string|max:255', 'required' => true, 'help' => 'Raw ServerQuery is not encrypted: only connect over a private network or VPN.'],
+                ],
+            ],
+            self::HETZNER_ROBOT => [
+                'label' => 'Hetzner Robot (dedicated servers)',
+                'description' => 'Dedicated root servers of a Hetzner Robot account: assignment from a server pool or ordering, installation, resets, rescue system, firewall and reverse DNS.',
+                'config' => [
+                    'base_url' => ['label' => 'Robot API URL', 'rules' => 'required|url|max:255', 'default' => 'https://robot-ws.your-server.de'],
+                    'username' => ['label' => 'Webservice user', 'rules' => 'required|string|max:100|regex:/^[A-Za-z0-9#._@+-]+$/', 'help' => 'Create a separate webservice user in Robot (Settings → Webservice and app settings).'],
+                    'pool_prefix' => ['label' => 'Server name prefix of the free pool', 'rules' => 'required|string|max:40|regex:/^[a-z0-9][a-z0-9-]{2,39}$/', 'default' => 'nebrix-free', 'help' => 'Only servers whose Robot name starts with this prefix are assigned to customers.'],
+                    'allow_orders' => ['label' => 'Allow ordering new servers', 'rules' => 'bool', 'default' => false, 'type' => 'bool', 'help' => 'Products in "order" mode buy a new server at Hetzner for every order. This causes costs.'],
+                    'order_test_mode' => ['label' => 'Send orders in test mode', 'rules' => 'bool', 'default' => true, 'type' => 'bool', 'help' => 'Hetzner validates test orders without processing them.'],
+                    'cancel_on_terminate' => ['label' => 'Cancel ordered servers when the service is terminated', 'rules' => 'bool', 'default' => false, 'type' => 'bool'],
+                    'ssh_key_fingerprint' => ['label' => 'SSH key fingerprint for orders (optional)', 'rules' => 'nullable|regex:/^([0-9a-f]{2}:){15}[0-9a-f]{2}$/', 'help' => 'Fingerprint of a key stored in Robot; used for newly ordered servers before the customer installation.'],
+                    'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
+                ],
+                'secrets' => [
+                    'password' => ['label' => 'Webservice password', 'rules' => 'string|max:255', 'required' => true],
                 ],
             ],
         ];

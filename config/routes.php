@@ -190,6 +190,7 @@ return static function (Router $r): void {
             $r->get('/services', [Admin\ServiceController::class, 'index']);
             $r->get('/services/{id:\d+}', [Admin\ServiceController::class, 'show']);
             $r->get('/services/{id:\d+}/credentials', [Admin\ServiceController::class, 'credentials']);
+            $r->post('/services/{id:\d+}/remote', [Admin\ServiceController::class, 'remote']);
             $r->post('/services/{id:\d+}/action', [Admin\ServiceController::class, 'action']);
         });
 

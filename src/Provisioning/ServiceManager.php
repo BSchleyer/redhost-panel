@@ -12,7 +12,6 @@ use Nebrix\Queue\JobQueue;
 use Nebrix\Repository\UserRepository;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
-use RuntimeException;
 
 /**
  * Service state changes requested by staff, customers or the scheduler.
@@ -35,7 +34,7 @@ class ServiceManager
     public function suspend(Service $service, string $reason, ?int $actorId, bool $notify = true): void
     {
         if ($service->status !== Service::STATUS_ACTIVE) {
-            throw new RuntimeException('Only active services can be suspended.');
+            throw new ServiceStateException('Only active services can be suspended.');
         }
 
         $this->services->update($service->id, ['status' => Service::STATUS_SUSPENDED, 'suspended_at' => $this->clock->nowString(), 'suspension_reason' => mb_substr($reason, 0, 255)]);
@@ -56,7 +55,7 @@ class ServiceManager
     public function unsuspend(Service $service, ?int $actorId): void
     {
         if ($service->status !== Service::STATUS_SUSPENDED) {
-            throw new RuntimeException('Only suspended services can be reactivated.');
+            throw new ServiceStateException('Only suspended services can be reactivated.');
         }
 
         $this->jobs->dispatch(ProvisioningService::JOB_UNSUSPEND, ['service_id' => $service->id], ProvisioningService::JOB_UNSUSPEND . ':' . $service->id . ':' . $this->clock->now()->getTimestamp());
@@ -66,7 +65,7 @@ class ServiceManager
     public function terminate(Service $service, ?int $actorId, string $reason): void
     {
         if (in_array($service->status, [Service::STATUS_TERMINATED, Service::STATUS_CANCELLED], true)) {
-            throw new RuntimeException('The service is already terminated.');
+            throw new ServiceStateException('The service is already terminated.');
         }
 
         $this->jobs->dispatch(ProvisioningService::JOB_TERMINATE, ['service_id' => $service->id], ProvisioningService::JOB_TERMINATE . ':' . $service->id);
@@ -77,16 +76,44 @@ class ServiceManager
     public function retryProvisioning(Service $service, ?int $actorId): void
     {
         if (!in_array($service->status, [Service::STATUS_FAILED, Service::STATUS_PENDING, Service::STATUS_PROVISIONING], true)) {
-            throw new RuntimeException('The service is not waiting for provisioning.');
+            throw new ServiceStateException('The service is not waiting for provisioning.');
         }
-        if (!$this->provisioners->supports($service->category) || $service->integrationId === null) {
-            throw new RuntimeException('This service is provisioned manually.');
+        if (!$this->provisioners->supportsService($service)) {
+            throw new ServiceStateException('This service is provisioned manually.');
         }
 
         $this->services->update($service->id, ['status' => Service::STATUS_PENDING]);
         $jobId = $this->jobs->dispatch(ProvisioningService::JOB_PROVISION, ['service_id' => $service->id], ProvisioningService::JOB_PROVISION . ':' . $service->id);
         $this->jobs->retry($jobId);
         $this->audit->log($actorId, 'service.provisioning_retried', 'service', $service->id);
+    }
+
+    /**
+     * Re-creates an active service (new operating system / clean install).
+     *
+     * The provisioner resets its persisted remote state; the regular
+     * provisioning job then destroys the old installation where necessary
+     * and installs the service again (idempotent, retried on failure).
+     *
+     * @param array<string, mixed> $input validated action input (e.g. image)
+     */
+    public function reinstall(Service $service, array $input, ?int $actorId): void
+    {
+        if ($service->status !== Service::STATUS_ACTIVE) {
+            throw new ServiceStateException('Only active services can be reinstalled.');
+        }
+        if (!$this->provisioners->supportsService($service)) {
+            throw new ServiceStateException('This service is managed manually.');
+        }
+
+        $this->provisioners->for($service->category)->prepareReinstall($service, $input);
+        $this->services->update($service->id, ['status' => Service::STATUS_PROVISIONING, 'last_error' => null]);
+        $this->jobs->dispatch(
+            ProvisioningService::JOB_PROVISION,
+            ['service_id' => $service->id],
+            ProvisioningService::JOB_PROVISION . ':' . $service->id . ':reinstall:' . $this->clock->now()->getTimestamp(),
+        );
+        $this->audit->log($actorId, 'service.reinstall_requested', 'service', $service->id, array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $input));
     }
 
     /**
@@ -97,7 +124,7 @@ class ServiceManager
     public function activateManually(Service $service, array $credentials, ?string $externalId, int $actorId): void
     {
         if (!in_array($service->status, [Service::STATUS_PENDING, Service::STATUS_FAILED], true)) {
-            throw new RuntimeException('Only pending services can be activated.');
+            throw new ServiceStateException('Only pending services can be activated.');
         }
 
         if ($credentials !== []) {

@@ -43,16 +43,33 @@ interface Provisioner
     public function status(Service $service): array;
 
     /**
-     * Actions a customer or staff member may trigger (e.g. start, stop).
+     * Actions a customer or staff member may trigger (e.g. start, reinstall).
      *
-     * @return array<string, string> action => label
+     * @return array<string, ServiceAction> action key => definition
      */
     public function actions(Service $service): array;
 
     /**
+     * Executes a synchronous action. Input has been validated against the
+     * action's field definitions.
+     *
+     * @param array<string, mixed> $input
      * @return string user-facing confirmation
      *
      * @throws IntegrationException
      */
-    public function perform(Service $service, string $action): string;
+    public function perform(Service $service, string $action, array $input = []): string;
+
+    /**
+     * Prepares a reinstall: validates the input and resets the persisted
+     * remote state so that the next provisioning run re-creates the service
+     * (destroying the old installation where necessary). Called only for
+     * actions with mode ServiceAction::REINSTALL; must not contact the remote
+     * system (the provisioning job does).
+     *
+     * @param array<string, mixed> $input
+     *
+     * @throws IntegrationException when reinstalling is not supported
+     */
+    public function prepareReinstall(Service $service, array $input): void;
 }
