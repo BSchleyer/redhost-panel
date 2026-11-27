@@ -144,4 +144,21 @@ final class PleskTest extends IntegrationTestCase
         self::assertFalse($result->isHealthy());
         self::assertStringContainsString('Authentication failed', $result->message);
     }
+
+    public function testADomainGetsOnlyOneSubscription(): void
+    {
+        $first = $this->hosting($this->createUser()->id, 'unique-shop.de');
+        $this->provision($first);
+
+        // A second service for the same domain (another customer) is refused before anything is created.
+        $second = $this->hosting($this->createUser()->id, 'unique-shop.de');
+        try {
+            $this->provision($second);
+            self::fail('Second subscription for the same domain accepted.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('already used by another webhosting service', $exception->getMessage());
+        }
+        self::assertCount(1, $this->plesk->customers);
+        self::assertCount(1, $this->plesk->webspaces);
+    }
 }

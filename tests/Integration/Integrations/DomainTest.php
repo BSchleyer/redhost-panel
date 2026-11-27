@@ -137,15 +137,98 @@ final class DomainTest extends IntegrationTestCase
         $options = json_decode((string) $item['options'], true);
         $service = $this->createService($user, 'domain', $this->integrationId, ['tld' => 'de', '_options' => $options]);
 
-        $this->app->container()->get(DomainProvisioner::class)->provision($this->reload($service->id), $user);
+        $provisioner = $this->app->container()->get(DomainProvisioner::class);
+        $this->expectRetry(fn () => $provisioner->provision($this->reload($service->id), $user));
 
         self::assertSame('S3cr3t-Auth!', $this->inwx->callsTo('domain.transfer')[0]['authCode']);
         self::assertArrayNotHasKey('auth_code', $this->reload($service->id)->config['_options'], 'The auth code is removed after the transfer request.');
         self::assertSame('transfer', $this->reload($service->id)->remote['submitted']);
 
-        // Retry while the transfer is pending: not submitted again.
-        $this->app->container()->get(DomainProvisioner::class)->provision($this->reload($service->id), $user);
+        // While the transfer is pending the service is not completed and the transfer is not submitted again.
+        $this->expectRetry(fn () => $provisioner->provision($this->reload($service->id), $user));
         self::assertCount(1, $this->inwx->callsTo('domain.transfer'));
+
+        $this->inwx->domains['moving.de']['status'] = 'OK';
+        $result = $provisioner->provision($this->reload($service->id), $user);
+        self::assertSame('domain:moving.de', $result->externalId);
+        self::assertCount(1, $this->inwx->callsTo('domain.transfer'));
+    }
+
+    public function testTransferThatNeverCompletesFailsAfterTheDeadline(): void
+    {
+        $user = $this->customer();
+        $provisioner = $this->app->container()->get(DomainProvisioner::class);
+
+        // A wrong auth code rejected by the registry: nothing counts as submitted, the service is not activated.
+        $wrong = $this->transferService($user, 'wrong.de', 'wrong-code');
+        try {
+            $provisioner->provision($this->reload($wrong->id), $user);
+            self::fail('Transfer with a wrong auth code accepted.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('Invalid authorization', $exception->getMessage());
+        }
+        self::assertArrayNotHasKey('submitted', $this->reload($wrong->id)->remote);
+
+        // An accepted transfer that the losing registrar never completes fails after 10 days instead of activating the service.
+        $stuck = $this->transferService($user, 'stuck.de', 'S3cr3t-Auth!');
+        $this->expectRetry(fn () => $provisioner->provision($this->reload($stuck->id), $user));
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($stuck->id, ['submitted_at' => time() - 11 * 86400]);
+        $this->expectException(\Nebrix\Integration\IntegrationException::class);
+        $this->expectExceptionMessage('was not completed in time');
+        $provisioner->provision($this->reload($stuck->id), $user);
+    }
+
+    private function transferService(\Nebrix\Auth\User $user, string $domain, string $authCode): \Nebrix\Service\Service
+    {
+        $this->inwx->registeredElsewhere[] = $domain;
+        $order = $this->app->container()->get(OrderService::class)->place($user, $this->product(), ['domain' => $domain, 'auth_code' => $authCode], '127.0.0.1');
+        $options = json_decode((string) $this->db->fetchValue('SELECT options FROM nx_order_items WHERE order_id = ?', [$order['order_id']]), true);
+
+        return $this->createService($user, 'domain', $this->integrationId, ['tld' => 'de', '_options' => $options]);
+    }
+
+    public function testDomainOfAnotherCustomerCannotBeTakenOver(): void
+    {
+        $owner = $this->customer();
+        $existing = $this->createService($owner, 'domain', $this->integrationId, ['tld' => 'de', '_options' => ['domain' => 'mine.de']]);
+        $provisioner = $this->app->container()->get(DomainProvisioner::class);
+        $provisioner->provision($this->reload($existing->id), $owner);
+        $this->db->update('nx_services', ['status' => 'active'], ['id' => $existing->id]);
+
+        $attacker = $this->customer();
+        try {
+            $this->app->container()->get(OrderService::class)->place($attacker, $this->product(), ['domain' => 'mine.de', 'auth_code' => 'guessed'], '127.0.0.1');
+            self::fail('A domain managed in the panel was accepted for another order.');
+        } catch (OrderException $exception) {
+            self::assertStringContainsString('already managed in this panel', $exception->getMessage());
+        }
+
+        // Even a service created without the precheck cannot adopt or act on it.
+        $foreign = $this->createService($attacker, 'domain', $this->integrationId, ['tld' => 'de', '_options' => ['domain' => 'mine.de']]);
+        try {
+            $provisioner->provision($this->reload($foreign->id), $attacker);
+            self::fail('Foreign service provisioned.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('already held by another service', $exception->getMessage());
+        }
+        $this->db->update('nx_services', ['status' => 'terminated'], ['id' => $existing->id]);
+        try {
+            $provisioner->provision($this->reload($foreign->id), $attacker);
+            self::fail('Domain in the account adopted by another registrant.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('not registered by this service', $exception->getMessage());
+        }
+        self::assertSame([], $this->inwx->callsTo('domain.transfer'));
+        self::assertCount(1, $this->inwx->callsTo('domain.create'));
+    }
+
+    private function expectRetry(\Closure $call): void
+    {
+        try {
+            $call();
+            self::fail('Expected RetryLaterException.');
+        } catch (\Nebrix\Provisioning\RetryLaterException) {
+        }
     }
 
     public function testCustomerActionsAndTwoFactorLogin(): void

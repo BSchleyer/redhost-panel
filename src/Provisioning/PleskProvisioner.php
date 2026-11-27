@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Provisioning;
 
 use Nebrix\Auth\User;
+use Nebrix\Billing\OrderException;
 use Nebrix\Database\Connection;
 use Nebrix\Integration\Integration;
 use Nebrix\Integration\IntegrationException;
@@ -20,9 +21,11 @@ use Nebrix\Service\ServiceRepository;
  *
  * Idempotency: passwords are stored before the remote calls; a retry finds
  * the customer by its external ID and the subscription by its domain and
- * adopts it only if it belongs to that customer.
+ * adopts it only if it belongs to that customer. A domain can be held by one
+ * live webhosting service per Plesk server only, so terminating one service
+ * can never delete another service's subscription.
  */
-final class PleskProvisioner implements Provisioner
+final class PleskProvisioner implements Provisioner, OrderPrecheck
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
@@ -31,10 +34,21 @@ final class PleskProvisioner implements Provisioner
     ) {
     }
 
+    public function checkOrder(Integration $integration, array $config, User $user, array $options): void
+    {
+        $domain = mb_strtolower((string) ($options['domain'] ?? ''));
+        if ($this->heldByOtherService($integration->id, $domain, 0)) {
+            throw new OrderException(sprintf('%s already has a webhosting subscription in this panel.', $domain));
+        }
+    }
+
     public function provision(Service $service, User $owner): ProvisionResult
     {
         [$integration, $client] = $this->client($service);
         $domain = $this->domain($service);
+        if ($this->heldByOtherService($integration->id, $domain, $service->id)) {
+            throw new IntegrationException(sprintf('%s is already used by another webhosting service.', $domain));
+        }
         $plan = (string) $service->config('plan', '');
         if ($plan === '') {
             throw new IntegrationException('The product needs the name of a Plesk service plan.');
@@ -178,6 +192,15 @@ final class PleskProvisioner implements Provisioner
         }
 
         return $domain;
+    }
+
+    private function heldByOtherService(int $integrationId, string $domain, int $exceptServiceId): bool
+    {
+        return (int) $this->db->fetchValue(
+            "SELECT COUNT(*) FROM `nx_services` WHERE `category` = 'webhosting' AND `integration_id` = ? AND `id` <> ? AND `status` NOT IN ('terminated', 'cancelled', 'failed')
+             AND (JSON_UNQUOTE(JSON_EXTRACT(`config`, '$._options.domain')) = ? OR JSON_UNQUOTE(JSON_EXTRACT(`remote`, '$.domain')) = ?)",
+            [$integrationId, $exceptServiceId, $domain, $domain],
+        ) > 0;
     }
 
     private function webspaceId(Service $service): int

@@ -25,7 +25,7 @@ interface Registrar
     /**
      * Domain in the registrar account, or null when it is not in the account.
      *
-     * @return array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null}|null
+     * @return array{status: string, expires: string|null, nameservers: list<string>, auth_code: string|null, registrant: string|null}|null
      *
      * @throws IntegrationException
      */

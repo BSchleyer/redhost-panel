@@ -77,6 +77,7 @@ class InwxClient implements Registrar
             'expires' => isset($result['exDate']) ? (string) $result['exDate'] : null,
             'nameservers' => array_values(array_map('strval', is_array($result['ns'] ?? null) ? $result['ns'] : [])),
             'auth_code' => isset($result['authCode']) && $result['authCode'] !== '' ? (string) $result['authCode'] : null,
+            'registrant' => isset($result['registrant']) && $result['registrant'] !== '' ? (string) $result['registrant'] : null,
         ];
     }
 
