@@ -269,4 +269,15 @@ final class CancellationTest extends FeatureTestCase
         self::assertSame(200, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'other@example.test', 'contract' => 'Root server'])->status());
         self::assertSame(4, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations'));
     }
+
+    public function testGuestsSeeTheFormsAndReceiptInTheirBrowserLanguage(): void
+    {
+        $this->serverOverrides['HTTP_ACCEPT_LANGUAGE'] = 'de-DE,de;q=0.9,en;q=0.8';
+        self::assertStringContainsString('Vertrag widerrufen', $this->get('/withdraw-contract')->body());
+        $this->post('/withdraw-contract', ['name' => 'Max', 'email' => 'gast@example.test', 'contract' => 'Root server']);
+        self::assertStringContainsString('Eingangsbestätigung', $this->lastMail('cancellation_received')['subject']);
+
+        $this->serverOverrides['HTTP_ACCEPT_LANGUAGE'] = 'fr-FR,fr;q=0.9';
+        self::assertStringContainsString('Withdraw from contract', $this->get('/withdraw-contract')->body(), 'Languages that are not enabled fall back to the default.');
+    }
 }

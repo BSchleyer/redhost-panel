@@ -43,6 +43,14 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - **Invoice documents**: PDF invoices (dompdf), XRechnung 3.0 (UN/CEFACT CII) for business customers, attachments in order/renewal e-mails, unchangeable archive with SHA-256 checks, cancellation and correction documents for cancelled invoices and refunds (prefix `RK-`), downloads for customers, staff and the API.
 - **Customer backups**: Proxmox (vzdump to a backup storage, restore through the provisioning queue, deletion, cleanup on termination) and Pterodactyl (create, restore, download, delete) with per-product limits and strict ownership checks.
 
+### Fixed (system test of the Docker installation)
+- Docker build: the composer stage failed on the missing `pdo_mysql` extension of the composer image; it is now ignored there (the runtime image installs it).
+- New `.dockerignore`: `.env`, `.git`, local `vendor/`, tests, logs and runtime data are no longer copied into the image (previously a `.env` next to the Dockerfile would have ended up in the image).
+- docker-compose: worker and scheduler no longer report "unhealthy" (the image's Apache health check does not apply to them); the console service checks its own port.
+- German interface completed (over 1,000 texts: customer area, administration, settings, product fields, permissions, help texts) with a test that keeps every interface text translated; visitors get their browser language; tax rates and discounts are formatted per language ("19 %", "7,5 %"); amounts no longer wrap in tables.
+- Order form: the tax line shows the rate that is actually charged (0 % for reverse charge) instead of the product's rate.
+- Invoice lines, renewal descriptions, refund lines and e-mail dates are written in the customer's language and date format.
+
 ### Security (billing, contracts and backups)
 - Fourth independent review; all findings fixed with regression tests: rejected or replaced cancellations no longer terminate the service (the end date is removed, only scheduled declarations are executed), customers can only take back their own automatic cancellations, staff cannot set past end dates, already cancelled services are not offered again; open invoices of cancelled or ended services are not paid automatically from credit or reminded; reverse charge requires a company name matching the VIES holder name, and a VIES outage keeps an earlier confirmation; per-network and per-recipient limits on the public cancellation forms; distinct number prefix for correction documents; backup listing failures no longer hide power actions; voided unpaid invoices no longer promise a refund; invoice documents are generated after the transaction by the mail worker; existing customers keep manual payment until they opt in.
 

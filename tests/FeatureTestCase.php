@@ -68,9 +68,12 @@ abstract class FeatureTestCase extends DatabaseTestCase
     /**
      * @return array<string, string>
      */
+    /** @var array<string, string> additional $_SERVER values, e.g. HTTP_ACCEPT_LANGUAGE */
+    protected array $serverOverrides = [];
+
     private function server(): array
     {
-        return ['REMOTE_ADDR' => $this->clientIp, 'HTTP_HOST' => 'localhost', 'HTTP_USER_AGENT' => 'NebrixTest/1.0'];
+        return $this->serverOverrides + ['REMOTE_ADDR' => $this->clientIp, 'HTTP_HOST' => 'localhost', 'HTTP_USER_AGENT' => 'NebrixTest/1.0'];
     }
 
     protected function send(Request $request): Response

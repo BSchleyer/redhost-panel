@@ -20,7 +20,7 @@
         <div class="table-wrap"><table class="table">
             <thead><tr><th>{{ 'Description'|t }}</th><th class="text-right">{{ 'Tax'|t }}</th><th class="text-right">{{ 'Net'|t }}</th></tr></thead>
             <tbody>
-                {% for item in items %}<tr><td>{{ item.description }}</td><td class="text-right">{{ (item.tax_rate_bp / 100)|number_format(2) }} %</td><td class="text-right">{{ item.total|money(invoice.currency) }}</td></tr>{% endfor %}
+                {% for item in items %}<tr><td>{{ item.description }}</td><td class="text-right">{{ item.tax_rate_bp|percent }}</td><td class="text-right">{{ item.total|money(invoice.currency) }}</td></tr>{% endfor %}
                 <tr><td colspan="2" class="text-right">{{ 'Subtotal'|t }}</td><td class="text-right">{{ invoice.subtotal|money(invoice.currency) }}</td></tr>
                 <tr><td colspan="2" class="text-right">{{ 'Tax'|t }}</td><td class="text-right">{{ invoice.tax|money(invoice.currency) }}</td></tr>
                 <tr><td colspan="2" class="text-right"><strong>{{ 'Total'|t }}</strong></td><td class="text-right"><strong>{{ invoice.total|money(invoice.currency) }}</strong></td></tr>
@@ -51,7 +51,7 @@
         <div class="card">
             <div class="card-header"><h2>{{ 'Payments'|t }}</h2></div>
             <ul class="timeline card-body">
-                {% for t in transactions %}<li>{{ t.created_at|dt }} · {{ t.gateway|humanize }} · {{ t.type == 'refund' ? '−' : '' }}{{ t.amount|money(t.currency) }} <span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></li>{% endfor %}
+                {% for t in transactions %}<li>{{ t.created_at|dt }} · {{ t.gateway|humanize|t }} · {{ t.type == 'refund' ? '−' : '' }}{{ t.amount|money(t.currency) }} <span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></li>{% endfor %}
             </ul>
         </div>
         {% endif %}

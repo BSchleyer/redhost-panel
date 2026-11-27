@@ -15,6 +15,7 @@ use Nebrix\Repository\UserRepository;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 use Nebrix\Settings\SettingsRepository;
+use Nebrix\View\Translator;
 use RuntimeException;
 
 /**
@@ -44,6 +45,7 @@ class InvoiceService
         private readonly Config $config,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
         private readonly \Nebrix\Repository\ProductRepository $products,
+        private readonly Translator $translator,
     ) {
     }
 
@@ -67,6 +69,12 @@ class InvoiceService
         };
 
         return sprintf('%s%s-%06d', $prefix, $year, $this->sequences->next($kind . ':' . $year));
+    }
+
+    /** Language of texts stored for the customer (invoice lines). */
+    private function language(?User $user): string
+    {
+        return (string) ($user?->attribute('language') ?? 'en') ?: 'en';
     }
 
     /**
@@ -174,7 +182,11 @@ class InvoiceService
                 'due_at' => $service->nextDueAt,
             ], [[
                 'service_id' => $service->id,
-                'description' => sprintf('%s – renewal %s to %s', $service->name, $periodStart->format('Y-m-d'), $periodEnd->format('Y-m-d')),
+                'description' => $this->translator->translateTo($this->language($user), ':name – renewal :from to :to', [
+                    'name' => $service->name,
+                    'from' => Translator::date($this->language($user), $periodStart),
+                    'to' => Translator::date($this->language($user), $periodEnd),
+                ]),
                 'quantity' => 1,
                 'unit_amount' => $net,
                 'tax_rate_bp' => $taxRate,
@@ -190,7 +202,7 @@ class InvoiceService
             $this->mailer->queue($user->email, $user->displayName(), 'service_expiring', [
                 'name' => $user->displayName(),
                 'service_name' => $service->name,
-                'due_date' => $periodStart->format('Y-m-d'),
+                'due_date' => Translator::date($this->language($user), $periodStart),
                 'invoice_url' => $this->url('/invoices/' . $id),
             ], null, [], $id);
 
@@ -216,7 +228,7 @@ class InvoiceService
                 'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 'due_at' => $this->clock->now()->modify('+7 days')->format('Y-m-d H:i:s'),
             ], [[
-                'description' => 'Account credit top-up',
+                'description' => $this->translator->translateTo($this->language($user), 'Account credit top-up'),
                 'quantity' => 1,
                 'unit_amount' => $amount,
                 'tax_rate_bp' => 0,
@@ -352,7 +364,7 @@ class InvoiceService
             [$net, $tax] = self::splitGross($gross, $rate);
             $lines = [[
                 'service_id' => $invoice['service_id'],
-                'description' => sprintf('Partial refund for invoice %s', $invoice['number']),
+                'description' => $this->translator->translateTo($this->language($this->users->find((int) $invoice['user_id'])), 'Partial refund for invoice :number', ['number' => (string) $invoice['number']]),
                 'quantity' => 1,
                 'unit_amount' => $net,
                 'tax_rate_bp' => $rate,

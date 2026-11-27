@@ -89,6 +89,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 .small { font-size: .85rem; }
 .nowrap { white-space: nowrap; }
 .text-right { text-align: right; }
+.table .text-right { white-space: nowrap; }
 .hidden { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -255,6 +256,7 @@ form.inline { display: inline; }
 .color-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: middle; border: 1px solid var(--border); }
 .logo-preview { max-height: 60px; max-width: 240px; background: var(--surface-2); padding: .5rem; border-radius: 8px; border: 1px solid var(--border); }
 .timeline { list-style: none; padding: 0; margin: 0; }
+.timeline.card-body { padding: .25rem 1.25rem; }
 .timeline li { padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
 .timeline li:last-child { border-bottom: 0; }
 .p-0 { padding: 0 !important; }

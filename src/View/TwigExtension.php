@@ -41,6 +41,7 @@ final class TwigExtension extends AbstractExtension
         return [
             new TwigFilter('t', $this->translate(...)),
             new TwigFilter('money', $this->money(...)),
+            new TwigFilter('percent', $this->percent(...)),
             new TwigFilter('dt', fn (?string $value): string => $this->formatDate($value, true)),
             new TwigFilter('d', fn (?string $value): string => $this->formatDate($value, false)),
             new TwigFilter('status_class', $this->statusClass(...)),
@@ -141,6 +142,16 @@ final class TwigExtension extends AbstractExtension
         $currency ??= $this->safeSetting('general.default_currency', 'EUR');
 
         return Money::format((int) $minor, $currency, $this->view->translator()->locale());
+    }
+
+    /** Tax rate or discount in basis points, formatted for the current language (19 %, 7,5 %). */
+    private function percent(int|string|null $basisPoints): string
+    {
+        $bp = (int) $basisPoints;
+        $german = $this->view->translator()->locale() === 'de';
+        $value = number_format($bp / 100, $bp % 100 === 0 ? 0 : ($bp % 10 === 0 ? 1 : 2), $german ? ',' : '.', $german ? '.' : ',');
+
+        return $value . ' %';
     }
 
     private function formatDate(?string $value, bool $withTime): string

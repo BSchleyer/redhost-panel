@@ -8,7 +8,7 @@
         <thead><tr><th>{{ 'Group'|t }}</th><th>{{ 'Discount'|t }}</th><th>{{ 'Members'|t }}</th><th>{{ 'Permissions'|t }}</th><th></th></tr></thead>
         <tbody>
         {% for g in groups %}
-            <tr><td><strong>{{ g.name }}</strong><div class="small muted">{{ g.description }}</div></td><td>{{ (g.discount_bp / 100)|number_format(2) }} %</td><td>{{ g.member_count }}</td>
+            <tr><td><strong>{{ g.name }}</strong><div class="small muted">{{ g.description }}</div></td><td>{{ g.discount_bp|percent }}</td><td>{{ g.member_count }}</td>
                 <td class="small">{{ g.can_order ? 'may order'|t : 'no ordering'|t }} · {{ g.can_manage_services ? 'self-service'|t : 'no self-service'|t }}</td>
                 <td class="actions"><a class="btn btn-sm btn-outline" href="/admin/customer-groups/{{ g.id }}">{{ 'Edit'|t }}</a>
                     <form method="post" action="/admin/customer-groups/{{ g.id }}/delete" class="inline" data-confirm="{{ 'Delete this group? Members keep their accounts.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete'|t }}</button></form></td></tr>

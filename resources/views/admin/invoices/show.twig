@@ -18,7 +18,7 @@
         <div class="table-wrap"><table class="table">
             <thead><tr><th>{{ 'Description'|t }}</th><th class="text-right">{{ 'Tax'|t }}</th><th class="text-right">{{ 'Net'|t }}</th></tr></thead>
             <tbody>
-                {% for item in items %}<tr><td>{{ item.description }}</td><td class="text-right">{{ (item.tax_rate_bp / 100)|number_format(2) }} %</td><td class="text-right">{{ item.total|money(invoice.currency) }}</td></tr>{% endfor %}
+                {% for item in items %}<tr><td>{{ item.description }}</td><td class="text-right">{{ item.tax_rate_bp|percent }}</td><td class="text-right">{{ item.total|money(invoice.currency) }}</td></tr>{% endfor %}
                 <tr><td colspan="2" class="text-right">{{ 'Tax'|t }}</td><td class="text-right">{{ invoice.tax|money(invoice.currency) }}</td></tr>
                 <tr><td colspan="2" class="text-right"><strong>{{ 'Total'|t }}</strong></td><td class="text-right"><strong>{{ invoice.total|money(invoice.currency) }}</strong></td></tr>
                 {% if invoice.tax_note %}<tr><td colspan="3" class="small muted">{{ invoice.tax_note }}</td></tr>{% endif %}

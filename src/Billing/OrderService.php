@@ -37,6 +37,7 @@ class OrderService
         private readonly Encrypter $encrypter,
         private readonly OrderPrechecks $prechecks,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
+        private readonly \Nebrix\View\Translator $translator,
     ) {
     }
 
@@ -84,7 +85,8 @@ class OrderService
                 throw new OrderException('This product is sold out.');
             }
 
-            $cycleLabel = BillingCycle::labels()[(string) $product['billing_cycle']] ?? (string) $product['billing_cycle'];
+            // Stored on the order and the invoice: written in the customer's language.
+            $cycleLabel = $this->translator->translateTo((string) ($user->attribute('language') ?? 'en'), BillingCycle::labels()[(string) $product['billing_cycle']] ?? (string) $product['billing_cycle']);
             $label = (string) ($options['hostname'] ?? $options['server_name'] ?? $options['domain'] ?? '');
             [$orderId] = $this->orders->create([
                 'number' => $this->invoices->nextNumber('order'),

@@ -210,11 +210,14 @@ class Mailer
     }
 
     /** Language for e-mails to this address (account language, else the default language). */
-    public function localeFor(string $email): string
+    public function localeFor(string $email, ?string $fallback = null): string
     {
         $language = $this->db->fetchValue('SELECT `language` FROM `nx_users` WHERE `email` = ?', [mb_strtolower($email)]);
         if (is_string($language) && $language !== '') {
             return $language;
+        }
+        if ($fallback !== null && in_array($fallback, $this->templates->locales(), true)) {
+            return $fallback;
         }
 
         return $this->settings->string('general.default_language') ?: MailTemplates::DEFAULT_LOCALE;

@@ -18,7 +18,7 @@
         <tbody>
         {% for t in items %}
             <tr><td class="mono">{{ t.id }}</td><td class="nowrap">{{ t.created_at|dt }}</td><td>{{ t.email }}</td><td>{% if t.invoice_id %}<a href="/admin/invoices/{{ t.invoice_id }}">{{ t.invoice_number }}</a>{% endif %}</td>
-                <td>{{ t.gateway|humanize }}{% if t.type == 'refund' %} <span class="badge badge-info">{{ 'refund'|t }}</span>{% endif %}</td><td class="mono small">{{ t.reference }}</td>
+                <td>{{ t.gateway|humanize|t }}{% if t.type == 'refund' %} <span class="badge badge-info">{{ 'refund'|t }}</span>{% endif %}</td><td class="mono small">{{ t.reference }}</td>
                 <td class="text-right nowrap">{{ t.type == 'refund' ? '−' : '' }}{{ t.amount|money(t.currency) }}{% if t.refunded > 0 %}<div class="small muted">{{ 'refunded'|t }} {{ t.refunded|money(t.currency) }}</div>{% endif %}</td>
                 <td><span class="badge {{ t.status|status_class }}" title="{{ t.failure_reason }}">{{ t.status|t }}</span></td>
                 <td class="actions">{% if can('payments.refund') and t.type == 'payment' and t.status == 'completed' and t.refunded < t.amount and t.gateway != 'free' %}

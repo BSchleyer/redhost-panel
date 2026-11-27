@@ -112,7 +112,7 @@ return [
     'payments.paypal.webhook_id' => ['group' => 'payments_paypal', 'type' => 'string', 'default' => '', 'label' => 'Webhook ID', 'help' => 'Required for webhook signature verification.', 'rules' => 'nullable|alpha_dash|max:64'],
 
     'payments.stripe.enabled' => ['group' => 'payments_stripe', 'type' => 'bool', 'default' => false, 'label' => 'Enable Stripe'],
-    'payments.stripe.mode' => ['group' => 'payments_stripe', 'type' => 'select', 'default' => 'test', 'label' => 'Mode', 'options' => ['test' => 'Test', 'live' => 'Live']],
+    'payments.stripe.mode' => ['group' => 'payments_stripe', 'type' => 'select', 'default' => 'test', 'label' => 'Mode', 'options' => ['test' => 'Test mode', 'live' => 'Live']],
     'payments.stripe.publishable_key' => ['group' => 'payments_stripe', 'type' => 'string', 'default' => '', 'label' => 'Publishable key', 'rules' => 'nullable|regex:/^(pk_(test|live)_[A-Za-z0-9]+)?$/'],
     'payments.stripe.secret_key' => ['group' => 'payments_stripe', 'type' => 'string', 'default' => null, 'label' => 'Secret key', 'secret' => true, 'rules' => 'nullable|regex:/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/'],
     'payments.stripe.webhook_secret' => ['group' => 'payments_stripe', 'type' => 'string', 'default' => null, 'label' => 'Webhook signing secret', 'secret' => true, 'rules' => 'nullable|regex:/^whsec_[A-Za-z0-9]+$/'],

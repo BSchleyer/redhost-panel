@@ -59,6 +59,7 @@ class AuthService
         private readonly Clock $clock,
         private readonly Config $config,
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
+        private readonly \Nebrix\View\Translator $translator,
     ) {
     }
 
@@ -260,7 +261,8 @@ class AuthService
             'last_name' => $data['last_name'] ?? null,
             'company' => $data['company'] ?? null,
             'country' => $data['country'] ?? null,
-            'language' => $this->settings->string('general.default_language') ?: 'en',
+            // The language the visitor registered in (browser language or default).
+            'language' => $this->translator->locale(),
             'password_changed_at' => $now,
             'legal_accepted_at' => $now,
         ]);

@@ -24,7 +24,7 @@
                     <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[product.billing_cycle]|default('')|t }}</dd>
                     {% if quote.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ quote.setup_fee|money(product.currency) }}</dd>{% endif %}
                     {% if quote.discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ quote.discount|money(product.currency) }}</dd>{% endif %}
-                    <dt>{{ 'Tax'|t }} ({{ (product.tax_rate_bp / 100)|number_format(2) }} %)</dt><dd>{{ quote.tax|money(product.currency) }}</dd>
+                    <dt>{{ 'Tax'|t }} ({{ quote.tax_rate_bp|percent }})</dt><dd>{{ quote.tax|money(product.currency) }}</dd>
                     <dt><strong>{{ 'Due today'|t }}</strong></dt><dd><strong>{{ quote.total|money(product.currency) }}</strong></dd>
                     {% if product.billing_cycle != 'one_time' %}<dt>{{ 'Renews at'|t }}</dt><dd>{{ quote.recurring|money(product.currency) }} {{ cycles[product.billing_cycle]|t }}</dd>{% endif %}
                 </dl>

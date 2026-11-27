@@ -50,6 +50,8 @@ Admin → Settings groups the following settings. All changes are audit-logged (
 ### General
 Company name, address, contact/support e-mail, phone, VAT ID, website, legal URLs (terms, privacy, imprint), default and available languages (English, German), default currency, time zone, date and time format.
 
+Language: signed-in users see their profile language; visitors who are not signed in see their browser's preferred language (`Accept-Language`) if it is one of the available languages, otherwise the default language. New accounts keep the language they registered in, and receipts for declarations of guests are sent in the language of the form. Texts stored on invoices (line descriptions) are written in the customer's language.
+
 ### Authentication
 | Setting | Default |
 |---|---|

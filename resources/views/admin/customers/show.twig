@@ -129,7 +129,7 @@
             <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Gateway'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
             <tbody>
             {% for t in transactions %}
-                <tr><td>{{ t.created_at|dt }}</td><td>{{ t.gateway|humanize }} {{ t.type == 'refund' ? '(refund)'|t : '' }}</td><td class="text-right">{{ t.amount|money(t.currency) }}</td><td><span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></td></tr>
+                <tr><td>{{ t.created_at|dt }}</td><td>{{ t.gateway|humanize|t }} {{ t.type == 'refund' ? '(refund)'|t : '' }}</td><td class="text-right">{{ t.amount|money(t.currency) }}</td><td><span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></td></tr>
             {% else %}<tr><td colspan="4" class="empty">{{ 'No transactions.'|t }}</td></tr>{% endfor %}
             </tbody>
         </table></div>

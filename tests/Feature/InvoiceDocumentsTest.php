@@ -199,6 +199,8 @@ final class InvoiceDocumentsTest extends FeatureTestCase
         $this->app->container()->get(PaymentService::class)->recordRefund('credit', 'refund-test-1', $reference, 500, 'EUR');
         $correction = (array) $this->db->fetchOne('SELECT * FROM nx_invoices WHERE reference_invoice_id = ?', [$paid]);
         self::assertSame(500, (int) $correction['total']);
+        self::assertStringStartsWith('Teilerstattung zu Rechnung', (string) $this->db->fetchValue('SELECT description FROM nx_invoice_items WHERE invoice_id = ?', [$correction['id']]), 'Stored lines are in the customer\'s language.');
+        self::assertStringContainsString('(Monatlich)', (string) $this->db->fetchValue('SELECT description FROM nx_invoice_items WHERE invoice_id = ?', [$paid]));
         self::assertStringContainsString('refunded or credited', $this->value($this->xpath($documents->xml((int) $correction['id'])), '//ram:SpecifiedTradePaymentTerms/ram:Description'));
         self::assertSame(500, (int) $correction['subtotal'] + (int) $correction['tax']);
         self::assertSame(420, (int) $correction['subtotal']);

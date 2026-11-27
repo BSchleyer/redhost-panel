@@ -63,6 +63,7 @@ class CancellationService
         private readonly UserRepository $users,
         private readonly Config $config,
         private readonly LoggerInterface $logger,
+        private readonly \Nebrix\View\Translator $translator,
     ) {
     }
 
@@ -188,7 +189,7 @@ class CancellationService
                 'name' => $owner->displayName(),
                 'reference' => (string) $declaration['reference'],
                 'service_name' => $service->name,
-                'effective_date' => substr($when, 0, 10),
+                'effective_date' => $this->mailer->localeFor($owner->email) === 'de' ? $effective->format('d.m.Y') : $effective->format('Y-m-d'),
                 'service_url' => $this->url('/services/' . $service->id),
             ]);
         }
@@ -358,7 +359,8 @@ class CancellationService
             $recipients[$user->email] = $user->displayName();
         }
         foreach ($recipients as $email => $name) {
-            $locale = $this->mailer->localeFor($email);
+            // Account language, else the language of the form the declaration was made in.
+            $locale = $this->mailer->localeFor($email, $this->translator->locale());
             $this->mailer->queue($email, $name, 'cancellation_received', [
                 'name' => (string) $declaration['name'],
                 'reference' => (string) $declaration['reference'],

@@ -146,12 +146,16 @@ This file is the single source of truth for modernization progress. It is update
 - Fourth independent security review (1 high, 4 medium, 7 low; no IDOR/injection); all findings fixed with regression tests (see SECURITY.md). 304 tests (2365 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** tax advisor review of the tax settings and invoice texts, KoSIT validation of sample XRechnung files, live verification of integrations and payment providers on staging.
 
+### Session 5 (2026-11-27) – system test of the Docker installation
+- Installed with docker compose exactly as INSTALLATION.md describes (build, key, migrate, admin) plus a local SMTP catcher, and walked through the panel in Chromium: admin setup, SMTP test mail, registration with e-mail confirmation, German profile, credit, order, payment from credit, invoice PDF/XRechnung download, order and payment mails with attachments, manual activation, cancellation with receipt, take-back, guest withdrawal, staff review and rejection, API token and API calls, partial refund with correction document, scheduler run. Live check of the EU VIES interface (valid ID with holder name, invalid ID).
+- Fixed: Docker build (composer platform check), secrets in the build context (`.dockerignore`), health checks of worker/scheduler/console, incomplete German interface (translation test added), guest language, order form tax rate, localized invoice lines and mail dates, table layout.
+- Not covered (needs credentials/test systems): Stripe/PayPal sandbox, Proxmox, Hetzner Robot, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak; official KoSIT validation of XRechnung files.
+
 ## Remaining work
 - Run the KoSIT validator (EN 16931 + XRechnung Schematron) on sample invoices of every tax category; optionally add ZUGFeRD (PDF/A-3 with embedded XML).
 - Keep the built-in EU VAT rates current (or maintain `tax.rate_overrides`); have the tax logic and legal texts (cancellation/withdrawal pages, invoice notes) reviewed.
 - Backups: scheduled automatic customer backups and backup quotas by size are not implemented.- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
 - Verify every integration (Proxmox incl. console, Hetzner Robot in order test mode, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only tests against fakes exist.
-- Verify the Docker build stage (`composer install` in the `composer:2` image) in CI or locally.
 - Hetzner: automatic disk wipe of returned pool servers and server market (auction) orders are not implemented.
 - Proxmox: IPv6 address management (SLAAC only); LXC root password changes only by reinstall (no API).
 - Additional registrars or hosting panels can be added behind `Domain\Registrar` / `Provisioner`.
