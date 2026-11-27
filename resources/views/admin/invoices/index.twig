@@ -1,0 +1,23 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Invoices'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Invoices'|t }}</h1></div></div>
+<div class="card">
+    <div class="card-body"><form method="get" class="filters">
+        {{ f.select('status', 'Status', {'': 'All', unpaid: 'Unpaid', paid: 'Paid', cancelled: 'Cancelled', refunded: 'Refunded'}, filters.status, {'data-autosubmit': true}) }}
+        {{ f.select('type', 'Type', {'': 'All', order: 'Order', renewal: 'Renewal', credit: 'Credit top-up'}, filters.type, {'data-autosubmit': true}) }}
+        <div class="form-row"><label for="q">{{ 'Number or e-mail'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}"></div>
+        <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+    </form></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Number'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Date'|t }}</th><th>{{ 'Due'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for i in result.items %}
+            <tr><td><a class="mono" href="/admin/invoices/{{ i.id }}">{{ i.number }}</a></td><td>{{ i.email }}</td><td>{{ i.type|humanize|t }}</td><td>{{ i.created_at|d }}</td><td>{{ i.due_at|d }}</td><td class="text-right">{{ i.total|money(i.currency) }}</td><td><span class="badge {{ i.status|status_class }}">{{ i.status|t }}</span></td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No invoices.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

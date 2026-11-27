@@ -15,4 +15,6 @@ return [
     'migrate:status' => Command\MigrateStatusCommand::class,
     'user:create-admin' => Command\CreateAdminCommand::class,
     'integrations:check' => Command\IntegrationsCheckCommand::class,
+    'queue:work' => Command\QueueWorkCommand::class,
+    'schedule:run' => Command\ScheduleRunCommand::class,
 ];

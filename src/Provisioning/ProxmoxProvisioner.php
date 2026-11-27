@@ -66,6 +66,17 @@ final class ProxmoxProvisioner implements Provisioner
             $this->services->mergeRemote($service->id, $remote);
         }
 
+        // Nothing exists remotely yet (e.g. retry after a failed create call):
+        // re-evaluate the node so that a corrected product configuration applies.
+        if (($remote['step'] ?? 'create') === 'create' && !isset($remote['upid']) && $client->findGuest((int) $remote['vmid']) === null) {
+            $configuredNode = (string) $service->config('node', '');
+            $node = $configuredNode !== '' ? $configuredNode : $client->pickNode();
+            if ($node !== $remote['node']) {
+                $remote['node'] = $node;
+                $this->services->mergeRemote($service->id, ['node' => $node]);
+            }
+        }
+
         $node = (string) $remote['node'];
         $vmid = (int) $remote['vmid'];
         $credentials = $this->services->credentials($service);

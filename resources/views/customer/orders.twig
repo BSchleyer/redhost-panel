@@ -1,0 +1,13 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Orders'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Orders'|t }}</h1></div></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Order'|t }}</th><th>{{ 'Date'|t }}</th><th>{{ 'Items'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+        <tr><td class="mono">{{ o.number }}</td><td>{{ o.created_at|d }}</td><td>{% for i in o.items %}<div>{{ i.description }}{% if i.service_id %} · <a href="/services/{{ i.service_id }}">{{ 'service'|t }}</a>{% endif %}</div>{% endfor %}</td><td class="text-right">{{ o.total|money(o.currency) }}</td><td><span class="badge {{ o.status|status_class }}">{{ o.status|t }}</span></td></tr>
+    {% else %}<tr><td colspan="5" class="empty">{{ 'No orders yet.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

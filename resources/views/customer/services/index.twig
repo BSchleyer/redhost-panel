@@ -1,0 +1,13 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'My services'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'My services'|t }}</h1></div><a class="btn btn-primary" href="/store">{{ 'Order new service'|t }}</a></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Service'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Next due'|t }}</th><th class="text-right">{{ 'Price'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for s in services %}
+        <tr><td><a href="/services/{{ s.id }}"><strong>{{ s.name }}</strong></a></td><td>{{ s.category|humanize|t }}</td><td><span class="badge {{ s.status|status_class }}">{{ s.status|t }}</span></td><td>{{ s.nextDueAt|d }}</td><td class="text-right">{% if s.recurringAmount > 0 %}{{ s.recurringAmount|money(s.currency) }} <span class="small muted">{{ 'net'|t }}</span>{% else %}–{% endif %}</td><td class="actions"><a class="btn btn-sm btn-outline" href="/services/{{ s.id }}">{{ 'Manage'|t }}</a></td></tr>
+    {% else %}<tr><td colspan="6" class="empty">{{ 'You have no services yet.'|t }} <a href="/store">{{ 'Order your first service'|t }}</a></td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

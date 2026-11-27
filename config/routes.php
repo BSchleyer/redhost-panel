@@ -55,6 +55,16 @@ return static function (Router $r): void {
     $r->group(['middleware' => ['auth', 'verified']], static function (Router $r): void {
         $r->get('/dashboard', [Customer\DashboardController::class, 'show']);
 
+        $r->get('/store', [Customer\StoreController::class, 'index']);
+        $r->get('/store/{slug:[a-z0-9-]+}', [Customer\StoreController::class, 'show']);
+        $r->post('/store/{slug:[a-z0-9-]+}', [Customer\StoreController::class, 'order']);
+
+        $r->get('/services', [Customer\ServiceController::class, 'index']);
+        $r->get('/services/{id:\d+}', [Customer\ServiceController::class, 'show']);
+        $r->get('/services/{id:\d+}/credentials', [Customer\ServiceController::class, 'credentials']);
+        $r->post('/services/{id:\d+}/action', [Customer\ServiceController::class, 'action']);
+        $r->get('/orders', [Customer\ServiceController::class, 'orders']);
+
         $r->get('/invoices', [Customer\InvoiceController::class, 'index']);
         $r->post('/invoices/top-up', [Customer\InvoiceController::class, 'topUp']);
         $r->get('/invoices/{id:\d+}', [Customer\InvoiceController::class, 'show']);
@@ -147,6 +157,25 @@ return static function (Router $r): void {
             $r->get('/roles/{id:\d+}', [Admin\RoleController::class, 'edit']);
             $r->post('/roles/{id:\d+}', [Admin\RoleController::class, 'update']);
             $r->post('/roles/{id:\d+}/delete', [Admin\RoleController::class, 'delete']);
+        });
+
+        // Orders, invoices, services
+        $r->group(['middleware' => ['permission:orders.view']], static function (Router $r): void {
+            $r->get('/orders', [Admin\OrderController::class, 'index']);
+            $r->get('/orders/{id:\d+}', [Admin\OrderController::class, 'show']);
+            $r->post('/orders/{id:\d+}/cancel', [Admin\OrderController::class, 'cancel']);
+        });
+        $r->group(['middleware' => ['permission:invoices.view']], static function (Router $r): void {
+            $r->get('/invoices', [Admin\InvoiceController::class, 'index']);
+            $r->get('/invoices/{id:\d+}', [Admin\InvoiceController::class, 'show']);
+            $r->post('/invoices/{id:\d+}/cancel', [Admin\InvoiceController::class, 'cancel']);
+            $r->post('/invoices/{id:\d+}/payment', [Admin\InvoiceController::class, 'recordPayment']);
+        });
+        $r->group(['middleware' => ['permission:services.view']], static function (Router $r): void {
+            $r->get('/services', [Admin\ServiceController::class, 'index']);
+            $r->get('/services/{id:\d+}', [Admin\ServiceController::class, 'show']);
+            $r->get('/services/{id:\d+}/credentials', [Admin\ServiceController::class, 'credentials']);
+            $r->post('/services/{id:\d+}/action', [Admin\ServiceController::class, 'action']);
         });
 
         // Payments

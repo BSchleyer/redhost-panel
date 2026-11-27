@@ -147,6 +147,15 @@ abstract class FeatureTestCase extends DatabaseTestCase
         return $this->app->container()->get(Encrypter::class)->decryptArray((string) $decoded['message'], 'mail-job');
     }
 
+    /** Whether an e-mail with the template was queued (also after delivery, when the content is scrubbed). */
+    protected function mailQueued(string $template): bool
+    {
+        return (int) $this->db->fetchValue(
+            "SELECT COUNT(*) FROM nx_jobs WHERE type = ? AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.template')) = ?",
+            [Mailer::JOB_TYPE, $template],
+        ) > 0;
+    }
+
     protected function extractLink(string $text, string $pathPrefix): string
     {
         self::assertSame(1, preg_match('#https?://[^/\s"]+(' . preg_quote($pathPrefix, '#') . '[A-Za-z0-9/_-]+)#', $text, $match), 'Link not found in e-mail.');

@@ -12,6 +12,10 @@ use Nebrix\Integration\IntegrationLogger;
 use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\IntegrationRepository;
 use Nebrix\Mail\MailTemplates;
+use Nebrix\Provisioning\JobRegistry;
+use Nebrix\Queue\JobQueue;
+use Nebrix\Queue\Worker;
+use Psr\Log\LoggerInterface;
 use Nebrix\Security\UrlGuard;
 use Nebrix\Settings\BrandingAssets;
 use Nebrix\Settings\SettingsRepository;
@@ -39,5 +43,12 @@ return static function (Container $c, Config $config, string $basePath): void {
         $c->get(UrlGuard::class),
         $c->get(IntegrationLogger::class),
         $config,
+    ));
+
+    $c->set(Worker::class, static fn (Container $c): Worker => new Worker(
+        $c->get(JobQueue::class),
+        $c,
+        $c->get(LoggerInterface::class),
+        JobRegistry::handlers(),
     ));
 };

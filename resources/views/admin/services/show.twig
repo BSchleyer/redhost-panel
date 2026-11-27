@@ -1,0 +1,64 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ service.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ service.name }} <span class="badge {{ service.status|status_class }}">{{ service.status|t }}</span></h1><p class="muted">#{{ service.id }} · {{ service.category|humanize }} · <a href="/admin/services">&larr; {{ 'Services'|t }}</a></p></div>
+    {% if can('services.manage') and service.hasCredentials %}<a class="btn btn-outline" href="/admin/services/{{ service.id }}/credentials">{{ 'Access data'|t }}</a>{% endif %}
+</div>
+{% if service.attributes.last_error %}<div class="alert alert-danger"><strong>{{ 'Last error'|t }}:</strong> {{ service.attributes.last_error }}</div>{% endif %}
+<div class="grid grid-2">
+    <div class="card"><div class="card-body"><dl class="details">
+        <dt>{{ 'Customer'|t }}</dt><dd>{% if customer %}<a href="/admin/customers/{{ customer.id }}">{{ customer.email }}</a>{% endif %}</dd>
+        <dt>{{ 'Integration'|t }}</dt><dd>{% if integration %}<a href="/admin/integrations/{{ integration.id }}">{{ integration.name }}</a> ({{ integration.type }}){% else %}{{ 'manual'|t }}{% endif %}</dd>
+        <dt>{{ 'External ID'|t }}</dt><dd class="mono">{{ service.externalId|default('–') }}</dd>
+        <dt>{{ 'Remote state'|t }}</dt><dd class="mono small">{% for k, v in service.remote %}{{ k }}={{ v is iterable ? v|json_encode : v }} {% endfor %}</dd>
+        <dt>{{ 'Customer options'|t }}</dt><dd class="mono small">{% for k, v in options %}{{ k }}={{ v }} {% endfor %}</dd>
+        <dt>{{ 'Configuration'|t }}</dt><dd class="mono small">{% for k, v in config %}{{ k }}={{ v is iterable ? v|json_encode : (v is same as(true) ? 'true' : (v is same as(false) ? 'false' : v)) }} {% endfor %}</dd>
+        <dt>{{ 'Billing'|t }}</dt><dd>{{ service.recurringAmount|money(service.currency) }} {{ 'net'|t }} / {{ service.billingCycle|humanize }} · {{ 'next due'|t }} {{ service.nextDueAt|d }}</dd>
+        {% if live %}{% for label, value in live.connection|default({}) %}<dt>{{ label }}</dt><dd class="mono">{{ value }}</dd>{% endfor %}<dt>{{ 'Live state'|t }}</dt><dd><span class="badge {{ live.state|default('')|status_class }}">{{ live.state|default('–') }}</span></dd>{% endif %}
+        {% if live_error %}<dt>{{ 'Live state'|t }}</dt><dd class="small">{{ live_error }}</dd>{% endif %}
+    </dl></div></div>
+    <div>
+        {% if can('services.manage') %}
+        <div class="card"><div class="card-header"><h2>{{ 'Actions'|t }}</h2></div><div class="card-body">
+            <div class="gap">
+                {% if service.status in ['failed', 'pending', 'provisioning'] and automated and service.integrationId %}
+                    <form method="post" action="/admin/services/{{ service.id }}/action" class="inline">{{ csrf_field() }}<input type="hidden" name="action" value="retry"><button class="btn btn-primary" type="submit">{{ 'Retry provisioning'|t }}</button></form>
+                {% endif %}
+                {% if service.status == 'suspended' %}
+                    <form method="post" action="/admin/services/{{ service.id }}/action" class="inline">{{ csrf_field() }}<input type="hidden" name="action" value="unsuspend"><button class="btn btn-success" type="submit">{{ 'Unsuspend'|t }}</button></form>
+                {% endif %}
+            </div>
+            {% if service.status == 'active' %}
+                <form method="post" action="/admin/services/{{ service.id }}/action" class="filters mt-1" novalidate>{{ csrf_field() }}<input type="hidden" name="action" value="suspend">
+                    {{ f.input('reason', 'Suspension reason', '', 'text') }}<button class="btn btn-outline" type="submit">{{ 'Suspend'|t }}</button></form>
+            {% endif %}
+            {% if service.status in ['pending', 'failed'] %}
+                <hr><h3>{{ 'Activate manually'|t }}</h3>
+                <form method="post" action="/admin/services/{{ service.id }}/action" novalidate>{{ csrf_field() }}<input type="hidden" name="action" value="activate">
+                    <div class="form-grid">{{ f.input('external_id', 'External reference (optional)') }}{{ f.input('username', 'User name (optional)') }}</div>
+                    {{ f.input('password', 'Password (optional)', '', 'password', {autocomplete: 'new-password'}) }}
+                    {{ f.textarea('access_info', 'Access information shown to the customer (optional)') }}
+                    <button class="btn btn-primary" type="submit">{{ 'Mark as active'|t }}</button></form>
+            {% endif %}
+            {% if service.status not in ['terminated', 'cancelled'] %}
+                <hr>
+                <form method="post" action="/admin/services/{{ service.id }}/action" class="filters" novalidate>{{ csrf_field() }}<input type="hidden" name="action" value="due_date">
+                    {{ f.input('next_due_at', 'Next due date', service.nextDueAt ? service.nextDueAt|slice(0, 10) : '', 'date') }}<button class="btn btn-outline" type="submit">{{ 'Update'|t }}</button></form>
+                <hr>
+                <form method="post" action="/admin/services/{{ service.id }}/action" novalidate data-confirm="{{ 'Terminate this service? Remote data will be deleted.'|t }}">{{ csrf_field() }}<input type="hidden" name="action" value="terminate">
+                    {{ f.input('reason', 'Termination reason', '', 'text') }}
+                    {{ f.input('confirm', 'Type TERMINATE to confirm', '', 'text') }}
+                    <button class="btn btn-danger" type="submit">{{ 'Terminate service'|t }}</button></form>
+            {% endif %}
+        </div></div>
+        {% endif %}
+        <div class="card"><div class="card-header"><h2>{{ 'Jobs'|t }}</h2></div><div class="table-wrap"><table class="table"><tbody>
+            {% for j in jobs %}<tr><td class="mono small">{{ j.type }}</td><td><span class="badge {{ j.status|status_class }}">{{ j.status }}</span></td><td>{{ j.attempts }}/{{ j.max_attempts }}</td><td class="small">{{ j.last_error|default('')|slice(0, 200) }}</td></tr>{% else %}<tr><td class="empty">{{ 'No jobs.'|t }}</td></tr>{% endfor %}
+        </tbody></table></div></div>
+        <div class="card"><div class="card-header"><h2>{{ 'Invoices'|t }}</h2></div><ul class="timeline card-body">
+            {% for i in invoices %}<li><a href="/admin/invoices/{{ i.id }}">{{ i.number }}</a> {{ i.total|money(i.currency) }} <span class="badge {{ i.status|status_class }}">{{ i.status }}</span></li>{% else %}<li class="muted">{{ 'No invoices.'|t }}</li>{% endfor %}
+        </ul></div>
+    </div>
+</div>
+{% endblock %}

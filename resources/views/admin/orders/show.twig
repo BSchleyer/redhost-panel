@@ -1,0 +1,27 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Order'|t }} {{ order.number }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Order'|t }} {{ order.number }} <span class="badge {{ order.status|status_class }}">{{ order.status|t }}</span></h1><p class="muted"><a href="/admin/orders">&larr; {{ 'Orders'|t }}</a></p></div>
+    {% if can('orders.manage') and order.status == 'pending' %}<form method="post" action="/admin/orders/{{ order.id }}/cancel" data-confirm="{{ 'Cancel this order and its invoice?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Cancel order'|t }}</button></form>{% endif %}
+</div>
+<div class="grid grid-2">
+    <div class="card"><div class="card-body"><dl class="details">
+        <dt>{{ 'Customer'|t }}</dt><dd>{% if customer %}<a href="/admin/customers/{{ customer.id }}">{{ customer.email }}</a>{% endif %}</dd>
+        <dt>{{ 'Placed'|t }}</dt><dd>{{ order.created_at|dt }} <span class="mono small">{{ order.ip }}</span></dd>
+        <dt>{{ 'Paid'|t }}</dt><dd>{{ order.paid_at|dt }}</dd>
+        <dt>{{ 'Subtotal'|t }}</dt><dd>{{ order.subtotal|money(order.currency) }}</dd>
+        {% if order.discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ order.discount|money(order.currency) }}</dd>{% endif %}
+        <dt>{{ 'Tax'|t }}</dt><dd>{{ order.tax|money(order.currency) }}</dd>
+        <dt>{{ 'Total'|t }}</dt><dd><strong>{{ order.total|money(order.currency) }}</strong></dd>
+        <dt>{{ 'Invoices'|t }}</dt><dd>{% for i in invoices %}<a href="/admin/invoices/{{ i.id }}">{{ i.number }}</a> <span class="badge {{ i.status|status_class }}">{{ i.status|t }}</span> {% endfor %}</dd>
+        <dt>{{ 'Fulfilment job'|t }}</dt><dd>{% for j in jobs %}<span class="badge {{ j.status|status_class }}">{{ j.status }}</span> {{ j.last_error }}{% else %}–{% endfor %}</dd>
+    </dl></div></div>
+    <div class="card"><div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Item'|t }}</th><th>{{ 'Options'|t }}</th><th class="text-right">{{ 'Price'|t }}</th><th>{{ 'Service'|t }}</th></tr></thead>
+        <tbody>{% for i in items %}
+            <tr><td>{{ i.description }}</td><td class="small mono">{% for k, v in i.options %}{{ k }}={{ v }} {% endfor %}</td><td class="text-right">{{ i.unit_price|money(order.currency) }}{% if i.setup_fee > 0 %}<div class="small muted">+ {{ i.setup_fee|money(order.currency) }}</div>{% endif %}</td>
+                <td>{% if i.service_id %}<a href="/admin/services/{{ i.service_id }}">#{{ i.service_id }}</a> <span class="badge {{ i.service_status|status_class }}">{{ i.service_status }}</span>{% else %}–{% endif %}</td></tr>
+        {% endfor %}</tbody>
+    </table></div></div>
+</div>
+{% endblock %}

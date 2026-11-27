@@ -108,7 +108,10 @@ class JobQueue
         $now = $this->clock->nowString();
         $data = ['status' => self::STATUS_COMPLETED, 'finished_at' => $now, 'updated_at' => $now, 'last_error' => null];
         if ($scrubPayload) {
-            $data['payload'] = '{}';
+            // Keep only non-sensitive descriptive keys (e.g. the e-mail template name).
+            $payload = json_decode((string) $this->db->fetchValue('SELECT `payload` FROM `nx_jobs` WHERE `id` = ?', [$id]), true);
+            $kept = is_array($payload) && isset($payload['template']) && is_string($payload['template']) ? ['template' => $payload['template']] : [];
+            $data['payload'] = json_encode($kept + ['scrubbed' => true], JSON_THROW_ON_ERROR);
         }
         $this->db->update('nx_jobs', $data, ['id' => $id]);
     }
@@ -138,6 +141,19 @@ class JobQueue
             'reserved_by' => null,
             'updated_at' => $now->format('Y-m-d H:i:s'),
         ], ['id' => $id]);
+    }
+
+    /**
+     * Puts a running job back without counting the attempt (used while a
+     * remote task such as a Proxmox clone is still in progress).
+     */
+    public function release(int $id, int $delaySeconds): void
+    {
+        $now = $this->clock->now();
+        $this->db->run(
+            'UPDATE `nx_jobs` SET `status` = ?, `attempts` = GREATEST(`attempts` - 1, 0), `available_at` = ?, `reserved_at` = NULL, `reserved_by` = NULL, `updated_at` = ? WHERE `id` = ?',
+            [self::STATUS_PENDING, $now->modify(sprintf('+%d seconds', max(1, $delaySeconds)))->format('Y-m-d H:i:s'), $now->format('Y-m-d H:i:s'), $id],
+        );
     }
 
     /** Manually re-queues a failed or cancelled job (admin action). */

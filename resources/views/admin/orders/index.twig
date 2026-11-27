@@ -1,0 +1,22 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Orders'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Orders'|t }}</h1></div></div>
+<div class="card">
+    <div class="card-body"><form method="get" class="filters">
+        {{ f.select('status', 'Status', {'': 'All', pending: 'Pending', paid: 'Paid', cancelled: 'Cancelled'}, filters.status, {'data-autosubmit': true}) }}
+        <div class="form-row"><label for="q">{{ 'Number or e-mail'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}"></div>
+        <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+    </form></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Order'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Date'|t }}</th><th>{{ 'Items'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for o in result.items %}
+            <tr><td><a href="/admin/orders/{{ o.id }}" class="mono">{{ o.number }}</a></td><td>{{ o.email }}</td><td>{{ o.created_at|dt }}</td><td>{{ o.item_count }}</td><td class="text-right">{{ o.total|money(o.currency) }}</td><td><span class="badge {{ o.status|status_class }}">{{ o.status|t }}</span></td></tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No orders.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ service.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ service.name }} <span class="badge {{ service.status|status_class }}">{{ service.status|t }}</span></h1><p class="muted">{{ service.category|humanize|t }} · <a href="/services">&larr; {{ 'My services'|t }}</a></p></div></div>
+
+{% if service.status == 'pending' or service.status == 'provisioning' %}<div class="alert alert-info">{{ 'Your service is being set up. This page updates when it is ready.'|t }}</div>{% endif %}
+{% if service.status == 'failed' %}<div class="alert alert-warning">{{ 'The setup is delayed. Our team has been notified and will complete it as soon as possible.'|t }}</div>{% endif %}
+{% if service.status == 'suspended' %}<div class="alert alert-danger">{{ 'This service is suspended.'|t }}{% if renewal %} <a href="/invoices/{{ renewal.id }}">{{ 'Pay the open invoice to reactivate it.'|t }}</a>{% endif %}</div>{% endif %}
+{% if renewal and service.status == 'active' %}<div class="alert alert-warning">{{ 'A renewal invoice is open.'|t }} <a href="/invoices/{{ renewal.id }}">{{ 'Pay now'|t }} ({{ renewal.total|money(renewal.currency) }})</a></div>{% endif %}
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Overview'|t }}</h2>{% if live.state is defined %}<span class="badge {{ live.state|status_class }}">{{ live.state|t }}</span>{% endif %}</div>
+        <div class="card-body">
+            <dl class="details">
+                {% for label, value in live.connection|default({}) %}<dt>{{ label|t }}</dt><dd class="mono">{{ value }}</dd>{% endfor %}
+                {% if live.cpu_percent is defined %}<dt>CPU</dt><dd>{{ live.cpu_percent }} %</dd>{% endif %}
+                {% if live.memory_total|default(0) > 0 %}<dt>{{ 'Memory'|t }}</dt><dd>{{ live.memory_used|bytes }} / {{ live.memory_total|bytes }}</dd>{% endif %}
+                {% if live.disk_total|default(0) > 0 %}<dt>{{ 'Disk'|t }}</dt><dd>{{ live.disk_used|bytes }} / {{ live.disk_total|bytes }}</dd>{% endif %}
+                {% if live.storage_total|default(0) > 0 %}<dt>{{ 'Storage'|t }}</dt><dd>{{ live.storage_used|bytes }} / {{ live.storage_total|bytes }}</dd>{% endif %}
+                {% if live.clients_online is defined %}<dt>{{ 'Clients'|t }}</dt><dd>{{ live.clients_online }} / {{ live.slots }}</dd>{% endif %}
+                {% if live.uptime|default(0) > 0 %}<dt>{{ 'Uptime'|t }}</dt><dd>{{ (live.uptime / 3600)|round(1) }} h</dd>{% endif %}
+                <dt>{{ 'Next due date'|t }}</dt><dd>{{ service.nextDueAt|d }}</dd>
+                <dt>{{ 'Billing'|t }}</dt><dd>{% if service.recurringAmount > 0 %}{{ service.recurringAmount|money(service.currency) }} {{ 'net'|t }} / {{ service.billingCycle|humanize|t }}{% else %}{{ 'one-time'|t }}{% endif %}</dd>
+            </dl>
+            {% if live_error %}<p class="muted small mt-1">{{ live_error|t }}</p>{% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Management'|t }}</h2></div>
+        <div class="card-body">
+            {% if actions|length > 0 %}
+                <div class="gap">
+                {% for action, label in actions %}
+                    <form method="post" action="/services/{{ service.id }}/action" class="inline"{% if action in ['stop', 'kill', 'reset_password'] %} data-confirm="{{ 'Are you sure?'|t }}"{% endif %}>{{ csrf_field() }}<input type="hidden" name="action" value="{{ action }}"><button class="btn btn-outline" type="submit">{{ label|t }}</button></form>
+                {% endfor %}
+                </div>
+            {% elseif service.status == 'active' %}
+                <p class="muted">{{ 'No remote actions are available for this service.'|t }}</p>
+            {% endif %}
+            {% if has_credentials %}
+                <p class="mt-2"><a class="btn btn-primary" href="/services/{{ service.id }}/credentials">{{ 'Show access data'|t }}</a></p>
+            {% endif %}
+            {% if setting('system.tickets_enabled') %}<p class="mt-2"><a href="/tickets/create?service={{ service.id }}">{{ 'Need help with this service?'|t }}</a></p>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

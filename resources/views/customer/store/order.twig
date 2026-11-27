@@ -1,0 +1,40 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ product.name }}</h1><p class="muted"><a href="/store">&larr; {{ 'All products'|t }}</a></p></div></div>
+<form method="post" action="/store/{{ product.slug }}" novalidate>
+    {{ csrf_field() }}
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Configuration'|t }}</h2></div>
+            <div class="card-body">
+                {% if product.description %}<p>{{ product.description }}</p>{% endif %}
+                {% for name, option in options %}
+                    {{ f.input(name, option.label, '', 'text', option.help is defined ? {required: true, help: option.help} : {required: true}) }}
+                {% else %}
+                    <p class="muted">{{ 'No configuration needed.'|t }}</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Summary'|t }}</h2></div>
+            <div class="card-body">
+                <dl class="details">
+                    <dt>{{ 'Price'|t }}</dt><dd>{{ quote.price|money(product.currency) }} {{ cycles[product.billing_cycle]|default('')|t }}</dd>
+                    {% if quote.setup_fee > 0 %}<dt>{{ 'Setup fee'|t }}</dt><dd>{{ quote.setup_fee|money(product.currency) }}</dd>{% endif %}
+                    {% if quote.discount > 0 %}<dt>{{ 'Discount'|t }}</dt><dd>−{{ quote.discount|money(product.currency) }}</dd>{% endif %}
+                    <dt>{{ 'Tax'|t }} ({{ (product.tax_rate_bp / 100)|number_format(2) }} %)</dt><dd>{{ quote.tax|money(product.currency) }}</dd>
+                    <dt><strong>{{ 'Due today'|t }}</strong></dt><dd><strong>{{ quote.total|money(product.currency) }}</strong></dd>
+                    {% if product.billing_cycle != 'one_time' %}<dt>{{ 'Renews at'|t }}</dt><dd>{{ quote.recurring|money(product.currency) }} {{ cycles[product.billing_cycle]|t }}</dd>{% endif %}
+                </dl>
+                <div class="form-row mt-2">
+                    <label class="checkbox"><input type="checkbox" name="accept_terms" value="1"> <span>{{ 'I accept the'|t }} {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}.</span></label>
+                    {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
+                </div>
+            </div>
+            <div class="card-footer"><button class="btn btn-primary btn-block" type="submit">{{ 'Order with obligation to pay'|t }}</button></div>
+        </div>
+    </div>
+</form>
+{% endblock %}

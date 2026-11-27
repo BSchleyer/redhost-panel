@@ -1,0 +1,24 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Order new service'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Order new service'|t }}</h1><p class="muted">{{ 'All prices plus applicable taxes as shown at checkout.'|t }}</p></div></div>
+{% for category, products in grouped %}
+    <h2 class="mt-2">{{ categories[category]|default(category)|t }}</h2>
+    <div class="grid grid-3">
+        {% for p in products %}
+        <div class="card product-card">
+            <div class="card-header"><h3>{{ p.name }}</h3>{% if p.stock is not null and p.stock < 5 %}<span class="badge badge-warning">{{ 'only :n left'|t({n: p.stock}) }}</span>{% endif %}</div>
+            <div class="card-body">
+                <div class="price">{{ p.quote.recurring|money(p.currency) }}</div>
+                <div class="small muted">{{ cycles[p.billing_cycle]|default(p.billing_cycle)|t }} {{ 'incl. tax'|t }}{% if p.setup_fee > 0 %} · {{ 'setup fee'|t }} {{ p.setup_fee|money(p.currency) }}{% endif %}</div>
+                {% if p.description %}<p class="mt-1">{{ p.description }}</p>{% endif %}
+                {% if p.feature_list|length > 0 %}<ul>{% for feature in p.feature_list %}<li>{{ feature }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="card-footer"><a class="btn btn-primary btn-block" href="/store/{{ p.slug }}">{{ 'Configure & order'|t }}</a></div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card"><div class="empty">{{ 'There are currently no products available.'|t }}</div></div>
+{% endfor %}
+{% endblock %}

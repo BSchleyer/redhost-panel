@@ -1,0 +1,24 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Services'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Services'|t }}</h1></div></div>
+<div class="card">
+    <div class="card-body"><form method="get" class="filters">
+        {{ f.select('status', 'Status', {'': 'All', pending: 'Pending', provisioning: 'Provisioning', active: 'Active', suspended: 'Suspended', failed: 'Failed', terminated: 'Terminated'}, filters.status, {'data-autosubmit': true}) }}
+        {{ f.select('category', 'Category', {'': 'All'}|merge(categories), filters.category, {'data-autosubmit': true}) }}
+        <div class="form-row"><label for="q">{{ 'Name, e-mail or ID'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}"></div>
+        <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+    </form></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>#</th><th>{{ 'Service'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Product'|t }}</th><th>{{ 'Integration'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Next due'|t }}</th></tr></thead>
+        <tbody>
+        {% for s in result.items %}
+            <tr><td class="mono">{{ s.id }}</td><td><a href="/admin/services/{{ s.id }}">{{ s.name }}</a><div class="small muted">{{ s.category|humanize }}</div></td><td>{{ s.email }}</td><td>{{ s.product_name|default('–') }}</td><td>{{ s.integration_name|default('manual') }}</td>
+                <td><span class="badge {{ s.status|status_class }}" title="{{ s.last_error }}">{{ s.status|t }}</span></td><td>{{ s.next_due_at|d }}</td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No services.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

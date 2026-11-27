@@ -23,7 +23,7 @@ This file is the single source of truth for modernization progress. It is update
 | G | Integration architecture + Proxmox VE | [x] |
 | H | Pterodactyl, Nextcloud, TeamSpeak 3 | [x] |
 | I | PayPal & Stripe | [x] |
-| J | Orders & automated provisioning | [ ] |
+| J | Orders & automated provisioning | [x] |
 | K | Customer dashboard | [ ] |
 | L | Tests, documentation, final security review | [ ] |
 
@@ -79,10 +79,10 @@ This file is the single source of truth for modernization progress. It is update
 - [x] Account credit (legacy balance)
 
 ### Phase J – Orders & provisioning
-- [ ] Cart/order/invoice flow
-- [ ] DB job queue + worker + admin retry
-- [ ] Idempotent provisioners per category
-- [ ] Renewals, expiry, suspension, optional termination
+- [x] Cart/order/invoice flow
+- [x] DB job queue + worker + admin retry
+- [x] Idempotent provisioners per category
+- [x] Renewals, expiry, suspension, optional termination
 
 ### Phase K – Customer panel
 - [ ] Dashboard, profile, security (password, 2FA, sessions)
@@ -108,7 +108,8 @@ This file is the single source of truth for modernization progress. It is update
 - Completed Phases G–H: integration registry, encrypted credentials, SSRF-guarded API client with DNS pinning, health checks, per-integration logs, admin UI (CRUD, test, logs, remote resources), Proxmox/Pterodactyl/Nextcloud/TeamSpeak clients and idempotent provisioners. All tested against fake APIs/ServerQuery (no live systems available). 144 tests green.
 - Fixed a flaky test (EncrypterTest tamper case, ~1/64 false pass).
 - Completed Phase I: invoice service (gapless numbers, billing snapshots, renewal/credit invoices, markPaid side effects via idempotent jobs), PaymentService (idempotency, amount/currency validation, append-only events), Stripe Checkout + verified webhooks + refunds (official SDK), PayPal Orders v2 + capture + verified webhooks + refunds, account credit gateway, customer invoice payment flow, admin transactions/refunds/webhook events, provider connection tests. 158 tests green.
-- **Next step:** Phase J – order checkout, order fulfilment job, provisioning worker, renewals/suspension scheduler.
+- Completed Phase J: order placement (server-side pricing, group discounts, stock reservation, free orders), fulfilment/provisioning/suspend/unsuspend/terminate jobs, worker with release/backoff/failure hooks, scheduler (renewal invoices, overdue suspension, opt-in termination, stale order cancellation, health checks, cleanup), admin orders/invoices/services incl. manual payments and manual activation, customer store/services/orders. Fixed: provisioning retry now re-evaluates the node while nothing exists remotely. 166 tests green.
+- **Next step:** Phase K – customer dashboard, support tickets (customer + admin), translations.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.
