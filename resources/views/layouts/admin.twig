@@ -1,0 +1,66 @@
+{% extends 'layouts/base.twig' %}
+
+{% block body %}
+<div class="app">
+    <aside class="sidebar">
+        <a class="sidebar-brand" href="/admin">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> {{ brand.name }}{% endif %}
+        </a>
+        <nav class="nav">
+            <div class="nav-section">{{ 'Administration'|t }}</div>
+            <a href="/admin" class="{{ active('/admin', true) }}">{{ 'Dashboard'|t }}</a>
+            {% if can('customers.view') %}<a href="/admin/customers" class="{{ active('/admin/customers') }}">{{ 'Customers'|t }}</a>{% endif %}
+            {% if can('customer_groups.manage') %}<a href="/admin/customer-groups" class="{{ active('/admin/customer-groups') }}">{{ 'Customer groups'|t }}</a>{% endif %}
+            {% if can('services.view') %}<a href="/admin/services" class="{{ active('/admin/services') }}">{{ 'Services'|t }}</a>{% endif %}
+            {% if can('tickets.view') %}<a href="/admin/tickets" class="{{ active('/admin/tickets') }}">{{ 'Support tickets'|t }}</a>{% endif %}
+
+            <div class="nav-section">{{ 'Sales'|t }}</div>
+            {% if can('products.view') %}<a href="/admin/products" class="{{ active('/admin/products') }}">{{ 'Products'|t }}</a>{% endif %}
+            {% if can('orders.view') %}<a href="/admin/orders" class="{{ active('/admin/orders') }}">{{ 'Orders'|t }}</a>{% endif %}
+            {% if can('invoices.view') %}<a href="/admin/invoices" class="{{ active('/admin/invoices') }}">{{ 'Invoices'|t }}</a>{% endif %}
+            {% if can('transactions.view') %}<a href="/admin/transactions" class="{{ active('/admin/transactions') }}">{{ 'Transactions'|t }}</a>{% endif %}
+            {% if can('transactions.view') %}<a href="/admin/payments/webhooks" class="{{ active('/admin/payments/webhooks') }}">{{ 'Payment events'|t }}</a>{% endif %}
+
+            <div class="nav-section">{{ 'Infrastructure'|t }}</div>
+            {% if can('integrations.view') %}<a href="/admin/integrations" class="{{ active('/admin/integrations') }}">{{ 'Integrations'|t }}</a>{% endif %}
+            {% if can('jobs.view') %}<a href="/admin/jobs" class="{{ active('/admin/jobs') }}">{{ 'Background jobs'|t }}</a>{% endif %}
+
+            <div class="nav-section">{{ 'Configuration'|t }}</div>
+            {% if can('settings.general') %}<a href="/admin/settings/general" class="{{ active('/admin/settings/general') }}">{{ 'General'|t }}</a>{% endif %}
+            {% if can('settings.branding') %}<a href="/admin/settings/branding" class="{{ active('/admin/settings/branding') }}">{{ 'Branding'|t }}</a>{% endif %}
+            {% if can('settings.email') %}<a href="/admin/settings/email" class="{{ active('/admin/settings/email') }}">{{ 'E-mail'|t }}</a>{% endif %}
+            {% if can('mail_templates.manage') %}<a href="/admin/mail-templates" class="{{ active('/admin/mail-templates') }}">{{ 'E-mail templates'|t }}</a>{% endif %}
+            {% if can('payments.settings') %}<a href="/admin/settings/payments" class="{{ active('/admin/settings/payments') }}">{{ 'Payments'|t }}</a>{% endif %}
+            {% if can('settings.system') %}<a href="/admin/settings/system" class="{{ active('/admin/settings/system') }}">{{ 'System'|t }}</a>{% endif %}
+
+            <div class="nav-section">{{ 'Staff & security'|t }}</div>
+            {% if can('staff.view') %}<a href="/admin/staff" class="{{ active('/admin/staff') }}">{{ 'Staff'|t }}</a>{% endif %}
+            {% if can('roles.manage') %}<a href="/admin/roles" class="{{ active('/admin/roles') }}">{{ 'Roles & permissions'|t }}</a>{% endif %}
+            {% if can('staff.view') %}<a href="/admin/login-history" class="{{ active('/admin/login-history') }}">{{ 'Login history'|t }}</a>{% endif %}
+            {% if can('audit.view') %}<a href="/admin/audit-log" class="{{ active('/admin/audit-log') }}">{{ 'Audit log'|t }}</a>{% endif %}
+
+            <div class="nav-section">{{ 'Account'|t }}</div>
+            <a href="/dashboard">{{ 'Customer area'|t }}</a>
+            <a href="/account/security">{{ 'My security'|t }}</a>
+        </nav>
+        <div class="sidebar-footer">{{ brand.name }} · {{ 'Admin'|t }}</div>
+    </aside>
+    <div class="main">
+        <header class="topbar">
+            <button class="icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}">&#9776;</button>
+            <div class="muted small">{% block breadcrumb %}{{ 'Administration'|t }}{% endblock %}</div>
+            <div class="topbar-actions">
+                <button class="icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">&#9680;</button>
+                {% if auth_user %}
+                <span class="user-chip"><span class="avatar">{{ auth_user.displayName|first|upper }}</span><span>{{ auth_user.displayName }} <span class="badge badge-info">{{ auth_user.roleName }}</span></span></span>
+                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Sign out'|t }}</button></form>
+                {% endif %}
+            </div>
+        </header>
+        <main class="content">
+            {% include 'partials/flash.twig' %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% endblock %}

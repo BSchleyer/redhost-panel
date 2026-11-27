@@ -1,0 +1,14 @@
+{% extends 'layouts/base.twig' %}
+{% block title %}{{ 'Error'|t }} {{ status }}{% endblock %}
+{% block body %}
+<div class="error-page">
+    <div>
+        <div class="code">{{ status }}</div>
+        <h1>{% block headline %}{{ 'Something went wrong'|t }}{% endblock %}</h1>
+        <p class="muted">{{ message|t }}</p>
+        {% if reference %}<p class="small muted">{{ 'Reference'|t }}: <code>{{ reference }}</code></p>{% endif %}
+        {% if debug %}<pre class="text-left">{{ debug }}</pre>{% endif %}
+        <p><a class="btn btn-primary" href="/">{{ 'Back to start'|t }}</a></p>
+    </div>
+</div>
+{% endblock %}

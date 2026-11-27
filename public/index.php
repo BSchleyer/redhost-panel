@@ -1,33 +1,19 @@
 <?php
+
+declare(strict_types=1);
+
 /*
- * *************************************************************************
- *  * Copyright 2006-2024 (C) Björn Schleyer, Schleyer-EDV - All rights reserved.
- *  *
- *  * Made in Gelsenkirchen with-&hearts; by Björn Schleyer
- *  *
- *  * @project     RED-Host Panel (master)
- *  * @file        index.php
- *  * @author      BSchleyer
- *  * @site        www.schleyer-edv.de
- *  * @date        24.3.2024
- *  * @time        13:12
- *
+ * Nebrix front controller. The web server's document root must point to
+ * this "public" directory; everything else (configuration, source, storage)
+ * lives outside the document root.
  */
 
-// error handling
-#ini_set('display_errors', 1);
-#ini_set('display_startup_errors', 1);
-#error_reporting(E_ALL);
-error_reporting(E_ALL ^ E_WARNING && E_NOTICE);
+use Nebrix\Core\Application;
+use Nebrix\Http\Request;
 
-// include system, kernel, autoload and other requirements
-include_once '../system.php';
-include_once BASE_PATH . 'vendor/autoload.php';
-include_once BASE_PATH . 'software/Kernel.php';
-include_once BASE_PATH . 'software/backend/autoload.php';
+$basePath = dirname(__DIR__);
+require $basePath . '/vendor/autoload.php';
 
-// define system end with start
-define('SYSTEM_END', round(microtime(true) - SYSTEM_START, 4));
-
-// include router
-include_once BASE_PATH . 'router/app.php';
+$app = Application::create($basePath);
+$request = Request::fromGlobals($app->config()->array('app.trusted_proxies'));
+$app->handle($request)->send();

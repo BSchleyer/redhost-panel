@@ -1,0 +1,50 @@
+{% extends 'layouts/base.twig' %}
+
+{% block body %}
+<div class="app">
+    <aside class="sidebar">
+        <a class="sidebar-brand" href="/dashboard">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> {{ brand.name }}{% endif %}
+        </a>
+        <nav class="nav">
+            <div class="nav-section">{{ 'Overview'|t }}</div>
+            <a href="/dashboard" class="{{ active('/dashboard') }}">{{ 'Dashboard'|t }}</a>
+            <a href="/services" class="{{ active('/services') }}">{{ 'My services'|t }}</a>
+            <a href="/store" class="{{ active('/store') }}">{{ 'Order new service'|t }}</a>
+            <div class="nav-section">{{ 'Billing'|t }}</div>
+            <a href="/orders" class="{{ active('/orders') }}">{{ 'Orders'|t }}</a>
+            <a href="/invoices" class="{{ active('/invoices') }}">{{ 'Invoices'|t }}</a>
+            <a href="/transactions" class="{{ active('/transactions') }}">{{ 'Transactions'|t }}</a>
+            {% if setting('system.tickets_enabled') %}
+            <div class="nav-section">{{ 'Support'|t }}</div>
+            <a href="/tickets" class="{{ active('/tickets') }}">{{ 'Support tickets'|t }}</a>
+            {% endif %}
+            <div class="nav-section">{{ 'Account'|t }}</div>
+            <a href="/account/profile" class="{{ active('/account/profile') }}">{{ 'Profile'|t }}</a>
+            <a href="/account/security" class="{{ active('/account/security') }}">{{ 'Security'|t }}</a>
+            {% if can('admin.access') %}
+            <div class="nav-section">{{ 'Staff'|t }}</div>
+            <a href="/admin">{{ 'Administration'|t }}</a>
+            {% endif %}
+        </nav>
+        <div class="sidebar-footer">&copy; {{ 'now'|date('Y') }} {{ brand.name }}</div>
+    </aside>
+    <div class="main">
+        <header class="topbar">
+            <button class="icon-btn sidebar-toggle" type="button" data-sidebar-toggle aria-label="{{ 'Menu'|t }}">&#9776;</button>
+            <div class="muted small">{% block breadcrumb %}{% endblock %}</div>
+            <div class="topbar-actions">
+                <button class="icon-btn" type="button" data-theme-toggle aria-label="{{ 'Toggle dark mode'|t }}">&#9680;</button>
+                {% if auth_user %}
+                <span class="user-chip"><span class="avatar">{{ auth_user.displayName|first|upper }}</span><span>{{ auth_user.displayName }}</span></span>
+                <form method="post" action="/logout" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Sign out'|t }}</button></form>
+                {% endif %}
+            </div>
+        </header>
+        <main class="content">
+            {% include 'partials/flash.twig' %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% endblock %}

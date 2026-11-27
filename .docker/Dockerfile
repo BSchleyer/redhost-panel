@@ -1,21 +1,36 @@
-FROM php:8.2-apache
+# syntax=docker/dockerfile:1
+#
+# Nebrix Panel – production image (PHP 8.4 + Apache).
+# Build from the repository root:  docker build -f .docker/Dockerfile -t nebrix-panel .
 
-RUN mv /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini
+# ---------------------------------------------------------------- dependencies
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction --no-progress
+COPY . .
+RUN composer dump-autoload --no-dev --optimize --classmap-authoritative --no-interaction
 
-RUN docker-php-ext-install mysqli && docker-php-ext-enable mysqli
+# --------------------------------------------------------------------- runtime
+FROM php:8.4-apache AS runtime
 
-RUN docker-php-ext-install pdo pdo_mysql
+RUN docker-php-ext-install pdo_mysql opcache \
+    && a2enmod rewrite headers \
+    && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
-ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+COPY .docker/php/nebrix.ini "$PHP_INI_DIR/conf.d/zz-nebrix.ini"
+COPY .docker/apache/nebrix.conf /etc/apache2/sites-available/000-default.conf
+COPY .docker/apache/security.conf /etc/apache2/conf-available/security.conf
 
-RUN a2enmod proxy_fcgi ssl rewrite proxy proxy_balancer proxy_http
+WORKDIR /var/www/nebrix
+COPY --from=vendor --chown=root:root /app /var/www/nebrix
 
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+# Only storage/ and public/uploads/ are writable by the web server user.
+RUN rm -rf .git tests .docker/Dockerfile \
+    && mkdir -p storage/logs storage/cache public/uploads/branding \
+    && chown -R www-data:www-data storage public/uploads \
+    && chmod -R u=rwX,g=rX,o= storage public/uploads
 
-COPY ./apache/demo.apache.conf /usr/local/apache2/conf/demo.apache.conf
-
-RUN echo "Include /usr/local/apache2/conf/demo.apache.conf" \
-    >> /usr/local/apache2/conf/httpd.conf
-
-RUN a2enmod rewrite
+USER www-data
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD php -r 'exit(@file_get_contents("http://127.0.0.1:8080/health") === false ? 1 : 0);'

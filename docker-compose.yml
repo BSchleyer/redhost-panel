@@ -1,51 +1,65 @@
-version: '3'
+# Nebrix Panel – local/production compose file.
+# All credentials come from .env (see .env.example). The database is not
+# published to the host network.
 services:
-  php-apache-environment:
-    container_name: php-apache-redhost
+  app:
     build:
-      context: ./.docker
-      dockerfile: Dockerfile
-    depends_on:
-      - mysql
-    volumes:
-      - '.:/var/www/html'
-    ports:
-      - '8080:80'
-    networks:
-      - sail
-  mysql:
-    image: 'mysql/mysql-server:8.0'
-    ports:
-      - '3306:3306'
+      context: .
+      dockerfile: .docker/Dockerfile
+    image: nebrix-panel:latest
+    env_file: .env
     environment:
-      MYSQL_ROOT_PASSWORD: "b1b3yq2"
-      MYSQL_ROOT_HOST: "%"
-      MYSQL_DATABASE: "redhost"
-      MYSQL_USER: "redhost"
-      MYSQL_PASSWORD: "b1b3yq2"
-      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - 'sail-mysql:/var/lib/mysql'
-    networks:
-      - sail
+      - uploads:/var/www/nebrix/public/uploads
+    restart: unless-stopped
+
+  worker:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["php", "bin/nebrix", "queue:work"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["sh", "-c", "while true; do php bin/nebrix schedule:run; sleep 60; done"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:?set DB_DATABASE in .env}
+      MARIADB_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db-data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-p b1b3yq2" ]
-      retries: 3
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
       timeout: 5s
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    ports:
-      - '81:80'
-    restart: always
-    environment:
-      PMA_HOST: mysql
-    depends_on:
-      - mysql
-    networks:
-      - sail
-networks:
-  sail:
-    driver: bridge
+      retries: 10
+    restart: unless-stopped
+
 volumes:
-  sail-mysql:
-    driver: local
+  db-data:
+  uploads:

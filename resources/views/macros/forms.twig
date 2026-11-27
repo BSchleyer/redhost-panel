@@ -1,0 +1,111 @@
+{# Reusable form controls. All values are auto-escaped. #}
+
+{% macro input(name, label, value = '', type = 'text', attrs = {}) %}
+    {% set err = error(name) %}
+    <div class="form-row">
+        <label for="f-{{ name }}">{{ label|t }}{% if attrs.required is defined %} *{% endif %}</label>
+        <input id="f-{{ name }}" type="{{ type }}" name="{{ name }}"
+               {% if type != 'password' %}value="{{ old(name, value) }}"{% endif %}
+               class="{{ err ? 'is-invalid' : '' }}"
+               {% for k, v in attrs %}{% if k != 'help' %}{% if v is same as(true) %} {{ k }}{% else %} {{ k }}="{{ v }}"{% endif %}{% endif %}{% endfor %}>
+        {% if attrs.help is defined %}<div class="help">{{ attrs.help|t }}</div>{% endif %}
+        {% if err %}<div class="field-error">{{ err|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{% macro textarea(name, label, value = '', attrs = {}) %}
+    {% set err = error(name) %}
+    <div class="form-row">
+        <label for="f-{{ name }}">{{ label|t }}</label>
+        <textarea id="f-{{ name }}" name="{{ name }}" class="{{ err ? 'is-invalid' : '' }} {{ attrs.class|default('') }}"
+            {% for k, v in attrs %}{% if k not in ['help', 'class'] %}{% if v is same as(true) %} {{ k }}{% else %} {{ k }}="{{ v }}"{% endif %}{% endif %}{% endfor %}>{{ old(name, value) }}</textarea>
+        {% if attrs.help is defined %}<div class="help">{{ attrs.help|t }}</div>{% endif %}
+        {% if err %}<div class="field-error">{{ err|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{% macro select(name, label, options, selected = null, attrs = {}) %}
+    {% set err = error(name) %}
+    {% set current = old(name, selected) %}
+    <div class="form-row">
+        <label for="f-{{ name }}">{{ label|t }}</label>
+        <select id="f-{{ name }}" name="{{ name }}" class="{{ err ? 'is-invalid' : '' }}"
+            {% for k, v in attrs %}{% if k not in ['help', 'placeholder'] %}{% if v is same as(true) %} {{ k }}{% else %} {{ k }}="{{ v }}"{% endif %}{% endif %}{% endfor %}>
+            {% if attrs.placeholder is defined %}<option value="">{{ attrs.placeholder|t }}</option>{% endif %}
+            {% for value, text in options %}
+                <option value="{{ value }}"{% if current is not null and (current ~ '') == (value ~ '') %} selected{% endif %}>{{ text|t }}</option>
+            {% endfor %}
+        </select>
+        {% if attrs.help is defined %}<div class="help">{{ attrs.help|t }}</div>{% endif %}
+        {% if err %}<div class="field-error">{{ err|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{% macro checkbox(name, label, checked = false, attrs = {}) %}
+    {% set old_value = old(name, null) %}
+    {% set is_checked = old_value is not null ? old_value in ['1', 'on', 'true', true] : checked %}
+    <div class="form-row">
+        <label class="checkbox">
+            <input type="checkbox" name="{{ name }}" value="1"{% if is_checked %} checked{% endif %}>
+            <span>{{ label|t }}{% if attrs.help is defined %}<span class="help d-block">{{ attrs.help|t }}</span>{% endif %}</span>
+        </label>
+        {% if error(name) %}<div class="field-error">{{ error(name)|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{% macro multiselect(name, label, options, selected = [], attrs = {}) %}
+    <div class="form-row">
+        <label>{{ label|t }}</label>
+        {% for value, text in options %}
+            <label class="checkbox"><input type="checkbox" name="{{ name }}[]" value="{{ value }}"{% if value in selected %} checked{% endif %}> {{ text|t }}</label>
+        {% endfor %}
+        {% if attrs.help is defined %}<div class="help">{{ attrs.help|t }}</div>{% endif %}
+        {% if error(name) %}<div class="field-error">{{ error(name)|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{# Secret input: never pre-filled; shows whether a value is stored. #}
+{% macro secret(name, label, is_set, attrs = {}) %}
+    {% set err = error(name) %}
+    <div class="form-row">
+        <label for="f-{{ name }}">{{ label|t }}</label>
+        <input id="f-{{ name }}" type="password" name="{{ name }}" autocomplete="new-password" value=""
+               placeholder="{{ is_set ? '•••••••• (' ~ ('stored – leave empty to keep'|t) ~ ')' : ('not set'|t) }}"
+               class="{{ err ? 'is-invalid' : '' }}">
+        {% if is_set %}
+            <label class="checkbox secret-state"><input type="checkbox" name="{{ name }}__clear" value="1"> {{ 'Remove stored value'|t }}</label>
+        {% endif %}
+        {% if attrs.help is defined %}<div class="help">{{ attrs.help|t }}</div>{% endif %}
+        {% if err %}<div class="field-error">{{ err|t }}</div>{% endif %}
+    </div>
+{% endmacro %}
+
+{# Renders a settings group from its schema definitions. #}
+{% macro settings_fields(definitions, values, secrets_set) %}
+    {% import _self as f %}
+    {% for key, def in definitions %}
+        {% set field = key|replace({'.': '__'}) %}
+        {% set attrs = def.help is defined ? {help: def.help} : {} %}
+        {% if def.secret|default(false) %}
+            {{ f.secret(field, def.label, secrets_set[key]|default(false), attrs) }}
+        {% elseif def.type == 'bool' %}
+            {{ f.checkbox(field, def.label, values[key], attrs) }}
+        {% elseif def.type == 'select' %}
+            {{ f.select(field, def.label, def.options, values[key], attrs) }}
+        {% elseif def.type == 'list' %}
+            {{ f.multiselect(field, def.label, def.options, values[key]|default([]), attrs) }}
+        {% elseif def.type == 'text' %}
+            {{ f.textarea(field, def.label, values[key], attrs) }}
+        {% elseif def.type == 'color' %}
+            {{ f.input(field, def.label, values[key], 'color', attrs) }}
+        {% elseif def.type == 'int' %}
+            {{ f.input(field, def.label, values[key], 'number', attrs) }}
+        {% elseif def.type == 'email' %}
+            {{ f.input(field, def.label, values[key], 'email', attrs) }}
+        {% elseif def.type == 'url' %}
+            {{ f.input(field, def.label, values[key], 'url', attrs) }}
+        {% else %}
+            {{ f.input(field, def.label, values[key], 'text', attrs) }}
+        {% endif %}
+    {% endfor %}
+{% endmacro %}

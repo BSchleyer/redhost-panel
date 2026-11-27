@@ -1,0 +1,26 @@
+{% extends 'layouts/base.twig' %}
+
+{% block body %}
+<div class="auth">
+    <aside class="auth-aside">
+        <div class="sidebar-brand p-0">
+            {% if brand.logo %}<img src="{{ brand.logo }}" alt="{{ brand.name }}">{% else %}<span class="brand-mark">{{ brand.name|first|upper }}</span> {{ brand.name }}{% endif %}
+        </div>
+        <div>
+            <h2>{{ brand.login_headline|default('Welcome')|t }}</h2>
+            <p>{{ brand.login_subtitle|t }}</p>
+        </div>
+        <nav class="legal-links">
+            {% if brand.imprint_url %}<a href="{{ brand.imprint_url }}" rel="noopener">{{ 'Imprint'|t }}</a>{% endif %}
+            {% if brand.privacy_url %}<a href="{{ brand.privacy_url }}" rel="noopener">{{ 'Privacy policy'|t }}</a>{% endif %}
+            {% if brand.terms_url %}<a href="{{ brand.terms_url }}" rel="noopener">{{ 'Terms'|t }}</a>{% endif %}
+        </nav>
+    </aside>
+    <main class="auth-main">
+        <div class="auth-card">
+            {% include 'partials/flash.twig' %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+{% endblock %}

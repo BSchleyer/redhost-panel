@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Nebrix\Console\Console;
+use Nebrix\Core\Application;
+
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
+
+$basePath = dirname(__DIR__);
+require $basePath . '/vendor/autoload.php';
+
+$app = Application::create($basePath);
+$console = new Console($app->container(), require $basePath . '/config/commands.php');
+
+exit($console->run($argv));

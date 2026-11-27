@@ -1,0 +1,12 @@
+{% extends 'layouts/base.twig' %}
+{% block title %}{{ 'Maintenance'|t }}{% endblock %}
+{% block body %}
+<div class="error-page">
+    <div>
+        <div class="code">&#9881;</div>
+        <h1>{{ 'Scheduled maintenance'|t }}</h1>
+        <p class="muted">{{ message }}</p>
+        <p class="small"><a href="/login">{{ 'Staff sign-in'|t }}</a></p>
+    </div>
+</div>
+{% endblock %}

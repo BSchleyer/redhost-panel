@@ -1,0 +1,12 @@
+{# expects: page, total, per_page #}
+{% set pages = ((total / per_page)|round(0, 'ceil'))|default(1) %}
+{% if pages > 1 %}
+<nav class="pagination" aria-label="{{ 'Pagination'|t }}">
+    {% if page > 1 %}<a href="{{ query({page: page - 1}) }}">&larr;</a>{% endif %}
+    {% for p in max(1, page - 3)..min(pages, page + 3) %}
+        {% if p == page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ query({page: p}) }}">{{ p }}</a>{% endif %}
+    {% endfor %}
+    {% if page < pages %}<a href="{{ query({page: page + 1}) }}">&rarr;</a>{% endif %}
+    <span class="muted small">{{ total }} {{ 'total'|t }}</span>
+</nav>
+{% endif %}

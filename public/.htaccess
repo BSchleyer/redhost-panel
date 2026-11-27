@@ -1,0 +1,19 @@
+# Route every request that is not an existing file to the front controller.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+Options -Indexes -MultiViews
+
+# Never serve dotfiles or PHP files other than the front controller.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>
+<Files "index.php">
+    Require all granted
+</Files>

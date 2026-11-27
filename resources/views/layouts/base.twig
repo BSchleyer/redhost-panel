@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="{{ locale }}" data-theme="{{ theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}{{ brand.name }}{% endblock %} · {{ brand.name }}</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="/branding.css">
+    {% if brand.favicon %}<link rel="icon" href="{{ brand.favicon }}">{% endif %}
+    <script src="{{ asset('js/app.js') }}" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% block body %}{% endblock %}
+</body>
+</html>

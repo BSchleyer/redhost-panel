@@ -1,0 +1,7 @@
+{% if flashes|length > 0 %}
+<div class="flash-stack" role="status">
+    {% for flash in flashes %}
+        <div class="alert alert-{{ flash.type }}"{% if flash.type == 'success' %} data-autohide{% endif %}>{{ flash.message|t }}</div>
+    {% endfor %}
+</div>
+{% endif %}
