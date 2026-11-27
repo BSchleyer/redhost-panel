@@ -45,6 +45,17 @@ return [
     'auth.captcha_site_key' => ['group' => 'auth', 'type' => 'string', 'default' => '', 'label' => 'CAPTCHA site key', 'rules' => 'nullable|string|max:100|regex:/^[A-Za-z0-9_-]*$/'],
     'auth.captcha_secret' => ['group' => 'auth', 'type' => 'string', 'default' => null, 'label' => 'CAPTCHA secret key', 'secret' => true, 'rules' => 'nullable|string|max:255'],
 
+    // ------------------------------------------------------------------ taxes
+    'tax.home_country' => ['group' => 'tax', 'type' => 'string', 'default' => 'DE', 'label' => 'Country of the business (ISO code)', 'rules' => 'required|country'],
+    'tax.small_business' => ['group' => 'tax', 'type' => 'bool', 'default' => false, 'label' => 'Small business (§ 19 UStG): no VAT on invoices', 'help' => 'Invoices show 0 % VAT and the note below. Not the same as a sole proprietorship – ask your tax advisor.'],
+    'tax.small_business_note' => ['group' => 'tax', 'type' => 'string', 'default' => 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.', 'label' => 'Note on invoices (small business)', 'rules' => 'nullable|string|max:255'],
+    'tax.reverse_charge' => ['group' => 'tax', 'type' => 'bool', 'default' => true, 'label' => 'Reverse charge for EU business customers', 'help' => 'Customers from another EU country with a VAT ID verified through VIES are invoiced without VAT.'],
+    'tax.reverse_charge_note' => ['group' => 'tax', 'type' => 'string', 'default' => 'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge).', 'label' => 'Note on invoices (reverse charge)', 'rules' => 'nullable|string|max:255'],
+    'tax.oss' => ['group' => 'tax', 'type' => 'bool', 'default' => false, 'label' => 'OSS: VAT rate of the customer\'s country for EU private customers', 'help' => 'Enable when your EU-wide B2C sales exceed the threshold (10,000 EUR) or you opted in to OSS.'],
+    'tax.rate_overrides' => ['group' => 'tax', 'type' => 'text', 'default' => '', 'label' => 'Standard rate overrides (one per line, e.g. EE=2400 for 24 %)', 'help' => 'The built-in EU standard rates were current in November 2026; correct changed rates here (basis points).', 'rules' => 'nullable|string|max:2000|regex:/^([A-Za-z]{2}=\d{1,4}\s*)*$/'],
+    'tax.non_eu_exempt' => ['group' => 'tax', 'type' => 'bool', 'default' => false, 'label' => 'No VAT for customers outside the EU', 'help' => 'Services to customers in third countries are usually not taxable in the EU; check registration duties abroad.'],
+    'tax.non_eu_note' => ['group' => 'tax', 'type' => 'string', 'default' => 'Nicht im Inland steuerbare Leistung.', 'label' => 'Note on invoices (outside the EU)', 'rules' => 'nullable|string|max:255'],
+
     // ---------------------------------------------------------------- billing
     'billing.invoice_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'NX-', 'label' => 'Invoice number prefix', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],
     'billing.order_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'ORD-', 'label' => 'Order number prefix', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],

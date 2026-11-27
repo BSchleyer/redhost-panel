@@ -36,6 +36,7 @@ class OrderService
         private readonly Config $config,
         private readonly Encrypter $encrypter,
         private readonly OrderPrechecks $prechecks,
+        private readonly \Nebrix\Billing\Tax\TaxService $taxes,
     ) {
     }
 
@@ -74,9 +75,11 @@ class OrderService
         $setupFee = (int) $product['setup_fee'];
         $discount = Money::discount($price, $discountBp);
         $net = $price + $setupFee - $discount;
-        $tax = Money::tax($net, (int) $product['tax_rate_bp']);
+        // Tax by customer: reverse charge, OSS rates, small business (TaxService).
+        $taxRate = $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']);
+        $tax = Money::tax($net, $taxRate);
 
-        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $discount, $net, $tax, $ip): array {
+        $result = $this->db->transaction(function () use ($user, $product, $options, $price, $setupFee, $discount, $net, $tax, $taxRate, $ip): array {
             if (!$this->products->reserveStock((int) $product['id'])) {
                 throw new OrderException('This product is sold out.');
             }
@@ -100,7 +103,7 @@ class OrderService
                 'unit_price' => $price,
                 'setup_fee' => $setupFee,
                 'discount' => $discount,
-                'tax_rate_bp' => (int) $product['tax_rate_bp'],
+                'tax_rate_bp' => $taxRate,
                 'billing_cycle' => (string) $product['billing_cycle'],
                 'options' => $options,
             ]]);
@@ -132,15 +135,16 @@ class OrderService
      * Price preview for the order page.
      *
      * @param array<string, mixed> $product
-     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int}
+     * @return array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp: int}
      */
-    public function quote(array $product, ?int $customerGroupId): array
+    public function quote(array $product, ?int $customerGroupId, ?User $user = null): array
     {
         $group = $customerGroupId !== null ? $this->groups->find($customerGroupId) : null;
         $price = (int) $product['price'];
         $discount = Money::discount($price, $group !== null ? (int) $group['discount_bp'] : 0);
         $net = $price + (int) $product['setup_fee'] - $discount;
-        $tax = Money::tax($net, (int) $product['tax_rate_bp']);
+        $rate = $user !== null ? $this->taxes->decide($user)->rate((int) $product['tax_rate_bp']) : (int) $product['tax_rate_bp'];
+        $tax = Money::tax($net, $rate);
         $recurringNet = $price - $discount;
 
         return [
@@ -150,7 +154,8 @@ class OrderService
             'net' => $net,
             'tax' => $tax,
             'total' => $net + $tax,
-            'recurring' => $recurringNet + Money::tax($recurringNet, (int) $product['tax_rate_bp']),
+            'recurring' => $recurringNet + Money::tax($recurringNet, $rate),
+            'tax_rate_bp' => $rate,
         ];
     }
 

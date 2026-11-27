@@ -52,6 +52,9 @@ abstract class DatabaseTestCase extends TestCase
         ], false);
         // Fast password hashing in tests.
         $this->app->container()->set(PasswordHasher::class, static fn (): PasswordHasher => new PasswordHasher(['memory_cost' => 8192, 'time_cost' => 1]));
+        // No requests to the EU VIES service from tests.
+        $vies = new \Nebrix\Tests\Support\FakeVatIdValidator();
+        $this->app->container()->set(\Nebrix\Billing\Tax\VatIdValidator::class, static fn (): \Nebrix\Billing\Tax\VatIdValidator => $vies);
 
         $this->db = $this->app->container()->get(Connection::class);
 

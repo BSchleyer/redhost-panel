@@ -76,7 +76,7 @@ final class Resource
 
     /**
      * @param array<string, mixed> $product
-     * @param array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int} $quote
+     * @param array{price: int, setup_fee: int, discount: int, net: int, tax: int, total: int, recurring: int, tax_rate_bp?: int} $quote
      * @return array<string, mixed>
      */
     public static function product(array $product, array $quote): array
@@ -102,7 +102,7 @@ final class Resource
             'features' => array_values(array_filter(array_map('trim', explode("\n", (string) ($product['features'] ?? ''))))),
             'billing_cycle' => (string) $product['billing_cycle'],
             'currency' => (string) $product['currency'],
-            'tax_rate_bp' => (int) $product['tax_rate_bp'],
+            'tax_rate_bp' => $quote['tax_rate_bp'] ?? (int) $product['tax_rate_bp'],
             'pricing' => [
                 'price' => $quote['price'],
                 'setup_fee' => $quote['setup_fee'],

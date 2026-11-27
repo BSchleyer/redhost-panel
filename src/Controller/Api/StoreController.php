@@ -37,7 +37,7 @@ final class StoreController extends ApiController
             }
         }
 
-        return $this->pageOf($request, $items, fn (array $product): array => Resource::product($product, $this->orderService->quote($product, $user->customerGroupId)));
+        return $this->pageOf($request, $items, fn (array $product): array => Resource::product($product, $this->orderService->quote($product, $user->customerGroupId, $user)));
     }
 
     public function product(Request $request, int $id): Response
@@ -45,7 +45,7 @@ final class StoreController extends ApiController
         $user = $this->user($request);
         $product = $this->findOrderable($id, $user->customerGroupId);
 
-        return $this->data(Resource::product($product, $this->orderService->quote($product, $user->customerGroupId)));
+        return $this->data(Resource::product($product, $this->orderService->quote($product, $user->customerGroupId, $user)));
     }
 
     public function orders(Request $request): Response

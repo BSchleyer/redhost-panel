@@ -145,6 +145,12 @@ final class CustomerController extends Controller
         }
         $this->users->update($id, $data);
         $this->audit($request, 'customer.updated', 'user', $id, ['email_changed' => $emailChanged]);
+        if (($data['vat_id'] ?? null) !== ($customer->attributes['vat_id'] ?? null) || ($data['country'] ?? null) !== ($customer->attributes['country'] ?? null)) {
+            $refreshed = $this->users->find($id);
+            if ($refreshed !== null) {
+                $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($refreshed);
+            }
+        }
 
         if ($emailChanged) {
             $updated = $this->users->find($id);

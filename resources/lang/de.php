@@ -306,4 +306,23 @@ return [
     'Cancellations' => 'Kündigungen',
     'Cancellations and withdrawals' => 'Kündigungen und Widerrufe',
     'Customers receive the version in their account language; other languages fall back to English.' => 'Kunden erhalten die Version in der Sprache ihres Kontos; andere Sprachen fallen auf Englisch zurück.',
+
+    // Taxes
+    'VAT ID status' => 'Status der USt-IdNr.',
+    'verified' => 'geprüft',
+    'not valid' => 'ungültig',
+    'not checked yet' => 'noch nicht geprüft',
+    'Your VAT ID has been verified.' => 'Ihre USt-IdNr. wurde bestätigt.',
+    'Your VAT ID could not be confirmed by the EU VIES service. Please check it.' => 'Ihre USt-IdNr. wurde vom EU-Dienst VIES nicht bestätigt. Bitte prüfen Sie sie.',
+    'Your VAT ID could not be checked right now; we will try again automatically.' => 'Ihre USt-IdNr. konnte gerade nicht geprüft werden; wir versuchen es automatisch erneut.',
+    'Taxes' => 'Steuern',
+    'Country of the business (ISO code)' => 'Land des Unternehmens (ISO-Code)',
+    'Small business (§ 19 UStG): no VAT on invoices' => 'Kleinunternehmer (§ 19 UStG): keine Umsatzsteuer auf Rechnungen',
+    'Note on invoices (small business)' => 'Hinweis auf Rechnungen (Kleinunternehmer)',
+    'Reverse charge for EU business customers' => 'Reverse-Charge für Geschäftskunden in der EU',
+    'Note on invoices (reverse charge)' => 'Hinweis auf Rechnungen (Reverse-Charge)',
+    'OSS: VAT rate of the customer\'s country for EU private customers' => 'OSS: Steuersatz des Kundenlandes für Privatkunden in der EU',
+    'Standard rate overrides (one per line, e.g. EE=2400 for 24 %)' => 'Abweichende Regelsteuersätze (je Zeile, z. B. EE=2400 für 24 %)',
+    'No VAT for customers outside the EU' => 'Keine Umsatzsteuer für Kunden außerhalb der EU',
+    'Note on invoices (outside the EU)' => 'Hinweis auf Rechnungen (außerhalb der EU)',
 ];

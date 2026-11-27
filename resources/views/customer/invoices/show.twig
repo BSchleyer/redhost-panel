@@ -23,6 +23,7 @@
                 <tr><td colspan="2" class="text-right">{{ 'Subtotal'|t }}</td><td class="text-right">{{ invoice.subtotal|money(invoice.currency) }}</td></tr>
                 <tr><td colspan="2" class="text-right">{{ 'Tax'|t }}</td><td class="text-right">{{ invoice.tax|money(invoice.currency) }}</td></tr>
                 <tr><td colspan="2" class="text-right"><strong>{{ 'Total'|t }}</strong></td><td class="text-right"><strong>{{ invoice.total|money(invoice.currency) }}</strong></td></tr>
+                {% if invoice.tax_note %}<tr><td colspan="3" class="small muted">{{ invoice.tax_note }}</td></tr>{% endif %}
                 {% if invoice.amount_refunded > 0 %}<tr><td colspan="2" class="text-right">{{ 'Refunded'|t }}</td><td class="text-right">−{{ invoice.amount_refunded|money(invoice.currency) }}</td></tr>{% endif %}
             </tbody>
         </table></div>

@@ -29,7 +29,7 @@ final class StoreController extends Controller
         $user = $this->user($request);
         $grouped = [];
         foreach ($this->products->orderable($user->customerGroupId) as $product) {
-            $product['quote'] = $this->orders->quote($product, $user->customerGroupId);
+            $product['quote'] = $this->orders->quote($product, $user->customerGroupId, $user);
             $product['feature_list'] = array_values(array_filter(array_map('trim', explode("\n", (string) $product['features']))));
             $grouped[(string) $product['category']][] = $product;
         }
@@ -49,7 +49,7 @@ final class StoreController extends Controller
         return $this->render($request, 'customer/store/order.twig', [
             'product' => $product,
             'options' => ProductCategory::get((string) $product['category'])['options'],
-            'quote' => $this->orders->quote($product, $user->customerGroupId),
+            'quote' => $this->orders->quote($product, $user->customerGroupId, $user),
             'cycles' => BillingCycle::labels(),
             'require_legal' => true,
         ]);

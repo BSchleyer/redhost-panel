@@ -42,7 +42,19 @@ class InvoiceService
         private readonly Connection $db,
         private readonly Clock $clock,
         private readonly Config $config,
+        private readonly \Nebrix\Billing\Tax\TaxService $taxes,
+        private readonly \Nebrix\Repository\ProductRepository $products,
     ) {
+    }
+
+    /**
+     * Tax columns of an invoice for the customer (category, note, country).
+     *
+     * @return array{tax_category: string, tax_note: string|null, tax_country: string|null}
+     */
+    private function taxColumns(\Nebrix\Billing\Tax\TaxDecision $decision): array
+    {
+        return ['tax_category' => $decision->category, 'tax_note' => $decision->note, 'tax_country' => $decision->country];
     }
 
     public function nextNumber(string $kind): string
@@ -64,6 +76,7 @@ class InvoiceService
             'name' => $user->displayName(),
             'company' => $a['company'] ?? null,
             'vat_id' => $a['vat_id'] ?? null,
+            'vat_id_verified' => (int) ($a['vat_id_valid'] ?? 0) === 1,
             'address_line1' => $a['address_line1'] ?? null,
             'address_line2' => $a['address_line2'] ?? null,
             'postcode' => $a['postcode'] ?? null,
@@ -106,6 +119,7 @@ class InvoiceService
             'subtotal' => $subtotal,
             'tax' => $tax,
             'total' => $subtotal + $tax,
+            ...$this->taxColumns($this->taxes->decide($user)),
             'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'due_at' => $this->clock->now()->modify(sprintf('+%d days', max(0, $this->settings->int('billing.invoice_due_days'))))->format('Y-m-d H:i:s'),
         ], $items);
@@ -133,7 +147,13 @@ class InvoiceService
             $periodStart = new \DateTimeImmutable($service->nextDueAt, new \DateTimeZone('UTC'));
             $periodEnd = BillingCycle::advance($periodStart, $service->billingCycle);
             $net = $service->recurringAmount;
-            $tax = Money::tax($net, $service->taxRateBp);
+            // The tax treatment follows the customer's current status (e.g. a VAT ID
+            // that became invalid). Services without a product (imported, manual)
+            // keep their recorded rate.
+            $decision = $this->taxes->decide($user);
+            $product = $service->productId !== null ? $this->products->find($service->productId) : null;
+            $taxRate = $product !== null ? $decision->rate((int) $product['tax_rate_bp']) : $service->taxRateBp;
+            $tax = Money::tax($net, $taxRate);
 
             $id = $this->invoices->create([
                 'number' => $this->nextNumber('invoice'),
@@ -145,6 +165,7 @@ class InvoiceService
                 'subtotal' => $net,
                 'tax' => $tax,
                 'total' => $net + $tax,
+                ...($product !== null ? $this->taxColumns($decision) : ['tax_category' => $taxRate > 0 ? 'S' : null, 'tax_note' => null, 'tax_country' => $decision->country]),
                 'billing_details' => json_encode($this->billingSnapshot($user), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 'due_at' => $service->nextDueAt,
             ], [[
@@ -152,7 +173,7 @@ class InvoiceService
                 'description' => sprintf('%s – renewal %s to %s', $service->name, $periodStart->format('Y-m-d'), $periodEnd->format('Y-m-d')),
                 'quantity' => 1,
                 'unit_amount' => $net,
-                'tax_rate_bp' => $service->taxRateBp,
+                'tax_rate_bp' => $taxRate,
                 'total' => $net,
                 'period_start' => $periodStart->format('Y-m-d H:i:s'),
                 'period_end' => $periodEnd->format('Y-m-d H:i:s'),

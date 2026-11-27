@@ -54,6 +54,7 @@ class Scheduler
         private readonly \Nebrix\Billing\AutoPayment $autoPayment,
         private readonly \Nebrix\Billing\PaymentReminders $reminders,
         private readonly \Nebrix\Contract\CancellationService $cancellations,
+        private readonly \Nebrix\Billing\Tax\TaxService $taxes,
     ) {
     }
 
@@ -73,6 +74,7 @@ class Scheduler
             'services.cancellations' => [60, fn (): string => sprintf('%d cancelled service(s) terminated', $this->cancellations->executeDue())],
             'billing.cancel_stale_orders' => [60, $this->cancelStaleOrders(...)],
             'integrations.health' => [30, fn (): string => sprintf('%d integration(s) checked', count($this->integrations->checkAll()))],
+            'tax.recheck_vat_ids' => [1440, fn (): string => sprintf('%d VAT ID(s) checked', $this->taxes->recheckStale())],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
         ];
     }

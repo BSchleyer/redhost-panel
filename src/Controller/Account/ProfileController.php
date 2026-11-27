@@ -55,6 +55,21 @@ final class ProfileController extends Controller
         $this->audit($request, 'account.profile_updated', 'user', $user->id);
         $this->flash($request, 'success', 'Your profile has been saved.');
 
+        // VAT ID or country changed: verify the VAT ID with VIES (reverse charge).
+        if (($data['vat_id'] ?? null) !== ($user->attributes['vat_id'] ?? null) || ($data['country'] ?? null) !== ($user->attributes['country'] ?? null)) {
+            $updated = $this->users->find($user->id);
+            if ($updated !== null && trim((string) ($data['vat_id'] ?? '')) !== '') {
+                $valid = $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($updated);
+                $this->flash($request, $valid === true ? 'success' : 'warning', match ($valid) {
+                    true => 'Your VAT ID has been verified.',
+                    false => 'Your VAT ID could not be confirmed by the EU VIES service. Please check it.',
+                    default => 'Your VAT ID could not be checked right now; we will try again automatically.',
+                });
+            } elseif ($updated !== null) {
+                $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($updated);
+            }
+        }
+
         return $this->redirect('/account/profile');
     }
 }
