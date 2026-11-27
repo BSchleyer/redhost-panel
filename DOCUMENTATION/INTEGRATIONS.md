@@ -2,7 +2,7 @@
 
 Integrations connect Nebrix to the systems that run customers' services. They are managed in **Admin → Integrations** (permission `integrations.manage`); several connections per type are possible (e.g. one Proxmox entry per cluster). Each product is linked to one integration.
 
-> **Test status.** All integrations (Proxmox, Pterodactyl, Nextcloud, TeamSpeak, Hetzner Robot, Plesk, INWX) are covered by automated tests against **stateful fakes of their APIs** (mocked HTTP, a fake ServerQuery socket server and a fake console WebSocket server). They have **not** been tested against live systems because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → actions → suspension → unsuspension → termination on a staging system for every product type. Use the Hetzner order **test mode** and the INWX **OTE** system first.
+> **Test status.** All integrations (Proxmox incl. backups, Pterodactyl incl. backups, Nextcloud, TeamSpeak, Hetzner Robot, Plesk, INWX, EU VIES) are covered by automated tests against **stateful fakes of their APIs** (mocked HTTP, a fake ServerQuery socket server and a fake console WebSocket server). They have **not** been tested against live systems because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → actions → suspension → unsuspension → termination on a staging system for every product type. Use the Hetzner order **test mode** and the INWX **OTE** system first.
 
 ## Common behaviour
 
@@ -63,12 +63,14 @@ pveum acl modify / --tokens 'nebrix@pve!panel' --roles NebrixProvisioner
 
 Granting the role on `/` is the simplest option; for tighter scoping grant it on a resource pool (`/pool/<name>`), the target storages (`/storage/<id>`), the nodes (`/nodes`) and the bridge (`/sdn/zones/localnetwork`) instead.
 
-Additional privileges for the console and the password reset: `VM.Console` (`vncproxy`/`vncwebsocket`) and the privilege for QEMU guest agent calls (`VM.Monitor` on Proxmox VE 8; newer versions use `VM.GuestAgent.*` privileges). Check the API viewer of your Proxmox version for `agent/set-user-password` and `vncproxy`.
+For customer backups additionally `VM.Backup` (create, restore, delete backups) and `Datastore.AllocateSpace` + `Datastore.Audit` on the backup storage. Additional privileges for the console and the password reset: `VM.Console` (`vncproxy`/`vncwebsocket`) and the privilege for QEMU guest agent calls (`VM.Monitor` on Proxmox VE 8; newer versions use `VM.GuestAgent.*` privileges). Check the API viewer of your Proxmox version for `agent/set-user-password` and `vncproxy`.
 
 ### Product configuration
 **VPS / KVM server** – Node (empty = node with the most free memory), template VM ID, target storage, CPU cores, memory, disk size, bridge, rate limit, first VM ID, IP pool (empty = DHCP), additional templates for reinstall (`VM ID|Label` per line). Customers choose a hostname when ordering.
 
 **LXC container** – Node, OS template (`local:vztmpl/debian-12-standard_….tar.zst`), root disk storage, cores, memory, swap, disk, bridge, rate limit, unprivileged flag, first container ID, IP pool, additional OS templates for reinstall (`template|Label` per line).
+
+Both: **backup storage** (a Proxmox storage with content type `backup` – directory/NFS/CIFS or Proxmox Backup Server; empty = no customer backups) and **backups per server** (0–50).
 
 ### IP pools (static addressing)
 Admin → IP pools manages IPv4 networks (CIDR /16–/32) with gateway, resolvers and an optional assignable range. Network, broadcast and gateway addresses are never assigned; single addresses can be reserved (e.g. for routers). A product with a pool gives each service one address: KVM via cloud-init (`ipconfig0 ip=…/prefix,gw=…`, `nameserver`), LXC via `net0 ip=…,gw=…` and `nameserver`. IPv6 stays on SLAAC (`ip6=auto`). The allocation is idempotent per service (row lock, unique key), survives reinstalls and is released after the guest has been deleted. When a pool is exhausted provisioning stops with a clear error.
@@ -82,6 +84,7 @@ Admin → IP pools manages IPv4 networks (CIDR /16–/32) with gateway, resolver
 | Terminate | Stop (if running) → delete the guest (`purge`) after the task finished | same |
 | Customer actions | Start, shut down, reboot, force stop, **reset root password** (QEMU guest agent; if the agent is not running and the VM has a cloud-init drive, via cloud-init at the next boot – otherwise the action fails without changes), **reinstall**, **console**; live status (state, uptime, CPU, memory, disk, network, IPv4) | Start, shut down, reboot, force stop, **reinstall**, **console** (the root password of a container can only be changed by reinstalling) |
 | Reinstall | Stop → delete (ownership checked) → clone the chosen template again with the same VMID and address, new root password | same with the chosen OS template |
+| Backups | See [Customer backups](#customer-backups) | same |
 
 Requirements and limitations:
 * KVM templates must be **cloud-init enabled** (cloud-init drive attached, `qemu-guest-agent` recommended) and use `scsi0` as the boot disk.
@@ -89,6 +92,16 @@ Requirements and limitations:
 * Guests imported from RED-Host (`legacy:import --only=services`) have no marker; the importer records their VMID and host name, and the provisioner accepts exactly that VMID only while the guest still has the recorded host name and carries no marker of another service (a reused VMID is never deleted).
 * Keep "Unprivileged container" enabled for LXC products: Proxmox allows only `root@pam` to set feature flags on privileged containers, and many privileged-container options are not available to API tokens.
 * Multi-cluster: create one integration per cluster and one product per cluster/plan.
+
+### Customer backups
+With a backup storage and a number of backups > 0 on the product, customers get the actions *Create backup*, *Restore backup* and *Delete backup*.
+
+* **Create**: `vzdump` in snapshot mode (`zstd`) to the backup storage with the note `nebrix-service-<id>` (requires Proxmox VE 7.2 or newer for notes). The server keeps running. Only one backup per service runs at a time; the product limit is enforced under a database lock. A finished backup appears in the list.
+* **Ownership**: customers only see backups on the product's backup storage that belong to the guest's VMID, carry the note `nebrix-service-<id>` and were made after the service was created. Backups from your own backup jobs (other notes) and backups of an earlier guest with the same VMID are never shown, restored or deleted.
+* **Restore**: runs through the job queue like a reinstall (service status `provisioning`, max. 3 per hour): waits for a running backup, checks the backup and the guest's ownership again, stops the guest, restores in place (`force`, same VMID, address and stored access data – the root password is the one valid at backup time) and starts it. If the backup disappeared meanwhile, nothing is changed and the job fails; *Retry provisioning* re-activates the service unchanged.
+* **Delete**: removes the backup volume (`DELETE …/storage/<storage>/content/<volume>`).
+* **Termination** deletes the service's backups after the guest has been deleted; failures are logged (delete the remaining backups manually) and do not block the termination.
+* Customer backups are not a replacement for your own disaster-recovery backups of the cluster.
 
 ### Console (noVNC)
 Customers (and staff) open a graphical console from the service page. The browser never receives Proxmox credentials:
@@ -185,7 +198,7 @@ Top-level domain (e.g. `de`); product billing cycle *annually*. Customers enter 
 |---|---|
 | Panel URL | `https://games.example.com` |
 | Application API key (`ptla_…`) | Admin → Application API in Pterodactyl. Permissions: Users – read & write, Servers – read & write, Nests and Eggs – read; everything else – none. |
-| Client API key (`ptlc_…`, optional) | Client API key of a root administrator; enables live status and power actions in the customer panel. Treat it like a root credential. |
+| Client API key (`ptlc_…`, optional) | Client API key of a root administrator; enables live status, power actions and backups in the customer panel. Treat it like a root credential. |
 
 ### Product configuration
 Nest ID, egg ID, location ID, memory, swap, disk, CPU limit, block IO weight, databases, additional ports, backups, Docker image (empty = egg default), egg variable overrides (JSON). Customers choose a server name.
@@ -195,6 +208,7 @@ Nest ID, egg ID, location ID, memory, swap, disk, CPU limit, block IO weight, da
 * One server per service (`external_id` = `nebrix-service-<id>`), deployed automatically to a node of the configured location (Pterodactyl deploy API picks a free allocation). A retried job finds the existing server by external ID.
 * Suspend/unsuspend use the Application API suspend endpoints; termination deletes the server (the panel user is kept).
 * Customer actions (with client API key): start, restart, stop, kill; live resource usage.
+* **Backups** (with client API key and a backup limit > 0 on the product): create, restore (all current files are deleted first – `truncate`), download (short-lived signed URL of the node) and delete finished backups of the customer's own server. The limit is the product's "Backups" value, which Pterodactyl also enforces (`feature_limits.backups`). Deleting a server in Pterodactyl deletes its backups.
 
 ## Nextcloud (cloud storage)
 
@@ -229,6 +243,20 @@ Slots. Customers choose a server name.
 ## Imported RED-Host services
 
 `legacy:import --only=services` links legacy LXC/KVM servers, TeamSpeak servers, game servers and webspaces to the integrations you map (see UPGRADE_GUIDE.md). These services are marked `legacy`: the provisioners accept the remote IDs recorded by the legacy database (Proxmox VMID, Pterodactyl server ID, Plesk subscription ID) although the objects carry no Nebrix marker – with additional checks before anything is deleted: a Proxmox guest must still have the recorded host name and no marker of another service, a Pterodactyl server the recorded identifier.
+
+## EU VIES (VAT ID check)
+
+VAT IDs are verified with the public REST interface of the European Commission (`https://ec.europa.eu/taxation_customs/vies/rest-api/ms/<country>/vat/<number>`, no credentials). Only country code and number are sent. Results: valid (reverse charge possible), invalid, or unknown when VIES or the member state's service is unavailable (VAT is charged meanwhile; the daily task re-checks). The service is subject to the EU's availability and fair-use rules.
+
+## E-invoices (XRechnung)
+
+Invoice XML is generated as XRechnung 3.0 in the UN/CEFACT CII syntax (`urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0`) with VAT categories S, AE, E and O and type codes 380 (invoice) and 381 (correction). Every generated file is checked against the CII XSD in the automated tests. The official Schematron rules (EN 16931 + XRechnung) were **not** executed in this environment; validate sample invoices with the KoSIT validator before sending e-invoices:
+
+```bash
+java -jar validationtool-<version>-standalone.jar -s <configuration>/scenarios.xml -r <configuration> invoice.xml
+```
+
+(Validator: `github.com/itplr-kosit/validator`, configuration for XRechnung 3.0: `github.com/itplr-kosit/validator-configuration-xrechnung` – check their READMEs for the exact options of the current release.) Download an XML with Admin → Invoices → *E-invoice (XRechnung)*. Required seller data (address, VAT ID or tax number, contact person, e-mail and phone) is configured in Settings → General → Invoice details; the admin dashboard warns while it is incomplete.
 
 ## Adding a new integration type
 

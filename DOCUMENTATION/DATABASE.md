@@ -48,7 +48,7 @@ php bin/nebrix migrate
 | `nx_roles` | Roles (`super_admin`, `admin`, `support`, `finance`, `customer`, custom staff roles). `is_system` roles cannot be deleted. |
 | `nx_role_permissions` | Permission strings per role (catalog in `src/Authorization/Permission.php`). |
 | `nx_customer_groups` | Discount (`discount_bp`, basis points) and the switches `can_order` / `can_manage_services`. |
-| `nx_users` | Customers and staff. Unique `email`, `username`, `legacy_id`. Status `pending`, `active`, `suspended`, `closed`. Argon2id hash, encrypted 2FA secret, hashed recovery codes, credit balance (minor units). |
+| `nx_users` | Customers and staff. Unique `email`, `username`, `legacy_id`. Status `pending`, `active`, `suspended`, `closed`. Argon2id hash, encrypted 2FA secret, hashed recovery codes, credit balance (minor units), `auto_pay_credit` (renewals from credit, default on), VAT ID with VIES result (`vat_id_valid`: 1 valid, 0 invalid, `NULL` not checked; `vat_id_checked_at`, `vat_id_name`). |
 | `nx_user_tokens` | Hashed single-use tokens (password reset, e-mail verification) with expiry. |
 | `nx_sessions` | Server-side sessions (hashed ID, user, IP, user agent, payload, last activity). |
 | `nx_rate_limits` | Throttle counters (hashed key, hits, reset time). |
@@ -57,7 +57,7 @@ php bin/nebrix migrate
 | `nx_api_tokens` | REST API personal access tokens: owner, name, SHA-256 hash (unique) and 8-character prefix of the token, scopes (JSON), optional IP allowlist, expiry, last use, revocation time. |
 | `nx_api_idempotency` | Stored first responses of `POST` requests with an `Idempotency-Key` per token (key and request as SHA-256); pruned after 24 hours. |
 | `nx_settings` | Admin settings (`key` → value). Secret settings are stored encrypted with the context `setting:<key>`. |
-| `nx_mail_templates` | Customised e-mail templates (defaults live in `config/mail_templates.php`). |
+| `nx_mail_templates` | Customised e-mail templates per language, primary key (`key`, `locale`) (defaults live in `config/mail_templates.php` and `config/mail_templates_de.php`). |
 
 ### Catalog, orders and billing
 | Table | Purpose |
@@ -66,8 +66,9 @@ php bin/nebrix migrate
 | `nx_integration_logs` | Request log per integration (method, path, status, duration; no secrets). |
 | `nx_products` | Products with category, price and setup fee, billing cycle, tax rate, stock (`NULL` = unlimited), visibility, optional customer-group restriction, integration and provisioning configuration (JSON). |
 | `nx_orders`, `nx_order_items` | Orders with price snapshot (the product can change later without affecting existing orders). |
-| `nx_services` | One row per provisioned item: status (`pending`, `provisioning`, `active`, `suspended`, `terminated`, `cancelled`, `failed`), billing cycle, `next_due_at`, remote identifiers (`external_id`, `remote` JSON), encrypted `credentials`. `order_item_id` is unique → one service per order item even if fulfilment runs twice. |
-| `nx_invoices`, `nx_invoice_items` | Invoices of type `order`, `renewal` or `credit` (top-up) with status `unpaid`, `paid`, `cancelled` or `refunded`; partial refunds are tracked through the refund transactions. |
+| `nx_services` | One row per provisioned item: status (`pending`, `provisioning`, `active`, `suspended`, `terminated`, `cancelled`, `failed`), billing cycle, `next_due_at`, `cancel_at` (end date after a cancellation – no renewals after it), remote identifiers (`external_id`, `remote` JSON), encrypted `credentials`. `order_item_id` is unique → one service per order item even if fulfilment runs twice. |
+| `nx_invoices`, `nx_invoice_items` | Invoices of type `order`, `renewal` or `credit` (top-up) with status `unpaid`, `paid`, `cancelled` or `refunded`, and correction documents of type `credit_note` (status `issued`, `reference_invoice_id` → corrected invoice). Tax treatment per invoice (`tax_category` S/AE/E/O, `tax_note`, `tax_country`), billing snapshot, reminder tracking (`reminders_sent` = number of reminder levels sent, `last_reminder_at`) and the archive record (`archived_at`, `pdf_sha256`, `xml_sha256`). Partial refunds are tracked through the refund transactions. |
+| `nx_cancellations` | Cancellations and withdrawals (`kind` ordinary/extraordinary/withdrawal) with reference, receipt time, the data entered (name, e-mail, customer reference, contract, reason, requested date), IP, linked user/service when known, status (`received`, `scheduled`, `completed`, `rejected`, `withdrawn`), effective date and staff processing. |
 | `nx_transactions` | Payments and refunds. Unique `(gateway, type, reference)` → a provider payment/refund is recorded only once. |
 | `nx_payment_events` | Immutable history of payment processing (e.g. `payment.completed`, `payment.failed`, `payment.amount_mismatch`, `payment.overpayment`, `payment.duplicate_ignored`, `payment.unknown_invoice`, `refund.completed`, `refund.invalid_amount`) with the raw provider data. |
 | `nx_webhook_events` | Received webhooks; unique `(gateway, event_id)` for deduplication; processing status. |
@@ -97,9 +98,13 @@ The daily `maintenance.cleanup` task deletes expired sessions, used/expired toke
 
 Customer accounts are never hard-deleted because invoices and payments reference them. For erasure requests use Admin → Customers → *Close and anonymize* (permission `customers.delete`), which closes the account, ends its sessions and replaces personal data with placeholders while keeping the financial records required by statutory retention periods.
 
+## Invoice archive
+
+Issued invoice documents are generated once and stored unchanged in `storage/invoices/<year>/<number>-<id>.pdf` and `.xml` (`INVOICE_ARCHIVE_PATH`, Docker volume `invoices`). The SHA-256 of each file is stored on the invoice; a file whose hash no longer matches is refused instead of being served or silently regenerated. Under German law (§ 14b UStG, § 147 AO) invoices must be kept for 8 years (accounting records 10 years) in an unalterable form – keep the archive on durable storage, include it in every backup and do not delete or edit files in it.
+
 ## Backups and restore
 
-Back up the database **and** `APP_KEY` (separately) – encrypted columns are useless without the key. Also back up `public/uploads/` (logo/favicon).
+Back up the database **and** `APP_KEY` (separately) – encrypted columns are useless without the key. Also back up `public/uploads/` (logo/favicon) and the invoice archive (`storage/invoices`, see above).
 
 ```bash
 mysqldump --single-transaction --routines --triggers --default-character-set=utf8mb4 nebrix | gzip > nebrix-$(date +%F).sql.gz

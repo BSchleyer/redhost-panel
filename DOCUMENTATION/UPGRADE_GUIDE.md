@@ -109,6 +109,20 @@ php bin/nebrix migrate
 
 Migrations are forward-only; to roll back, restore the backup taken in step 2 and the previous code version.
 
+### Updating to the billing, contract and backup features
+
+This update adds five additive migrations (auto-payment and reminders, e-mail templates per language, cancellations, tax fields, invoice documents) and the Composer package `dompdf/dompdf` (installed by `composer install`; Docker: rebuild the image). No existing data is changed or removed; customised e-mail templates are assigned to the default language.
+
+After `php bin/nebrix migrate`:
+
+1. **Docker**: the compose file has a new volume `invoices` for app, worker and scheduler – recreate the containers (`docker compose up -d`). Manual installations: make `storage/invoices` (or `INVOICE_ARCHIVE_PATH`) writable and add it to the backup.
+2. **Settings → General → Invoice details**: seller address, VAT ID or tax number, bank account, contact person, footer. Do this **before** the first invoice document is downloaded or e-mailed: documents are archived unchanged when they are first created, so a document created with incomplete data keeps it. The admin dashboard shows a warning while details are missing.
+3. **Settings → General → Taxes**: check the defaults (home country `DE`, reverse charge on, OSS off, small business off) with your tax advisor. If you are a small business (§ 19 UStG), switch it on **before** new invoices are created.
+4. **Settings → Billing**: automatic payment from credit is **on** by default (customers can opt out in their profile) and payment reminders are sent 3 days before and 1 day after the due date – change `billing.reminder_offsets` or clear it if you do not want reminders yet.
+5. **E-mail templates**: review the German versions of your customised templates (Admin → E-mail templates → language *Deutsch*).
+6. **Products**: set *Backup storage* and *Backups per server* on Proxmox products to offer backups (and grant the token `VM.Backup`, see INTEGRATIONS.md).
+7. Invoices created before this update get their PDF/XML archived on the first download, with the seller and tax data configured at that time; their stored amounts and tax are not changed. Customers whose VAT ID was entered before the update are checked by the daily VIES task (until then they pay VAT).
+
 ## PHP versions
 
 Nebrix 2.0 supports PHP 8.3 and 8.4 (the Docker image uses 8.4). `composer.json` pins the platform to PHP 8.3 so the lock file installs on both versions.

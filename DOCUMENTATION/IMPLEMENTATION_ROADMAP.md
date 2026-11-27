@@ -136,8 +136,19 @@ This file is the single source of truth for modernization progress. It is update
 - Independent security review of the API (0 high, 2 medium, 9 low); all fixed with regression tests. Token pages checked in Chromium (no console/CSP errors) and a token created in the UI used against the running API. 271 tests (1980 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** live verification of all integrations and the payment providers on staging.
 
+### Session 4 (2026-11-27) – billing, contracts, taxes, invoices, backups
+- Automatic renewal payment from credit and payment reminders – `7c79d76`.
+- E-mails in the recipient's language (EN/DE templates, editor with language switch) – `46d2503`.
+- Cancellation button (§ 312k BGB) and EU withdrawal function, admin review queue, API endpoints – `3359217`.
+- EU VAT: reverse charge with VIES verification, OSS, small-business switch, third countries – `631fef3`.
+- PDF invoices (dompdf), XRechnung 3.0 CII, archive with SHA-256, cancellation/correction documents – `dfaf26e`. XML validated against the CII XSD; the official Schematron validation could not be run in this environment.
+- Customer backups for Proxmox and Pterodactyl – `dbf04c3`.
+- **Next step:** tax advisor review of the tax settings and invoice texts, KoSIT validation of sample XRechnung files, live verification of integrations and payment providers on staging.
+
 ## Remaining work
-- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
+- Run the KoSIT validator (EN 16931 + XRechnung Schematron) on sample invoices of every tax category; optionally add ZUGFeRD (PDF/A-3 with embedded XML).
+- Keep the built-in EU VAT rates current (or maintain `tax.rate_overrides`); have the tax logic and legal texts (cancellation/withdrawal pages, invoice notes) reviewed.
+- Backups: scheduled automatic customer backups and backup quotas by size are not implemented.- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
 - Verify every integration (Proxmox incl. console, Hetzner Robot in order test mode, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only tests against fakes exist.
 - Verify the Docker build stage (`composer install` in the `composer:2` image) in CI or locally.
 - Hetzner: automatic disk wipe of returned pool servers and server market (auction) orders are not implemented.

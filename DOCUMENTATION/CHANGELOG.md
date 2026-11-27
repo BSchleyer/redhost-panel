@@ -35,6 +35,14 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Stateless request handling for API routes (no session/CSRF, JSON errors), per-user rate limits, `Idempotency-Key` support for `POST` requests.
 - Security review of the API; all findings fixed: single sign-on needs `services:credentials` and is never stored for replays, tokens are revoked on password change/reset, "sign out everywhere" and 2FA reset and their creation is e-mailed, scope checks before idempotent replays, write scopes require the view permission, suspension e-mails by default, internal suspension notes hidden from customers, customer tokens blocked while customer logins are disabled, rate limit per user plus a limit for live data, robust idempotency hashing and abandoned keys, anonymised token rows on account closure, super administrators' tokens protected. List-valued input for single-value fields is now a validation error instead of a server error (web and API).
 
+### Added (billing, contracts and backups)
+- **Automatic renewal from credit**: renewal invoices are paid from account credit on the due date (setting + per-customer opt-out); configurable **payment reminders** before/after the due date.
+- **E-mails in the recipient's language**: every template in English and German, editor with language switch; customers receive their account language.
+- **Cancellation button (§ 312k BGB) and withdrawal function** (EU Directive 2023/2673, since 19 June 2026): public forms linked on every page, immediate receipt e-mail, automatic end of the service at the end of the paid term for signed-in customers, review queue for guests/extraordinary cancellations/withdrawals (Admin → Cancellations), take-back by the customer, API endpoints.
+- **EU VAT**: tax decision per invoice (standard, reverse charge with VIES-verified VAT ID, OSS rates per country, small business switch for § 19 UStG, optional exemption outside the EU), VAT ID check on profile changes and daily re-check, invoice tax notes.
+- **Invoice documents**: PDF invoices (dompdf), XRechnung 3.0 (UN/CEFACT CII) for business customers, attachments in order/renewal e-mails, unchangeable archive with SHA-256 checks, cancellation and correction documents for cancelled invoices and refunds (prefix `RK-`), downloads for customers, staff and the API.
+- **Customer backups**: Proxmox (vzdump to a backup storage, restore through the provisioning queue, deletion, cleanup on termination) and Pterodactyl (create, restore, download, delete) with per-product limits and strict ownership checks.
+
 ### Security
 - Removed committed secrets from the working tree (they remain in the history and must be rotated by the owner), insecure Docker defaults and phpMyAdmin.
 - Fixed the legacy vulnerabilities documented in AUDIT.md (session token design, impersonation, SSH command execution, unverified PayPal IPN, double-spend race, CSRF, XSS, IDOR, open redirects, SSRF, unprotected cron endpoints, plaintext third-party credentials).
@@ -46,6 +54,8 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Archived/unused dependencies (`paypal/rest-api-sdk-php`, duplicate Proxmox and TeamSpeak libraries).
 
 ### Known limitations
-- Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending.
+- Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending. This includes Proxmox/Pterodactyl backups and the EU VIES service.
+- XRechnung files are validated against the CII XSD in the tests; the official EN 16931/XRechnung Schematron rules (KoSIT validator) have not been run yet.
+- Built-in EU VAT rates reflect the state of November 2026 and must be kept current (`tax.rate_overrides`). Tax and legal texts are technical defaults, not legal advice.
 - LXC root passwords can only be changed by reinstalling (no Proxmox API for it); IPv6 is assigned by SLAAC only.
 - Hetzner: disks of terminated pool servers are not wiped automatically; server market (auction) orders are not supported.

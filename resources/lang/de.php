@@ -363,4 +363,5 @@ return [
     'Backup storage for customer backups (empty = none)' => 'Backup-Speicher für Kunden-Backups (leer = keine)',
     'Backups per server' => 'Backups pro Server',
     'A Proxmox storage with content "backup" (directory/NFS or Proxmox Backup Server).' => 'Ein Proxmox-Speicher mit dem Inhaltstyp „backup“ (Verzeichnis/NFS oder Proxmox Backup Server).',
+    'Invoice details are incomplete (company address, VAT ID or tax number, contact person, phone, e-mail). Invoice documents are archived unchanged when they are first created – complete the details before issuing invoices.' => 'Die Rechnungsangaben sind unvollständig (Firmenanschrift, USt-IdNr. oder Steuernummer, Ansprechpartner, Telefon, E-Mail). Rechnungsdokumente werden bei der ersten Erstellung unveränderlich archiviert – vervollständigen Sie die Angaben, bevor Rechnungen ausgestellt werden.',
 ];

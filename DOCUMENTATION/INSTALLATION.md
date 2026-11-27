@@ -9,7 +9,7 @@ Nebrix runs as a PHP web application plus two CLI processes (queue worker and sc
 | Component | Version |
 |---|---|
 | PHP | 8.3 or 8.4 (CLI and web) |
-| PHP extensions | `pdo_mysql`, `sodium`, `curl`, `mbstring`, `openssl`, `json`, `fileinfo`; recommended: `opcache`, `intl` |
+| PHP extensions | `pdo_mysql`, `sodium`, `curl`, `mbstring`, `openssl`, `json`, `fileinfo`, `dom` (PDF and e-invoices); recommended: `opcache`, `intl`, `gd` |
 | Database | MariaDB 10.6+ (tested with 11.4) or MySQL 8.0+ |
 | Web server | Apache 2.4 with `mod_rewrite` (configuration included) or nginx + PHP-FPM |
 | Composer | 2.x |
@@ -60,7 +60,7 @@ docker compose exec app php bin/nebrix user:create-admin --email=admin@example.c
 
 5. Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, …) in front of port `APP_PORT` (default 8080) and add the proxy's address to `TRUSTED_PROXIES`.
 
-The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, the database in `db-data`.
+The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, issued invoice documents in `invoices` (mounted into app, worker and scheduler – include it in your backups and keep it for the statutory retention period), the database in `db-data`.
 
 Reverse proxy: route everything to port 8080 and the console WebSocket path (`CONSOLE_WS_URL`, default `/console/ws`) to port 8081 with WebSocket upgrade (the proxy's address as seen by the containers – usually the Docker gateway – belongs in `TRUSTED_PROXIES`), e.g. nginx:
 
@@ -95,7 +95,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, REFERENCES, LO
 
 2. Fill in `.env` (see [CONFIGURATION.md](CONFIGURATION.md)) and generate the key with `php bin/nebrix key:generate`.
 3. Run `php bin/nebrix migrate` and `php bin/nebrix user:create-admin --email=…`.
-4. File permissions – the web server and CLI user (e.g. `www-data`) needs write access only to `storage/` and `public/uploads/`:
+4. File permissions – the web server and CLI user (e.g. `www-data`) needs write access only to `storage/` (including the invoice archive `storage/invoices`, or the directory in `INVOICE_ARCHIVE_PATH`) and `public/uploads/`:
 
 ```bash
 chown -R root:www-data /var/www/nebrix && chown -R www-data:www-data storage public/uploads && chmod 640 .env

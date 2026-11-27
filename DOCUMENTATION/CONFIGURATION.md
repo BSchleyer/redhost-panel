@@ -35,6 +35,7 @@ Configuration is split into two layers:
 | `CONSOLE_MEMORY_LIMIT` | `512M` | PHP memory limit of the long-running console proxy. |
 | `CONSOLE_PORT` | `8081` | Host port of the console service in docker-compose (bound to 127.0.0.1). |
 | `LEGACY_DB_HOST`, `LEGACY_DB_PORT`, `LEGACY_DB_DATABASE`, `LEGACY_DB_USERNAME`, `LEGACY_DB_PASSWORD` | – | Optional, only for `legacy:import` when the RED-Host database is a separate database. |
+| `INVOICE_ARCHIVE_PATH` | `storage/invoices` | Archive of issued invoice documents (PDF and XRechnung XML). Must be writable by web, worker and scheduler, persistent (docker-compose: volume `invoices`) and included in backups – see [DATABASE.md](DATABASE.md#invoice-archive). |
 
 ### Key rotation
 
@@ -71,8 +72,35 @@ With a CAPTCHA provider the widget script of the provider is loaded on the regis
 | Suspend unpaid services … days after due date | 1 |
 | Terminate suspended services after … days | 0 (never automatically) |
 | Supported currencies | EUR |
+| Number prefix for cancellation and correction documents (`billing.credit_note_prefix`) | `RK-` |
+| Pay renewal invoices automatically from account credit (`billing.auto_pay_credit`) | on – customers can switch it off in their profile; needs the payment method "account credit" |
+| Payment reminders, days relative to the due date (`billing.reminder_offsets`) | `-3,1` (3 days before and 1 day after); empty = no reminders |
 
-Tax rates are defined per product (percentage, applied on top of the net price) – see ADMIN_GUIDE.md.
+The tax rate of a product is its domestic rate; which rate (or 0 %) an invoice really carries is decided by the tax settings below.
+
+### Taxes (Settings → General)
+| Setting | Default |
+|---|---|
+| Country of the business (`tax.home_country`) | `DE` |
+| Small business, § 19 UStG (`tax.small_business`) + invoice note | off – invoices show 0 % VAT, category E and the note. **A sole proprietorship (Einzelunternehmen) is not automatically a small business**; switch this on only if your tax advisor confirms the § 19 UStG status. |
+| Reverse charge for EU business customers (`tax.reverse_charge`) + invoice note | on – applies only to customers in another EU country whose VAT ID was confirmed by VIES; otherwise VAT is charged. |
+| OSS (`tax.oss`) | off – when on, EU private customers pay the standard rate of their country (built-in table). Switch on once your EU-wide B2C distance sales exceed 10,000 EUR per year or you opted in to OSS. |
+| Standard rate overrides (`tax.rate_overrides`) | empty – one line per country, e.g. `EE=2400` (basis points). The built-in rates were current in November 2026; correct any later change here. |
+| No VAT outside the EU (`tax.non_eu_exempt`) + invoice note | off – when on, customers in third countries are invoiced without VAT (category O). Check registration duties in the customer's country. |
+
+VAT IDs are checked against the EU VIES service when a customer saves the profile (or staff edits it) and re-checked daily (`tax.recheck_vat_ids`, at the latest every 30 days and while VIES was unavailable). Renewal invoices use the customer's current status. All tax decisions are a technical implementation – have them confirmed by a tax advisor before going live.
+
+### Invoice details (Settings → General)
+| Setting | Purpose |
+|---|---|
+| Seller street, postcode, city | Address on invoices (company name, e-mail, phone and VAT ID come from General). |
+| VAT ID / tax number (`invoice.seller_vat_id`, `invoice.seller_tax_number`) | At least one is required on invoices (§ 14 UStG); small businesses without VAT ID use the tax number. |
+| Contact person (`invoice.contact_name`) | Required for XRechnung (BR-DE-5) together with the contact e-mail and phone. |
+| Account holder, IBAN, BIC | Bank transfer details on PDF and XRechnung (payment means 58). |
+| Invoice footer | Commercial register, managing directors, court. |
+| Attach e-invoices for business customers (`invoice.e_invoice_b2b`) | on – customers with a company or VAT ID also receive the XRechnung XML. |
+
+Since 1 January 2025 German businesses must be able to receive e-invoices; issuing them for domestic B2B becomes mandatory step by step until 2028. The XML follows XRechnung 3.0 (UN/CEFACT CII).
 
 ### Branding
 Logo and favicon upload (PNG, JPEG, WebP, ICO; max 1 MB), primary/secondary/accent colours, default theme (system/light/dark), login headline and subtitle, dashboard notice, e-mail header colour and footer. Colours are delivered as `/branding.css` so the strict Content Security Policy stays intact.
@@ -80,7 +108,7 @@ Logo and favicon upload (PNG, JPEG, WebP, ICO; max 1 MB), primary/secondary/acce
 ### Mail (SMTP)
 Enable SMTP, host, port, encryption (STARTTLS / SMTPS / none), username, password (encrypted), sender address and name. While SMTP is disabled, e-mails are written to the application log. Use "Send test e-mail" after saving. E-mails are sent by the queue worker, so the worker must run.
 
-E-mail texts are edited in Admin → Mail templates (subject, HTML and plain-text body with `{{ variable }}` placeholders; one version per template, preview and reset to default available).
+E-mail texts are edited in Admin → Mail templates (subject, HTML and plain-text body with `{{ variable }}` placeholders; preview and reset to default available). Every template exists in English and German; customers receive the version in their account language (guests: the default language), other languages fall back to English.
 
 ### Payments
 Configured in Admin → Payments: PayPal (mode sandbox/live, client ID, client secret, webhook ID), Stripe (mode test/live, publishable key, secret key, webhook signing secret) and account credit. See [PAYMENTS.md](PAYMENTS.md).
@@ -111,9 +139,13 @@ See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 |---|---|---|
 | `queue.release_stale` | 5 min | Returns jobs whose worker died to the queue. |
 | `billing.renewal_invoices` | 15 min | Creates renewal invoices for services due within the configured notice period. |
+| `billing.auto_pay_credit` | 15 min | Pays renewal invoices due within one day from account credit (customers who did not opt out). |
+| `billing.payment_reminders` | 60 min | Sends payment reminders according to `billing.reminder_offsets` (each offset at most once per invoice). |
 | `billing.suspend_overdue` | 15 min | Suspends active services whose renewal invoice is unpaid after the grace period. |
 | `billing.terminate_suspended` | 60 min | Terminates long-suspended services – only if "terminate after" is > 0. |
+| `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached. |
 | `billing.cancel_stale_orders` | 60 min | Cancels unpaid orders/invoices of new orders after 14 days and releases stock. |
+| `tax.recheck_vat_ids` | daily | Re-checks VAT IDs that are older than 30 days or could not be checked. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |
 | `maintenance.cleanup` | daily | Deletes expired sessions, tokens, rate-limit entries, old login history and integration logs according to the retention settings. |
 

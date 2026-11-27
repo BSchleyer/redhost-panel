@@ -9,11 +9,12 @@ The administration area is available at `/admin` for staff accounts. What a staf
 3. **Settings → Branding**: logo, favicon, colours, login texts. Changes apply immediately for all visitors.
 4. **Settings → E-mail**: SMTP server and sender, then *Send test e-mail*. Without SMTP, e-mails are only written to the log.
 5. **Settings → Authentication**: registration, e-mail verification, lockout, **"Require two-factor authentication for staff"** (recommended).
-6. **Settings → Billing**: number prefixes, payment term, renewal notice, grace period before suspension, automatic termination (off by default).
-7. **Payments**: Stripe/PayPal keys and webhooks – see [PAYMENTS.md](PAYMENTS.md).
-8. **Integrations**: add remote systems and run *Test connection* – see [INTEGRATIONS.md](INTEGRATIONS.md).
-9. **Products**: create the offers customers can order.
-10. **Staff & roles**: create accounts for your team with the least privileges they need.
+6. **Settings → Billing**: number prefixes, payment term, renewal notice, grace period before suspension, automatic termination (off by default), automatic payment from credit, payment reminders.
+7. **Settings → General → Taxes** and **Invoice details**: tax status (small business, reverse charge, OSS, third countries) and the details printed on invoices (address, VAT ID or tax number, bank account, contact person). Have the tax settings checked by your tax advisor – see [Taxes and invoices](#taxes-and-invoices).
+8. **Payments**: Stripe/PayPal keys and webhooks – see [PAYMENTS.md](PAYMENTS.md).
+9. **Integrations**: add remote systems and run *Test connection* – see [INTEGRATIONS.md](INTEGRATIONS.md).
+10. **Products**: create the offers customers can order.
+11. **Staff & roles**: create accounts for your team with the least privileges they need.
 
 ## Roles and permissions
 
@@ -52,16 +53,33 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 
 * Category: VPS/KVM, LXC container, Dedicated server, Webhosting, Domain, Minecraft/game server, TeamSpeak 3, Nextcloud storage.
 * Name, URL slug, description, feature list, price, setup fee, currency, billing cycle (monthly, quarterly, every 6 months, annually, one-time), tax rate, stock (empty = unlimited), visibility and active flags, sort order, optional customer-group restriction.
-* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk, IP pool and reinstall templates for Proxmox; mode, model, location and images for Hetzner dedicated servers; service plan for Plesk; TLD for domains; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. For manual fulfilment leave the integration empty and switch off "Provision automatically" (the form does not accept automation without an integration).
+* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk, IP pool, reinstall templates, backup storage and number of backups for Proxmox; mode, model, location and images for Hetzner dedicated servers; service plan for Plesk; TLD for domains; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. For manual fulfilment leave the integration empty and switch off "Provision automatically" (the form does not accept automation without an integration).
 * For Hetzner pool products set the **stock** to the number of free pool servers so customers cannot order more than you have.
 * Products are not deleted; deactivate or hide them instead. Existing orders and services keep their price snapshot.
 
 ## Orders, invoices and transactions
 
 * **Orders**: status `pending` (unpaid), `paid`, `cancelled`. Unpaid orders can be cancelled (stock is released); orders whose invoice is still unpaid 14 days after its due date are cancelled automatically.
-* **Invoices**: order, renewal and credit top-up invoices with status `unpaid`, `paid`, `cancelled`, `refunded`. Actions: cancel an unpaid invoice, record a manual payment (bank transfer). The invoice page shows the payment event history.
-* **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for.
+* **Invoices**: order, renewal and credit top-up invoices with status `unpaid`, `paid`, `cancelled`, `refunded`, plus correction documents (type `credit_note`, status `issued`). Actions: cancel an unpaid invoice, record a manual payment (bank transfer), download PDF and XRechnung XML. The invoice page shows the payment event history and related correction documents.
+* **Transactions**: all payments and refunds with provider references; refunds are issued here (see [PAYMENTS.md](PAYMENTS.md#refunds)). A full refund suspends the services the invoice paid for. Every refund creates a correction document (credit note) for the refunded amount.
 * **Webhook events**: every received payment webhook with its processing status.
+
+## Taxes and invoices
+
+* **Tax decision per invoice** (stored with the invoice: category, country, note): domestic customers and customers without verified VAT ID pay VAT; EU business customers with a VAT ID confirmed by VIES are invoiced net with the reverse charge note; with OSS, EU private customers pay the standard rate of their country; customers outside the EU are invoiced without VAT only if "No VAT outside the EU" is on. With the **small business** switch every invoice is issued without VAT and with the § 19 UStG note.
+* **Sole proprietorship ≠ small business**: an Einzelunternehmen charges VAT normally unless it uses the small business rule (§ 19 UStG: previous-year turnover up to 25,000 EUR and current year up to 100,000 EUR since 2025). Leave the switch off unless your tax advisor confirms it.
+* Customers enter their VAT ID in their profile; it is checked with VIES immediately and re-checked daily. Business customers must give their full address (required for e-invoices). When staff change a customer's VAT ID or country, it is checked again immediately.
+* **Documents**: invoices are rendered as PDF and, for business customers, as XRechnung 3.0 XML (UN/CEFACT CII). Both are generated once, archived in `storage/invoices` with a SHA-256 checksum and served unchanged afterwards (the archive is the legal record – back it up and keep it for the statutory 8–10 years). Order and renewal e-mails carry the documents as attachments.
+* **Corrections**: issued invoices are never changed or deleted. Cancelling an unpaid invoice creates a cancellation document (prefix `RK-`, type 381 "credit note" in XRechnung) that refers to the original; a refund creates a correction document for the refunded amount (all items for a full refund, one line for a partial refund).
+* Validate a sample XRechnung with the official KoSIT validator before you send e-invoices to business customers (see [INTEGRATIONS.md](INTEGRATIONS.md#e-invoices-xrechnung)).
+
+## Cancellations and withdrawals
+
+* Customers cancel through the **"Cancel contracts here"** link (§ 312k BGB) and withdraw through **"Withdraw from contract here"** (EU withdrawal function, mandatory since 19 June 2026). Both links are on every page, also for visitors who are not signed in; the forms work without an account.
+* Every declaration is stored with the time of receipt and confirmed to the customer by e-mail immediately (the confirmation is the legal proof of receipt).
+* **Ordinary cancellations** of signed-in customers for one of their own services take effect automatically at the end of the paid term (or a later requested date): no further renewal invoices are created and the service is terminated on that date (`services.cancellations` task). The customer can take the cancellation back until then.
+* **Declarations of guests, extraordinary cancellations and withdrawals** appear in **Admin → Cancellations** for review (the identity of a guest cannot be verified automatically). Staff match the declaration to the customer (by account, e-mail or customer number), then *schedule* the end of the service, *complete* it after handling it manually (e.g. a withdrawal with refund via Transactions) or *reject* it with a note. Each step is audit-logged.
+* Withdrawals: when the customer asked for the service to start during the withdrawal period, a proportionate amount for the time used may be retained – decide this case by case with your legal advisor.
 
 ## Services
 
@@ -70,6 +88,7 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 * Actions: suspend (with reason; the customer is notified), unsuspend, terminate (deletes the remote resource – confirm carefully), **retry provisioning** for failed services, **activate manually** (for services without automation, optionally storing access data).
 * **Remote actions**: the actions the integration offers (power, password reset, reinstall, rescue system, reverse DNS, name servers, Plesk login, …) – the same as for customers, executed and audit-logged in the staff member's name.
 * **Console**: graphical console for Proxmox VMs and containers (requires the console proxy, see INSTALLATION.md).
+* **Backups**: Proxmox products with a backup storage and Pterodactyl products with a backup limit offer *Create / Restore / Delete backup* (Pterodactyl also *Download*). Customers only see the backups of their own server; restores of Proxmox guests run through the job queue like a reinstall. Terminating a service deletes its customer backups. See [INTEGRATIONS.md](INTEGRATIONS.md#customer-backups).
 * Services are suspended automatically when their renewal invoice is unpaid after the grace period and reactivated when it is paid. Termination of long-suspended services happens only if enabled in the billing settings.
 
 ## Support tickets
@@ -87,7 +106,7 @@ Admin → IP pools: create IPv4 pools (network, gateway, resolvers, optional ran
 
 ## E-mail templates
 
-Admin → E-mail templates lists all system e-mails (registration, verification, password reset/changed, order confirmation, invoice, payment confirmation, service provisioned/suspended/expiring, ticket reply, test). Each template has a subject, an HTML and a text body with `{{ variable }}` placeholders (the available variables are listed next to the editor). *Preview* renders sample data in a sandbox; *Reset* restores the default. Variable values are HTML-escaped.
+Admin → E-mail templates lists all system e-mails (registration, verification, password reset/changed, order confirmation, invoice, payment confirmation and reminder, correction document, cancellation receipt and confirmation, service provisioned/suspended/expiring, ticket reply, test). Each template has a subject, an HTML and a text body with `{{ variable }}` placeholders (the available variables are listed next to the editor) in **English and German** – switch the language above the editor. Customers receive the version in their account language; *Reset* restores the default of the selected language. *Preview* renders sample data in a sandbox. Variable values are HTML-escaped.
 
 ## Staff, roles and logs
 
@@ -109,4 +128,5 @@ Admin → E-mail templates lists all system e-mails (registration, verification,
 * Failed jobs or provisioning errors? (Jobs, Services → status *failed*)
 * Integrations healthy? (Integrations)
 * Webhooks arriving? (Payments → Webhook events)
-* Backups of database and `APP_KEY` tested?
+* New cancellations or withdrawals waiting for review? (Cancellations)
+* Backups of database, `APP_KEY` and the invoice archive (`storage/invoices`) tested?

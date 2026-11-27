@@ -101,6 +101,9 @@ class DashboardStats
         if (!$this->settings->bool('mail.enabled')) {
             $notes[] = ['level' => 'warning', 'message' => 'SMTP is not enabled. E-mails (verification, password reset, invoices) are only written to the log.', 'link' => '/admin/settings/email'];
         }
+        if (\Nebrix\Billing\Documents\Seller::fromSettings($this->settings)->missingForEInvoice() !== []) {
+            $notes[] = ['level' => 'warning', 'message' => 'Invoice details are incomplete (company address, VAT ID or tax number, contact person, phone, e-mail). Invoice documents are archived unchanged when they are first created – complete the details before issuing invoices.', 'link' => '/admin/settings/general'];
+        }
         if (!$this->settings->bool('payments.paypal.enabled') && !$this->settings->bool('payments.stripe.enabled')) {
             $notes[] = ['level' => 'info', 'message' => 'No online payment provider is enabled.', 'link' => '/admin/settings/payments'];
         }

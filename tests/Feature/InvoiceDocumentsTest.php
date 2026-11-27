@@ -235,4 +235,13 @@ final class InvoiceDocumentsTest extends FeatureTestCase
         $message = $this->app->container()->get(\Nebrix\Security\Encrypter::class)->decryptArray((string) json_decode($payload, true)['message'], 'mail-job');
         self::assertSame(['application/pdf', 'application/xml'], array_column($message['attachments'], 'mime'));
     }
+
+    public function testDashboardWarnsWhileInvoiceDetailsAreIncomplete(): void
+    {
+        $this->actingAs($this->createUser(Role::ADMIN));
+        self::assertStringNotContainsString('Invoice details are incomplete', $this->get('/admin')->body());
+
+        $this->settings->set('invoice.contact_name', '');
+        self::assertStringContainsString('Invoice details are incomplete', $this->get('/admin')->body());
+    }
 }

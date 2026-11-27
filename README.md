@@ -10,7 +10,10 @@ It is the modernized successor of the open-source **RED-Host Panel** by Björn S
 * **Admin panel** – dashboard, customers and groups, products, orders, invoices, transactions and refunds, services, tickets, integrations, e-mail templates, branding, settings, staff with role-based permissions, audit log, background jobs.
 * **Automated provisioning** – Proxmox VE (KVM and LXC, API tokens, multiple clusters, IP pools, reinstall, password reset, noVNC console), Hetzner Robot (dedicated servers from a pool or ordered), Plesk (webhosting), INWX (domain registrations and transfers), Pterodactyl (Minecraft and other game servers), Nextcloud (storage accounts), TeamSpeak 3 (virtual servers). Products without an integration are fulfilled manually.
 * **Payments** – Stripe Checkout and PayPal (Orders v2) with verified webhooks, account credit, manual payments, refunds and dispute handling.
-* **Billing automation** – recurring renewals, overdue suspension, optional termination, idempotent job queue with retries.
+* **Billing automation** – recurring renewals, automatic payment from credit, payment reminders, overdue suspension, optional termination, idempotent job queue with retries.
+* **Invoices and taxes (EU)** – PDF invoices and XRechnung e-invoices with an unchangeable archive, cancellation/correction documents, reverse charge with VIES-verified VAT IDs, OSS rates, small-business switch (§ 19 UStG).
+* **Contracts** – cancellation button (§ 312k BGB) and withdrawal function with immediate receipt e-mails, automatic end of cancelled services; e-mails in the customer's language.
+* **Customer backups** – Proxmox (vzdump, restore, delete) and Pterodactyl (create, restore, download, delete) with per-product limits.
 * **REST API** – token-authenticated JSON API (`/api/v1`, OpenAPI 3.1) for customers (orders, services and actions, invoices and payment, tickets) and staff (customers, services, orders, invoices, tickets) with scoped, expiring tokens, rate limits and idempotency keys.
 
 ## Security highlights
@@ -63,7 +66,7 @@ Full instructions, including a manual installation: [INSTALLATION.md](DOCUMENTAT
 
 ## Status
 
-Version 2.0.0 is in development. All integrations and payment providers are covered by automated tests against mocked APIs but have not yet been verified against live systems – test them in a staging environment before production use (see the "Test status" notes in INTEGRATIONS.md and PAYMENTS.md).
+Version 2.0.0 is in development. All integrations (including backups and the EU VIES check) and payment providers are covered by automated tests against mocked APIs but have not yet been verified against live systems – test them in a staging environment before production use (see the "Test status" notes in INTEGRATIONS.md and PAYMENTS.md).
 
 ## Development
 
