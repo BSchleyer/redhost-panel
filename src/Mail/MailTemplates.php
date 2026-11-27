@@ -15,11 +15,16 @@ use Nebrix\Settings\SettingsRepository;
  * Templates are not executed as code (no Twig/PHP), so a staff member with
  * template permissions cannot achieve server-side template injection. All
  * placeholder values are HTML-escaped in the HTML part.
+ *
+ * Templates exist per language: English defaults (config/mail_templates.php),
+ * translations (config/mail_templates_<locale>.php) and administrator
+ * overrides per key and locale. Unknown locales fall back to English.
  */
 class MailTemplates
 {
     /**
      * @param array<string, array{name: string, variables: list<string>, subject: string, html: string}> $defaults
+     * @param array<string, array<string, array{subject: string, html: string}>> $translations locale => key => template
      */
     public function __construct(
         private readonly Connection $db,
@@ -27,7 +32,25 @@ class MailTemplates
         private readonly Clock $clock,
         private readonly Config $config,
         private readonly array $defaults,
+        private readonly array $translations = [],
     ) {
+    }
+
+    public const DEFAULT_LOCALE = 'en';
+
+    /**
+     * Languages templates can be edited in: English plus every translation.
+     *
+     * @return list<string>
+     */
+    public function locales(): array
+    {
+        return array_values(array_unique([self::DEFAULT_LOCALE, ...array_keys($this->translations)]));
+    }
+
+    public function normalizeLocale(?string $locale): string
+    {
+        return $locale !== null && in_array($locale, $this->locales(), true) ? $locale : self::DEFAULT_LOCALE;
     }
 
     /**
@@ -39,50 +62,53 @@ class MailTemplates
     }
 
     /**
-     * @return array{key: string, name: string, variables: list<string>, subject: string, html: string, customized: bool}
+     * @return array{key: string, locale: string, name: string, variables: list<string>, subject: string, html: string, customized: bool}
      */
-    public function get(string $key): array
+    public function get(string $key, ?string $locale = null): array
     {
         if (!isset($this->defaults[$key])) {
             throw new \InvalidArgumentException(sprintf('Unknown mail template "%s".', $key));
         }
+        $locale = $this->normalizeLocale($locale);
 
         $default = $this->defaults[$key];
-        $override = $this->db->fetchOne('SELECT `subject`, `body_html` FROM `nx_mail_templates` WHERE `key` = ?', [$key]);
+        $translated = $this->translations[$locale][$key] ?? null;
+        $override = $this->db->fetchOne('SELECT `subject`, `body_html` FROM `nx_mail_templates` WHERE `key` = ? AND `locale` = ?', [$key, $locale]);
 
         return [
             'key' => $key,
+            'locale' => $locale,
             'name' => $default['name'],
             'variables' => $default['variables'],
-            'subject' => $override !== null ? (string) $override['subject'] : $default['subject'],
-            'html' => $override !== null ? (string) $override['body_html'] : $default['html'],
+            'subject' => $override !== null ? (string) $override['subject'] : ($translated['subject'] ?? $default['subject']),
+            'html' => $override !== null ? (string) $override['body_html'] : ($translated['html'] ?? $default['html']),
             'customized' => $override !== null,
         ];
     }
 
-    public function save(string $key, string $subject, string $html, ?int $actorId): void
+    public function save(string $key, string $subject, string $html, ?int $actorId, ?string $locale = null): void
     {
-        $this->get($key);
+        $locale = $this->get($key, $locale)['locale'];
         $now = $this->clock->nowString();
         $this->db->run(
-            'INSERT INTO `nx_mail_templates` (`key`, `subject`, `body_html`, `body_text`, `updated_by`, `updated_at`) VALUES (?, ?, ?, NULL, ?, ?)
+            'INSERT INTO `nx_mail_templates` (`key`, `locale`, `subject`, `body_html`, `body_text`, `updated_by`, `updated_at`) VALUES (?, ?, ?, ?, NULL, ?, ?)
              ON DUPLICATE KEY UPDATE `subject` = ?, `body_html` = ?, `updated_by` = ?, `updated_at` = ?',
-            [$key, $subject, $html, $actorId, $now, $subject, $html, $actorId, $now],
+            [$key, $locale, $subject, $html, $actorId, $now, $subject, $html, $actorId, $now],
         );
     }
 
-    public function reset(string $key): void
+    public function reset(string $key, ?string $locale = null): void
     {
-        $this->db->delete('nx_mail_templates', ['key' => $key]);
+        $this->db->delete('nx_mail_templates', ['key' => $key, 'locale' => $this->normalizeLocale($locale)]);
     }
 
     /**
      * @param array<string, scalar|null> $variables
      * @return array{subject: string, html: string, text: string}
      */
-    public function render(string $key, array $variables): array
+    public function render(string $key, array $variables, ?string $locale = null): array
     {
-        $template = $this->get($key);
+        $template = $this->get($key, $locale);
         $variables += [
             'company_name' => $this->settings->string('general.company_name'),
             'support_email' => $this->settings->string('general.support_email'),

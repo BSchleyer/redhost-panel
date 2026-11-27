@@ -30,15 +30,20 @@ class Mailer
         private readonly Encrypter $encrypter,
         private readonly LoggerInterface $logger,
         private readonly Config $config,
+        private readonly \Nebrix\Database\Connection $db,
     ) {
     }
 
     /**
+     * Queues a templated e-mail in the recipient's language: $locale, else
+     * the language of the account with this address, else the default
+     * language of the installation.
+     *
      * @param array<string, scalar|null> $variables
      */
-    public function queue(string $toEmail, ?string $toName, string $template, array $variables = []): void
+    public function queue(string $toEmail, ?string $toName, string $template, array $variables = [], ?string $locale = null): void
     {
-        $message = $this->templates->render($template, $variables) + [
+        $message = $this->templates->render($template, $variables, $locale ?? $this->localeFor($toEmail)) + [
             'to' => $toEmail,
             'to_name' => $toName ?? '',
             'template' => $template,
@@ -69,7 +74,7 @@ class Mailer
      */
     public function sendNow(string $toEmail, ?string $toName, string $template, array $variables = []): void
     {
-        $this->deliver($this->templates->render($template, $variables) + [
+        $this->deliver($this->templates->render($template, $variables, $this->localeFor($toEmail)) + [
             'to' => $toEmail,
             'to_name' => $toName ?? '',
             'template' => $template,
@@ -184,5 +189,15 @@ class Mailer
         }
 
         return mb_substr(trim($error), 0, 300);
+    }
+
+    private function localeFor(string $email): string
+    {
+        $language = $this->db->fetchValue('SELECT `language` FROM `nx_users` WHERE `email` = ?', [mb_strtolower($email)]);
+        if (is_string($language) && $language !== '') {
+            return $language;
+        }
+
+        return $this->settings->string('general.default_language') ?: MailTemplates::DEFAULT_LOCALE;
     }
 }

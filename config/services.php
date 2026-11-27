@@ -30,6 +30,7 @@ return static function (Container $c, Config $config, string $basePath): void {
         $c->get(Clock::class),
         $config,
         require $basePath . '/config/mail_templates.php',
+        ['de' => require $basePath . '/config/mail_templates_de.php'],
     ));
 
     $c->set(BrandingAssets::class, static fn (): BrandingAssets => new BrandingAssets($config->string('paths.uploads')));

@@ -74,7 +74,7 @@ return [
         'name' => 'Service expiration',
         'variables' => ['name', 'service_name', 'due_date', 'invoice_url'],
         'subject' => 'Your service "{{ service_name }}" is due for renewal',
-        'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> is due for renewal on {{ due_date }}. Please pay the renewal invoice to avoid an interruption.</p><p><a class="button" href="{{ invoice_url }}">Pay renewal invoice</a></p>',
+        'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> is due for renewal on {{ due_date }}. Please pay the renewal invoice to avoid an interruption. If automatic payment from your credit is enabled and the balance suffices, the invoice is paid automatically.</p><p><a class="button" href="{{ invoice_url }}">Pay renewal invoice</a></p>',
     ],
     'invoice_reminder' => [
         'name' => 'Payment reminder',

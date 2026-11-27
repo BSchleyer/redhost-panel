@@ -32,34 +32,49 @@ final class MailTemplateController extends Controller
     {
         $this->authorize($request, Permission::MAIL_TEMPLATES_MANAGE);
 
-        return $this->render($request, 'admin/mail_templates/edit.twig', ['template' => $this->find($key)]);
+        $locale = $this->locale($request);
+
+        return $this->render($request, 'admin/mail_templates/edit.twig', [
+            'template' => $this->find($key, $locale),
+            'locales' => $this->templates->locales(),
+            'locale' => $locale,
+        ]);
+    }
+
+    private function locale(Request $request): string
+    {
+        $value = $request->input('locale');
+
+        return $this->templates->normalizeLocale(is_string($value) ? $value : null);
     }
 
     public function update(Request $request, string $key): Response
     {
         $this->authorize($request, Permission::MAIL_TEMPLATES_MANAGE);
-        $this->find($key);
+        $locale = $this->locale($request);
+        $this->find($key, $locale);
         $data = $this->validate($request, [
             'subject' => 'required|string|max:255',
             'html' => 'required|string|max:100000',
         ]);
 
-        $this->templates->save($key, (string) $data['subject'], (string) $data['html'], $this->user($request)->id);
-        $this->audit($request, 'mail_template.updated', 'mail_template', $key);
+        $this->templates->save($key, (string) $data['subject'], (string) $data['html'], $this->user($request)->id, $locale);
+        $this->audit($request, 'mail_template.updated', 'mail_template', $key, ['locale' => $locale]);
         $this->flash($request, 'success', 'Template saved.');
 
-        return $this->redirect('/admin/mail-templates/' . $key);
+        return $this->redirect('/admin/mail-templates/' . $key . '?locale=' . $locale);
     }
 
     public function reset(Request $request, string $key): Response
     {
         $this->authorize($request, Permission::MAIL_TEMPLATES_MANAGE);
-        $this->find($key);
-        $this->templates->reset($key);
-        $this->audit($request, 'mail_template.reset', 'mail_template', $key);
+        $locale = $this->locale($request);
+        $this->find($key, $locale);
+        $this->templates->reset($key, $locale);
+        $this->audit($request, 'mail_template.reset', 'mail_template', $key, ['locale' => $locale]);
         $this->flash($request, 'success', 'Template reset to the default version.');
 
-        return $this->redirect('/admin/mail-templates/' . $key);
+        return $this->redirect('/admin/mail-templates/' . $key . '?locale=' . $locale);
     }
 
     /**
@@ -69,13 +84,14 @@ final class MailTemplateController extends Controller
     public function preview(Request $request, string $key): Response
     {
         $this->authorize($request, Permission::MAIL_TEMPLATES_MANAGE);
-        $template = $this->find($key);
+        $locale = $this->locale($request);
+        $template = $this->find($key, $locale);
 
         $sample = [];
         foreach ($template['variables'] as $variable) {
             $sample[$variable] = str_ends_with($variable, '_url') ? 'https://panel.example.com/example' : '[' . $variable . ']';
         }
-        $rendered = $this->templates->render($key, $sample);
+        $rendered = $this->templates->render($key, $sample, $locale);
 
         $response = Response::html($rendered['html']);
         $response->setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data: https:; frame-ancestors 'self'; sandbox");
@@ -85,14 +101,14 @@ final class MailTemplateController extends Controller
     }
 
     /**
-     * @return array{key: string, name: string, variables: list<string>, subject: string, html: string, customized: bool}
+     * @return array{key: string, locale: string, name: string, variables: list<string>, subject: string, html: string, customized: bool}
      */
-    private function find(string $key): array
+    private function find(string $key, ?string $locale = null): array
     {
         if (!array_key_exists($key, $this->templates->defaults())) {
             throw HttpException::notFound();
         }
 
-        return $this->templates->get($key);
+        return $this->templates->get($key, $locale);
     }
 }

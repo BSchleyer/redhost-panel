@@ -2,10 +2,14 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ template.name|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ template.name|t }}</h1><p class="muted"><a href="/admin/mail-templates">&larr; {{ 'All templates'|t }}</a></p></div></div>
+<div class="page-header"><div><h1>{{ template.name|t }}</h1><p class="muted"><a href="/admin/mail-templates">&larr; {{ 'All templates'|t }}</a></p></div>
+    <div class="actions">{% for l in locales %}<a class="btn btn-sm {{ l == locale ? 'btn-primary' : 'btn-outline' }}" href="/admin/mail-templates/{{ template.key }}?locale={{ l }}">{{ l|upper }}</a> {% endfor %}</div>
+</div>
+<p class="muted">{{ 'Customers receive the version in their account language; other languages fall back to English.'|t }}</p>
 <div class="grid grid-2">
-    <form method="post" action="/admin/mail-templates/{{ template.key }}" novalidate>
+    <form method="post" action="/admin/mail-templates/{{ template.key }}?locale={{ locale }}" novalidate>
         {{ csrf_field() }}
+        <input type="hidden" name="locale" value="{{ locale }}">
         <div class="card">
             <div class="card-body">
                 {{ f.input('subject', 'Subject', template.subject, 'text', {required: true}) }}
@@ -18,9 +22,9 @@
     </form>
     <div class="card">
         <div class="card-header"><h2>{{ 'Preview'|t }}</h2>
-            {% if template.customized %}<form method="post" action="/admin/mail-templates/{{ template.key }}/reset" data-confirm="{{ 'Discard your changes and restore the default template?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset to default'|t }}</button></form>{% endif %}
+            {% if template.customized %}<form method="post" action="/admin/mail-templates/{{ template.key }}/reset?locale={{ locale }}" data-confirm="{{ 'Discard your changes and restore the default template?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Reset to default'|t }}</button></form>{% endif %}
         </div>
-        <iframe class="mail-preview" src="/admin/mail-templates/{{ template.key }}/preview" sandbox title="{{ 'Preview'|t }}"></iframe>
+        <iframe class="mail-preview" src="/admin/mail-templates/{{ template.key }}/preview?locale={{ locale }}" sandbox title="{{ 'Preview'|t }}"></iframe>
     </div>
 </div>
 {% endblock %}
