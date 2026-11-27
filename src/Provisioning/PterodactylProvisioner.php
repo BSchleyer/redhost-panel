@@ -145,6 +145,19 @@ final class PterodactylProvisioner implements Provisioner
         $server = $client->findServerByExternalId('nebrix-service-' . $service->id);
         if ($server !== null) {
             $client->deleteServer((int) $server['id']);
+
+            return;
+        }
+        // Servers imported from RED-Host have no external ID; the legacy
+        // database recorded their server ID.
+        if (($service->remote['legacy'] ?? false) === true && (int) $service->remote('server_id', 0) > 0) {
+            try {
+                $client->deleteServer((int) $service->remote('server_id', 0));
+            } catch (IntegrationException $exception) {
+                if (!$exception->isNotFound()) {
+                    throw $exception;
+                }
+            }
         }
     }
 

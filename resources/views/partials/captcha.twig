@@ -1,0 +1,8 @@
+{# CAPTCHA widget (hCaptcha / Turnstile). Parameter: captcha (null when disabled). #}
+{% if captcha %}
+    <div class="form-row">
+        <div class="{{ captcha.class }}" data-sitekey="{{ captcha.site_key }}"></div>
+        {% if error('captcha') %}<div class="error">{{ error('captcha')|t }}</div>{% endif %}
+    </div>
+    <script src="{{ captcha.script }}" async defer></script>
+{% endif %}

@@ -19,4 +19,5 @@ return [
     'schedule:run' => Command\ScheduleRunCommand::class,
     'legacy:import' => Command\LegacyImportCommand::class,
     'console:proxy' => Command\ConsoleProxyCommand::class,
+    'db:triggers' => Command\DbTriggersCommand::class,
 ];

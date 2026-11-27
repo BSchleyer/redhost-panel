@@ -9,21 +9,31 @@ use Nebrix\Auth\AuthService;
 use Nebrix\Http\Controller;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
+use Nebrix\Http\SecurityHeaders;
+use Nebrix\Security\Captcha;
 
 final class PasswordResetController extends Controller
 {
-    public function __construct(private readonly AuthService $auth)
-    {
+    public function __construct(
+        private readonly AuthService $auth,
+        private readonly Captcha $captcha,
+    ) {
     }
 
     public function showRequest(Request $request): Response
     {
-        return $this->render($request, 'auth/forgot_password.twig');
+        $response = $this->render($request, 'auth/forgot_password.twig', ['captcha' => $this->captcha->widget()]);
+        if ($this->captcha->enabled()) {
+            $response->setHeader('Content-Security-Policy', SecurityHeaders::contentSecurityPolicy($this->captcha->cspSources()));
+        }
+
+        return $response;
     }
 
     public function sendLink(Request $request): Response
     {
         $data = $this->validate($request, ['email' => 'required|email|max:254']);
+        $this->captcha->verify($request);
         $this->auth->requestPasswordReset($request, (string) $data['email']);
 
         // Identical response whether or not the account exists.

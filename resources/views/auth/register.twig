@@ -24,6 +24,7 @@
             {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
         </div>
     {% endif %}
+    {% include 'partials/captcha.twig' with {captcha: captcha} only %}
     <button class="btn btn-primary btn-block" type="submit">{{ 'Create account'|t }}</button>
 </form>
 <div class="auth-links"><a href="/login">{{ 'Already have an account? Sign in'|t }}</a></div>

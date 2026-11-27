@@ -9,6 +9,8 @@ use Nebrix\Auth\AuthService;
 use Nebrix\Http\Controller;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
+use Nebrix\Http\SecurityHeaders;
+use Nebrix\Security\Captcha;
 use Nebrix\Security\ValidationException;
 use Nebrix\Settings\SettingsRepository;
 
@@ -17,6 +19,7 @@ final class RegisterController extends Controller
     public function __construct(
         private readonly AuthService $auth,
         private readonly SettingsRepository $settings,
+        private readonly Captcha $captcha,
     ) {
     }
 
@@ -28,9 +31,15 @@ final class RegisterController extends Controller
             return $this->redirect('/login');
         }
 
-        return $this->render($request, 'auth/register.twig', [
+        $response = $this->render($request, 'auth/register.twig', [
             'require_legal' => $this->settings->bool('auth.require_legal_acceptance'),
+            'captcha' => $this->captcha->widget(),
         ]);
+        if ($this->captcha->enabled()) {
+            $response->setHeader('Content-Security-Policy', SecurityHeaders::contentSecurityPolicy($this->captcha->cspSources()));
+        }
+
+        return $response;
     }
 
     public function register(Request $request): Response
@@ -46,6 +55,7 @@ final class RegisterController extends Controller
             $rules['accept_terms'] = 'bool';
         }
         $data = $this->validate($request, $rules, ['accept_terms' => 'terms']);
+        $this->captcha->verify($request);
 
         if (($rules['accept_terms'] ?? null) !== null && $data['accept_terms'] !== true) {
             throw new ValidationException(

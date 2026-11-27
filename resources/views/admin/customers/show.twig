@@ -144,4 +144,14 @@
         </div>
     </div>
 </div>
+{% if legacy_records|length > 0 %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'History from the previous panel (RED-Host)'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Date'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Description'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th></tr></thead>
+        <tbody>{% for r in legacy_records %}<tr><td>{{ r.occurred_at|dt }}</td><td>{{ r.kind|humanize|t }}</td><td class="small">{{ r.description }}</td><td class="text-right">{{ r.amount|money(r.currency) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="card-footer small muted">{{ 'Read-only records imported from the legacy database; they are not part of the current bookkeeping.'|t }}</div>
+</div>
+{% endif %}
 {% endblock %}

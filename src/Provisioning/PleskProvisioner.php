@@ -105,7 +105,8 @@ final class PleskProvisioner implements Provisioner
         if ($webspace === null) {
             return; // already deleted
         }
-        if ($webspace['id'] !== $this->webspaceId($service) || $webspace['owner_id'] !== (int) ($service->remote['customer_id'] ?? 0)) {
+        $legacy = ($service->remote['legacy'] ?? false) === true; // imported: owner not recorded
+        if ($webspace['id'] !== $this->webspaceId($service) || (!$legacy && $webspace['owner_id'] !== (int) ($service->remote['customer_id'] ?? 0))) {
             throw new IntegrationException('The subscription on the Plesk server does not match this service; nothing was deleted.');
         }
         $client->deleteWebspace($webspace['id']);

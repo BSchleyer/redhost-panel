@@ -215,6 +215,12 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             return false;
         }
 
+        // Guests imported from RED-Host carry no marker: the legacy database
+        // assigned exactly this VMID to the service.
+        if (($service->remote['legacy'] ?? false) === true && (int) ($service->remote['vmid'] ?? 0) === (int) $guest['vmid']) {
+            return true;
+        }
+
         $config = $client->guestConfig($node, $type, (int) $guest['vmid']);
         $marker = 'nebrix-service-' . $service->id;
         foreach (preg_split('/\R/', (string) ($config['description'] ?? '')) ?: [] as $line) {

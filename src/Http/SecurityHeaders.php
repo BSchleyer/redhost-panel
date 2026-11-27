@@ -41,7 +41,7 @@ final class SecurityHeaders
                 continue;
             }
             foreach ($sources as $source) {
-                if (preg_match('#^(https|wss|ws)://[A-Za-z0-9.-]+(:\d{1,5})?$#', $source) === 1 && !in_array($source, $directives[$directive], true)) {
+                if (preg_match('#^(https|wss|ws)://(\*\.)?[A-Za-z0-9.-]+(:\d{1,5})?$#', $source) === 1 && !in_array($source, $directives[$directive], true)) {
                     $directives[$directive][] = $source;
                 }
             }

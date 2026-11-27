@@ -91,6 +91,7 @@ final class CustomerController extends Controller
             'transactions' => $this->db->fetchAll('SELECT * FROM `nx_transactions` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 20', [$id]),
             'tickets' => $this->db->fetchAll('SELECT * FROM `nx_tickets` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 20', [$id]),
             'credit_history' => $this->credit->history($id, 20),
+            'legacy_records' => $this->db->fetchAll('SELECT * FROM `nx_legacy_records` WHERE `user_id` = ? ORDER BY `occurred_at` DESC LIMIT 50', [$id]),
             'logins' => $this->can($request, Permission::STAFF_VIEW) || $this->can($request, Permission::CUSTOMERS_MANAGE) ? $this->history->forUser($id, 10) : [],
             'active_sessions' => (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_sessions` WHERE `user_id` = ?', [$id]),
             'currency' => $this->settings->string('general.default_currency') ?: 'EUR',

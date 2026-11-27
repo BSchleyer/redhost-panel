@@ -41,6 +41,9 @@ return [
     'auth.staff_require_2fa' => ['group' => 'auth', 'type' => 'bool', 'default' => false, 'label' => 'Require two-factor authentication for staff'],
     'auth.max_login_attempts' => ['group' => 'auth', 'type' => 'int', 'default' => 5, 'label' => 'Failed logins before lockout', 'rules' => 'required|int|min:3|max:50'],
     'auth.lockout_minutes' => ['group' => 'auth', 'type' => 'int', 'default' => 15, 'label' => 'Lockout duration (minutes)', 'rules' => 'required|int|min:1|max:1440'],
+    'auth.captcha_provider' => ['group' => 'auth', 'type' => 'select', 'default' => 'none', 'label' => 'CAPTCHA on registration and password reset', 'options' => ['none' => 'Off', 'hcaptcha' => 'hCaptcha', 'turnstile' => 'Cloudflare Turnstile'], 'help' => 'Loads the provider\'s script on these pages; the token is verified server-side.'],
+    'auth.captcha_site_key' => ['group' => 'auth', 'type' => 'string', 'default' => '', 'label' => 'CAPTCHA site key', 'rules' => 'nullable|string|max:100|regex:/^[A-Za-z0-9_-]*$/'],
+    'auth.captcha_secret' => ['group' => 'auth', 'type' => 'string', 'default' => null, 'label' => 'CAPTCHA secret key', 'secret' => true, 'rules' => 'nullable|string|max:255'],
 
     // ---------------------------------------------------------------- billing
     'billing.invoice_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'NX-', 'label' => 'Invoice number prefix', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],
