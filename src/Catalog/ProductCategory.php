@@ -98,9 +98,9 @@ final class ProductCategory
             ],
             self::WEBHOSTING => [
                 'label' => 'Webhosting',
-                'integration' => null,
+                'integration' => 'plesk',
                 'config' => [
-                    'plan' => ['label' => 'Hosting plan name on the hosting platform', 'rules' => 'nullable|string|max:100'],
+                    'plan' => ['label' => 'Plesk service plan name', 'rules' => 'nullable|string|max:100|regex:/^[^<>&]*$/', 'help' => 'Exact name of the service plan in Plesk (required for automatic provisioning).'],
                 ],
                 'options' => [
                     'domain' => ['label' => 'Domain', 'rules' => 'required|string|max:253|regex:/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
@@ -108,12 +108,13 @@ final class ProductCategory
             ],
             self::DOMAIN => [
                 'label' => 'Domain',
-                'integration' => null,
+                'integration' => 'inwx',
                 'config' => [
                     'tld' => ['label' => 'Top-level domain', 'rules' => 'required|string|max:63|regex:/^\.?[a-z0-9-]+(\.[a-z0-9-]+)*$/'],
                 ],
                 'options' => [
                     'domain' => ['label' => 'Domain', 'rules' => 'required|string|max:253|regex:/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/'],
+                    'auth_code' => ['label' => 'Auth code (only for transfers from another provider)', 'rules' => 'nullable|string|max:64|regex:/^[\x21-\x7E]*$/', 'secret' => true],
                 ],
             ],
             self::MINECRAFT => [

@@ -9,6 +9,8 @@ use Nebrix\Catalog\BillingCycle;
 use Nebrix\Catalog\ProductCategory;
 use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
+use Nebrix\Provisioning\OrderPrechecks;
+use Nebrix\Security\Encrypter;
 use Nebrix\Mail\Mailer;
 use Nebrix\Payment\PaymentService;
 use Nebrix\Repository\CustomerGroupRepository;
@@ -32,6 +34,8 @@ class OrderService
         private readonly Mailer $mailer,
         private readonly Connection $db,
         private readonly Config $config,
+        private readonly Encrypter $encrypter,
+        private readonly OrderPrechecks $prechecks,
     ) {
     }
 
@@ -57,6 +61,13 @@ class OrderService
 
         $category = ProductCategory::get((string) $product['category']);
         $options = Validator::validate($input, array_map(static fn (array $o): string => $o['rules'], $category['options']), array_map(static fn (array $o): string => $o['label'], $category['options']));
+        // Secret options (e.g. a domain transfer auth code) are never stored in plaintext.
+        foreach ($category['options'] as $name => $definition) {
+            if (($definition['secret'] ?? false) === true && is_string($options[$name] ?? null) && $options[$name] !== '') {
+                $options[$name] = ['encrypted' => $this->encrypter->encrypt($options[$name], 'order-option:' . $name)];
+            }
+        }
+        $this->prechecks->check($product, $user, $options);
 
         $discountBp = $group !== null ? (int) $group['discount_bp'] : 0;
         $price = (int) $product['price'];

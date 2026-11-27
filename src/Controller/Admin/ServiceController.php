@@ -129,7 +129,11 @@ final class ServiceController extends Controller
         $data = $this->validate($request, ['action' => 'required|alpha_dash|max:30']);
 
         try {
-            $this->flash($request, 'success', $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp()));
+            $result = $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp());
+            if ($result['redirect'] !== null) {
+                return $this->render($request, 'admin/services/sso.twig', ['service' => $service, 'url' => $result['redirect']]);
+            }
+            $this->flash($request, 'success', $result['message']);
         } catch (ServiceStateException|IntegrationException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         }

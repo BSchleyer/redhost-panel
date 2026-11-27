@@ -19,7 +19,7 @@
     <div class="card"><div class="table-wrap"><table class="table">
         <thead><tr><th>{{ 'Item'|t }}</th><th>{{ 'Options'|t }}</th><th class="text-right">{{ 'Price'|t }}</th><th>{{ 'Service'|t }}</th></tr></thead>
         <tbody>{% for i in items %}
-            <tr><td>{{ i.description }}</td><td class="small mono">{% for k, v in i.options %}{{ k }}={{ v }} {% endfor %}</td><td class="text-right">{{ i.unit_price|money(order.currency) }}{% if i.setup_fee > 0 %}<div class="small muted">+ {{ i.setup_fee|money(order.currency) }}</div>{% endif %}</td>
+            <tr><td>{{ i.description }}</td><td class="small mono">{% for k, v in i.options %}{{ k }}={{ v is iterable ? '[encrypted]' : v }} {% endfor %}</td><td class="text-right">{{ i.unit_price|money(order.currency) }}{% if i.setup_fee > 0 %}<div class="small muted">+ {{ i.setup_fee|money(order.currency) }}</div>{% endif %}</td>
                 <td>{% if i.service_id %}<a href="/admin/services/{{ i.service_id }}">#{{ i.service_id }}</a> <span class="badge {{ i.service_status|status_class }}">{{ i.service_status }}</span>{% else %}–{% endif %}</td></tr>
         {% endfor %}</tbody>
     </table></div></div>

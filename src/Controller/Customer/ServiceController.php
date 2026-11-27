@@ -120,8 +120,13 @@ final class ServiceController extends Controller
         }
 
         try {
-            $message = $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp());
-            $this->flash($request, 'success', $message);
+            $result = $this->runner->run($service, (string) $data['action'], $request->all(), $this->user($request)->id, $request->clientIp());
+            if ($result['redirect'] !== null) {
+                // A page with a link instead of an HTTP redirect: the CSP
+                // (form-action 'self') does not allow form posts to redirect away.
+                return $this->render($request, 'customer/services/sso.twig', ['service' => $service, 'url' => $result['redirect']]);
+            }
+            $this->flash($request, 'success', $result['message']);
         } catch (ServiceStateException $exception) {
             $this->flash($request, 'error', $exception->getMessage());
         } catch (IntegrationException $exception) {

@@ -16,6 +16,8 @@ final class IntegrationType
     public const NEXTCLOUD = 'nextcloud';
     public const TEAMSPEAK = 'teamspeak';
     public const HETZNER_ROBOT = 'hetzner_robot';
+    public const PLESK = 'plesk';
+    public const INWX = 'inwx';
 
     /**
      * @return array<string, array{label: string, description: string, config: array<string, array{label: string, rules: string, default?: mixed, help?: string, type?: string}>, secrets: array<string, array{label: string, rules: string, help?: string, required?: bool}>}>
@@ -90,6 +92,32 @@ final class IntegrationType
                 ],
                 'secrets' => [
                     'password' => ['label' => 'Webservice password', 'rules' => 'string|max:255', 'required' => true],
+                ],
+            ],
+            self::PLESK => [
+                'label' => 'Plesk (webhosting)',
+                'description' => 'Webhosting subscriptions on a Plesk server through the XML API.',
+                'config' => [
+                    'base_url' => ['label' => 'Plesk URL', 'rules' => 'required|url|max:255', 'help' => 'e.g. https://web1.example.com:8443'],
+                    'ip_address' => ['label' => 'Shared IPv4 address for new subscriptions', 'rules' => 'required|ip'],
+                    'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
+                ],
+                'secrets' => [
+                    'secret_key' => ['label' => 'API secret key', 'rules' => 'string|max:255', 'required' => true, 'help' => 'Create it on the Plesk server: plesk bin secret_key --create -ip-address <panel IP> -description Nebrix'],
+                ],
+            ],
+            self::INWX => [
+                'label' => 'INWX (domains)',
+                'description' => 'Domain registration and transfers through the INWX DomRobot API.',
+                'config' => [
+                    'environment' => ['label' => 'Environment', 'rules' => 'required|in:ote,live', 'default' => 'ote', 'type' => 'select', 'options' => ['ote' => 'OTE test system (no costs)', 'live' => 'Live']],
+                    'username' => ['label' => 'INWX user name', 'rules' => 'required|string|max:100|regex:/^[A-Za-z0-9._@-]+$/'],
+                    'nameservers' => ['label' => 'Default name servers (one per line)', 'rules' => 'required|string|max:1000', 'default' => "ns.inwx.de\nns2.inwx.de\nns3.inwx.eu", 'type' => 'text'],
+                    'verify_tls' => ['label' => 'Verify TLS certificate', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
+                ],
+                'secrets' => [
+                    'password' => ['label' => 'INWX password', 'rules' => 'string|max:255', 'required' => true],
+                    'totp_secret' => ['label' => 'Two-factor secret (only if 2FA is enabled for the account)', 'rules' => 'regex:/^[A-Z2-7]{16,64}$/', 'help' => 'Base32 secret of the INWX two-factor authentication; codes are generated automatically.'],
                 ],
             ],
         ];

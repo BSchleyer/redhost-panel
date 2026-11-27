@@ -15,6 +15,10 @@
                 {% for key, field in definition.config %}
                     {% if field.type|default('') == 'bool' %}
                         {{ f.checkbox('config_' ~ key, field.label, config[key], field.help is defined ? {help: field.help} : {}) }}
+                    {% elseif field.type|default('') == 'select' %}
+                        {{ f.select('config_' ~ key, field.label, field.options, config[key], field.help is defined ? {help: field.help} : {}) }}
+                    {% elseif field.type|default('') == 'text' %}
+                        {{ f.textarea('config_' ~ key, field.label, config[key], field.help is defined ? {help: field.help} : {}) }}
                     {% else %}
                         {{ f.input('config_' ~ key, field.label, config[key], 'text', field.help is defined ? {help: field.help} : {}) }}
                     {% endif %}

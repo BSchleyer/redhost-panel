@@ -23,6 +23,8 @@ class ProvisionerRegistry
         ProductCategory::NEXTCLOUD => NextcloudProvisioner::class,
         ProductCategory::TEAMSPEAK => TeamSpeakProvisioner::class,
         ProductCategory::DEDICATED => HetznerRobotProvisioner::class,
+        ProductCategory::WEBHOSTING => PleskProvisioner::class,
+        ProductCategory::DOMAIN => DomainProvisioner::class,
     ];
 
     public function __construct(private readonly Container $container)

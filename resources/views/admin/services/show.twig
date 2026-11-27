@@ -13,7 +13,7 @@
         <dt>{{ 'Integration'|t }}</dt><dd>{% if integration %}<a href="/admin/integrations/{{ integration.id }}">{{ integration.name }}</a> ({{ integration.type }}){% else %}{{ 'manual'|t }}{% endif %}</dd>
         <dt>{{ 'External ID'|t }}</dt><dd class="mono">{{ service.externalId|default('–') }}</dd>
         <dt>{{ 'Remote state'|t }}</dt><dd class="mono small">{% for k, v in service.remote %}{{ k }}={{ v is iterable ? v|json_encode : v }} {% endfor %}</dd>
-        <dt>{{ 'Customer options'|t }}</dt><dd class="mono small">{% for k, v in options %}{{ k }}={{ v }} {% endfor %}</dd>
+        <dt>{{ 'Customer options'|t }}</dt><dd class="mono small">{% for k, v in options %}{{ k }}={{ v is iterable ? '[encrypted]' : v }} {% endfor %}</dd>
         <dt>{{ 'Configuration'|t }}</dt><dd class="mono small">{% for k, v in config %}{{ k }}={{ v is iterable ? v|json_encode : (v is same as(true) ? 'true' : (v is same as(false) ? 'false' : v)) }} {% endfor %}</dd>
         <dt>{{ 'Billing'|t }}</dt><dd>{{ service.recurringAmount|money(service.currency) }} {{ 'net'|t }} / {{ service.billingCycle|humanize }} · {{ 'next due'|t }} {{ service.nextDueAt|d }}</dd>
         {% if live %}{% for label, value in live.connection|default({}) %}<dt>{{ label }}</dt><dd class="mono">{{ value }}</dd>{% endfor %}<dt>{{ 'Live state'|t }}</dt><dd><span class="badge {{ live.state|default('')|status_class }}">{{ live.state|default('–') }}</span></dd>{% endif %}

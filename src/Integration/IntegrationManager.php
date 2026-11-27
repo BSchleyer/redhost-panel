@@ -7,8 +7,11 @@ namespace Nebrix\Integration;
 use Closure;
 use GuzzleHttp\ClientInterface;
 use Nebrix\Core\Config;
+use Nebrix\Domain\Registrar;
 use Nebrix\Integration\Hetzner\RobotClient;
 use Nebrix\Integration\Http\ApiClient;
+use Nebrix\Integration\Inwx\InwxClient;
+use Nebrix\Integration\Plesk\PleskClient;
 use Nebrix\Integration\Nextcloud\NextcloudClient;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
 use Nebrix\Integration\Pterodactyl\PterodactylClient;
@@ -111,6 +114,29 @@ class IntegrationManager
         ]));
     }
 
+    public function plesk(Integration $integration, bool $allowDisabled = false): PleskClient
+    {
+        $this->assertType($integration, IntegrationType::PLESK, $allowDisabled);
+
+        return new PleskClient($this->api($integration, ['KEY' => $integration->secret('secret_key')]));
+    }
+
+    /**
+     * Domain registrar for an integration (currently INWX).
+     */
+    public function registrar(Integration $integration, bool $allowDisabled = false): Registrar
+    {
+        $this->assertType($integration, IntegrationType::INWX, $allowDisabled);
+        $endpoint = InwxClient::ENDPOINTS[(string) $integration->config('environment', 'ote')] ?? InwxClient::ENDPOINTS['ote'];
+
+        return new InwxClient(
+            $this->api($integration, [], $endpoint),
+            (string) $integration->config('username'),
+            $integration->secret('password'),
+            $integration->hasSecret('totp_secret') ? $integration->secret('totp_secret') : null,
+        );
+    }
+
     public function testConnection(Integration $integration): HealthResult
     {
         try {
@@ -120,6 +146,8 @@ class IntegrationManager
                 IntegrationType::NEXTCLOUD => $this->nextcloud($integration, true)->healthCheck(),
                 IntegrationType::TEAMSPEAK => $this->teamspeak($integration, true)->healthCheck(),
                 IntegrationType::HETZNER_ROBOT => $this->hetznerRobot($integration, true)->healthCheck((string) $integration->config('pool_prefix', 'nebrix-free')),
+                IntegrationType::PLESK => $this->plesk($integration, true)->healthCheck(),
+                IntegrationType::INWX => $this->registrar($integration, true)->healthCheck(),
                 default => HealthResult::down('Unsupported integration type.'),
             };
         } catch (Throwable $exception) {
@@ -153,14 +181,14 @@ class IntegrationManager
     /**
      * @param array<string, string> $headers
      */
-    private function api(Integration $integration, array $headers): ApiClient
+    private function api(Integration $integration, array $headers, ?string $baseUrl = null): ApiClient
     {
         return new ApiClient(
             $this->http,
             $this->guard,
             $this->logger,
             $integration->id,
-            (string) $integration->config('base_url'),
+            $baseUrl ?? (string) $integration->config('base_url'),
             $headers,
             (bool) $integration->config('verify_tls', true),
             $this->config->int('integrations.timeout', 20),

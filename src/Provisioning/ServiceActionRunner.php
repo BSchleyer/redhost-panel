@@ -39,11 +39,11 @@ class ServiceActionRunner
 
     /**
      * @param array<string, mixed> $input raw request data
-     * @return string user-facing confirmation
+     * @return array{message: string, redirect: string|null}
      *
      * @throws ValidationException|IntegrationException|ServiceStateException
      */
-    public function run(Service $service, string $key, array $input, ?int $actorId, ?string $ip): string
+    public function run(Service $service, string $key, array $input, ?int $actorId, ?string $ip): array
     {
         $actions = $this->available($service);
         $action = $actions[$key] ?? throw new ServiceStateException('This action is not available for the service.');
@@ -52,12 +52,23 @@ class ServiceActionRunner
         if ($action->mode === ServiceAction::REINSTALL) {
             $this->manager->reinstall($service, $values, $actorId);
 
-            return 'The reinstallation has been started. New access data will be available when it is finished.';
+            return ['message' => 'The reinstallation has been started. New access data will be available when it is finished.', 'redirect' => null];
+        }
+
+        $audit = ['action' => $key] + array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $values);
+        if ($action->mode === ServiceAction::REDIRECT) {
+            $url = $this->provisioners->for($service->category)->perform($service, $key, $values + ['_client_ip' => (string) $ip]);
+            if (preg_match('#^https?://[^\s/?\#]+#i', $url) !== 1) {
+                throw new IntegrationException('The remote system did not return a valid login URL.');
+            }
+            $this->audit->log($actorId, 'service.action', 'service', $service->id, $audit, $ip);
+
+            return ['message' => '', 'redirect' => $url];
         }
 
         $message = $this->provisioners->for($service->category)->perform($service, $key, $values);
-        $this->audit->log($actorId, 'service.action', 'service', $service->id, ['action' => $key] + array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $values), $ip);
+        $this->audit->log($actorId, 'service.action', 'service', $service->id, $audit, $ip);
 
-        return $message;
+        return ['message' => $message, 'redirect' => null];
     }
 }

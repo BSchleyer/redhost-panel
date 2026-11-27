@@ -22,6 +22,13 @@ final class ServiceAction
     public const REINSTALL = 'reinstall';
 
     /**
+     * Single sign-on: perform() returns an absolute https URL (e.g. a
+     * one-time control panel login) the user is redirected to. The runner
+     * passes the client IP as input "_client_ip".
+     */
+    public const REDIRECT = 'redirect';
+
+    /**
      * @param array<string, array{label: string, rules: string, type?: string, options?: array<string, string>, help?: string}> $fields
      */
     public function __construct(

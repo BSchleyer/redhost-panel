@@ -1,0 +1,5 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Control panel login'|t }}{% endblock %}
+{% block content %}
+{% include 'partials/sso.twig' with {url: url, back_url: '/services/' ~ service.id} only %}
+{% endblock %}

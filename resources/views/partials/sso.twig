@@ -1,0 +1,8 @@
+{# One-time control panel login link (opened as a normal navigation, not a form redirect). #}
+<div class="card narrow">
+    <div class="card-body">
+        <h1>{{ 'Your login link is ready'|t }}</h1>
+        <p>{{ 'The link signs you in to the control panel once and expires shortly.'|t }}</p>
+        <p class="gap"><a class="btn btn-primary" href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ 'Open control panel'|t }}</a> <a class="btn btn-outline" href="{{ back_url }}">{{ 'Back'|t }}</a></p>
+    </div>
+</div>

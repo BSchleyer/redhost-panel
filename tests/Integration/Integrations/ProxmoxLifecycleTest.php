@@ -246,13 +246,13 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
         $runner = $this->app->container()->get(ServiceActionRunner::class);
         $repository = $this->app->container()->get(ServiceRepository::class);
 
-        $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+        $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null)['message'];
         self::assertStringContainsString('has been set', $message);
         $password = (string) $repository->credentials($this->reload($service->id))['password'];
         self::assertSame($password, FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/agent/set-user-password')[0])['password']);
 
         $this->agentRunning = false;
-        $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+        $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null)['message'];
         self::assertStringContainsString('next restart', $message);
         $fallback = FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/config')[0]);
         self::assertSame((string) $repository->credentials($this->reload($service->id))['password'], $fallback['cipassword']);
