@@ -53,6 +53,8 @@ final class OpenApi
             ['POST', '/services/{id}/cancel/withdraw', ApiScope::SERVICES_MANAGE, 'Take back a scheduled cancellation', 'Service'],
             ['GET', '/invoices', ApiScope::INVOICES_READ, 'Your invoices', 'InvoiceList', [], [...$list, 'status', 'type']],
             ['GET', '/invoices/{id}', ApiScope::INVOICES_READ, 'One of your invoices with items and payment methods', 'Invoice'],
+            ['GET', '/invoices/{id}/pdf', ApiScope::INVOICES_READ, 'Invoice as PDF (archived document)', 'Binary'],
+            ['GET', '/invoices/{id}/xml', ApiScope::INVOICES_READ, 'Electronic invoice (XRechnung 3.0, CII XML)', 'Binary'],
             ['POST', '/invoices/{id}/pay', ApiScope::INVOICES_PAY, 'Pay with account credit or get the provider checkout URL', 'PaymentStarted', [
                 'type' => 'object',
                 'required' => ['gateway'],
@@ -265,6 +267,7 @@ final class OpenApi
             'CancellationResult' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => [
                 'reference' => $str, 'received_at' => $date, 'ends_at' => $date, 'service' => ['$ref' => '#/components/schemas/ServiceData'],
             ]]]],
+            'Binary' => ['type' => 'string', 'format' => 'binary', 'description' => 'application/pdf or application/xml'],
             'Credentials' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'additionalProperties' => ['type' => ['string', 'number', 'boolean', 'null']]]]],
             'InvoiceData' => $invoice,
             'Invoice' => $data('InvoiceData'),

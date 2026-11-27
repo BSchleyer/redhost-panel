@@ -325,4 +325,16 @@ return [
     'Standard rate overrides (one per line, e.g. EE=2400 for 24 %)' => 'Abweichende Regelsteuersätze (je Zeile, z. B. EE=2400 für 24 %)',
     'No VAT for customers outside the EU' => 'Keine Umsatzsteuer für Kunden außerhalb der EU',
     'Note on invoices (outside the EU)' => 'Hinweis auf Rechnungen (außerhalb der EU)',
+
+    // Invoice documents
+    'Correction document' => 'Korrekturbeleg',
+    'Download PDF' => 'PDF herunterladen',
+    'E-invoice (XRechnung)' => 'E-Rechnung (XRechnung)',
+    'Refers to invoice' => 'Bezieht sich auf Rechnung',
+    'issued' => 'ausgestellt',
+    'Invoice details' => 'Rechnungsangaben',
+    'Please enter the street and number.' => 'Bitte geben Sie Straße und Hausnummer an.',
+    'Please enter the postcode.' => 'Bitte geben Sie die Postleitzahl an.',
+    'Please enter the city.' => 'Bitte geben Sie den Ort an.',
+    'Please enter the country.' => 'Bitte geben Sie das Land an.',
 ];

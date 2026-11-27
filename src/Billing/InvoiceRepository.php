@@ -17,6 +17,10 @@ class InvoiceRepository
     public const TYPE_ORDER = 'order';
     public const TYPE_RENEWAL = 'renewal';
     public const TYPE_CREDIT = 'credit';
+    /** Cancellation or correction document referring to an invoice (positive amounts). */
+    public const TYPE_CREDIT_NOTE = 'credit_note';
+    /** Status of correction documents (they are not paid, they are issued). */
+    public const STATUS_ISSUED = 'issued';
 
     public function __construct(
         private readonly Connection $db,

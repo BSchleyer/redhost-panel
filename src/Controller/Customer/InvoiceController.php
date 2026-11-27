@@ -61,6 +61,33 @@ final class InvoiceController extends Controller
         ]);
     }
 
+    /** Archived invoice PDF. */
+    public function pdf(Request $request, int $id): Response
+    {
+        return $this->document($this->find($request, $id), 'pdf');
+    }
+
+    /** Archived electronic invoice (XRechnung, CII XML). */
+    public function xml(Request $request, int $id): Response
+    {
+        return $this->document($this->find($request, $id), 'xml');
+    }
+
+    /**
+     * @param array<string, mixed> $invoice
+     */
+    private function document(array $invoice, string $type): Response
+    {
+        $documents = $this->container->get(\Nebrix\Billing\Documents\InvoiceDocuments::class);
+        try {
+            $content = $type === 'pdf' ? $documents->pdf((int) $invoice['id']) : $documents->xml((int) $invoice['id']);
+        } catch (\RuntimeException $exception) {
+            throw new HttpException(503, $exception->getMessage());
+        }
+
+        return \Nebrix\Http\DocumentResponse::make($content, $documents->filename($invoice) . '.' . $type, $type === 'pdf' ? 'application/pdf' : 'application/xml');
+    }
+
     public function pay(Request $request, int $id): Response
     {
         $user = $this->user($request);

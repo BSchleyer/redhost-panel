@@ -126,7 +126,11 @@ final class TaxTest extends FeatureTestCase
         $vies = $this->app->container()->get(VatIdValidator::class);
         $customer = $this->createUser(Role::CUSTOMER, ['country' => 'AT']);
         $this->actingAs($customer);
-        $profile = ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'auto_pay_credit' => '1'];
+        $profile = ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'auto_pay_credit' => '1', 'address_line1' => 'Ring 1', 'postcode' => '1010', 'city' => 'Wien'];
+
+        // Business customers must give their full address (e-invoices).
+        $this->post('/account/profile', ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'vat_id' => 'ATU12345678']);
+        self::assertNull($this->db->fetchValue('SELECT vat_id FROM nx_users WHERE id = ?', [$customer->id]));
 
         $this->post('/account/profile', $profile + ['vat_id' => 'ATU 1234 5678']);
         self::assertSame(1, (int) $this->db->fetchValue('SELECT vat_id_valid FROM nx_users WHERE id = ?', [$customer->id]));

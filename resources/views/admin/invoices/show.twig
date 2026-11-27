@@ -2,9 +2,10 @@
 {% import 'macros/forms.twig' as f %}
 {% block title %}{{ 'Invoice'|t }} {{ invoice.number }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Invoice'|t }} {{ invoice.number }} <span class="badge {{ invoice.status|status_class }}">{{ invoice.status|t }}</span></h1><p class="muted">{{ invoice.type|humanize|t }} · <a href="/admin/invoices">&larr; {{ 'Invoices'|t }}</a></p></div>
+<div class="page-header"><div><h1>{{ (invoice.type == 'credit_note' ? 'Correction document' : 'Invoice')|t }} {{ invoice.number }} <span class="badge {{ invoice.status|status_class }}">{{ invoice.status|t }}</span></h1><p class="muted">{{ invoice.type|humanize|t }} · <a href="/admin/invoices">&larr; {{ 'Invoices'|t }}</a></p></div>
     {% if can('invoices.manage') and invoice.status == 'unpaid' %}<form method="post" action="/admin/invoices/{{ invoice.id }}/cancel" data-confirm="{{ 'Cancel this invoice?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Cancel invoice'|t }}</button></form>{% endif %}
 </div>
+<p class="actions mb-2"><a class="btn btn-sm btn-outline" href="/admin/invoices/{{ invoice.id }}/pdf">{{ 'Download PDF'|t }}</a> <a class="btn btn-sm btn-outline" href="/admin/invoices/{{ invoice.id }}/xml">{{ 'E-invoice (XRechnung)'|t }}</a>{% if invoice.reference_invoice_id %} · {{ 'Refers to invoice'|t }} <a href="/admin/invoices/{{ invoice.reference_invoice_id }}">#{{ invoice.reference_invoice_id }}</a>{% endif %}</p>
 <div class="grid grid-2">
     <div class="card">
         <div class="card-body"><dl class="details">

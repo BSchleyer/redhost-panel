@@ -50,6 +50,18 @@ final class ProfileController extends Controller
             'auto_pay_credit' => 'bool',
         ]);
         $data['auto_pay_credit'] = $data['auto_pay_credit'] ? 1 : 0;
+        // Business customers receive e-invoices, which require the full address (XRechnung BR-DE-8/9).
+        if (trim((string) ($data['company'] ?? '')) !== '' || trim((string) ($data['vat_id'] ?? '')) !== '') {
+            $missing = [];
+            foreach (['address_line1' => 'Please enter the street and number.', 'postcode' => 'Please enter the postcode.', 'city' => 'Please enter the city.', 'country' => 'Please enter the country.'] as $field => $message) {
+                if (trim((string) ($data[$field] ?? '')) === '') {
+                    $missing[$field] = $message;
+                }
+            }
+            if ($missing !== []) {
+                throw \Nebrix\Security\ValidationException::withMessages($missing);
+            }
+        }
 
         $this->users->update($user->id, $data);
         $this->audit($request, 'account.profile_updated', 'user', $user->id);

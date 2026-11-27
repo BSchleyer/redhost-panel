@@ -39,6 +39,33 @@ final class InvoiceController extends Controller
         return $this->render($request, 'admin/invoices/index.twig', ['result' => $this->invoices->paginate($filters, $page), 'filters' => $filters, 'page' => $page]);
     }
 
+    /** Archived invoice PDF. */
+    public function pdf(Request $request, int $id): Response
+    {
+        return $this->document(($this->invoices->find($id) ?? throw HttpException::notFound()), 'pdf');
+    }
+
+    /** Archived electronic invoice (XRechnung, CII XML). */
+    public function xml(Request $request, int $id): Response
+    {
+        return $this->document(($this->invoices->find($id) ?? throw HttpException::notFound()), 'xml');
+    }
+
+    /**
+     * @param array<string, mixed> $invoice
+     */
+    private function document(array $invoice, string $type): Response
+    {
+        $documents = $this->container->get(\Nebrix\Billing\Documents\InvoiceDocuments::class);
+        try {
+            $content = $type === 'pdf' ? $documents->pdf((int) $invoice['id']) : $documents->xml((int) $invoice['id']);
+        } catch (\RuntimeException $exception) {
+            throw new HttpException(503, $exception->getMessage());
+        }
+
+        return \Nebrix\Http\DocumentResponse::make($content, $documents->filename($invoice) . '.' . $type, $type === 'pdf' ? 'application/pdf' : 'application/xml');
+    }
+
     public function show(Request $request, int $id): Response
     {
         $invoice = $this->invoices->find($id) ?? throw HttpException::notFound();

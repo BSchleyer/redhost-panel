@@ -37,6 +37,7 @@ class OrderService
         private readonly Encrypter $encrypter,
         private readonly OrderPrechecks $prechecks,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
+        private readonly \Nebrix\Billing\Documents\InvoiceDocuments $documents,
     ) {
     }
 
@@ -125,7 +126,7 @@ class OrderService
                 'order_number' => (string) $order['number'],
                 'order_total' => Money::format((int) $order['total'], (string) $order['currency']),
                 'invoice_url' => rtrim($this->config->string('app.url'), '/') . '/invoices/' . $result['invoice_id'],
-            ]);
+            ], null, $this->documents->attachments($result['invoice_id']));
         }
 
         return $result;

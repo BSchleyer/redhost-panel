@@ -45,6 +45,19 @@ return [
     'auth.captcha_site_key' => ['group' => 'auth', 'type' => 'string', 'default' => '', 'label' => 'CAPTCHA site key', 'rules' => 'nullable|string|max:100|regex:/^[A-Za-z0-9_-]*$/'],
     'auth.captcha_secret' => ['group' => 'auth', 'type' => 'string', 'default' => null, 'label' => 'CAPTCHA secret key', 'secret' => true, 'rules' => 'nullable|string|max:255'],
 
+    // --------------------------------------------------------------- invoices
+    'invoice.seller_street' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'Street and number', 'rules' => 'nullable|string|max:150'],
+    'invoice.seller_postcode' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'Postcode', 'rules' => 'nullable|string|max:20'],
+    'invoice.seller_city' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'City', 'rules' => 'nullable|string|max:100'],
+    'invoice.seller_vat_id' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'VAT ID (USt-IdNr.)', 'rules' => 'nullable|string|max:20|regex:/^([A-Z]{2}[A-Z0-9]{2,12})?$/'],
+    'invoice.seller_tax_number' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'Tax number (Steuernummer)', 'help' => 'Needed when there is no VAT ID (e.g. small business).', 'rules' => 'nullable|string|max:30'],
+    'invoice.contact_name' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'Contact person for invoices', 'help' => 'Together with the contact e-mail and phone (General) required for e-invoices (XRechnung).', 'rules' => 'nullable|string|max:100'],
+    'invoice.bank_account_holder' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'Account holder', 'rules' => 'nullable|string|max:100'],
+    'invoice.bank_iban' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'IBAN (for bank transfers)', 'rules' => 'nullable|string|max:34|regex:/^([A-Z]{2}[0-9]{2}[A-Z0-9]{10,30})?$/'],
+    'invoice.bank_bic' => ['group' => 'invoice', 'type' => 'string', 'default' => '', 'label' => 'BIC', 'rules' => 'nullable|string|max:11|regex:/^([A-Z0-9]{8}([A-Z0-9]{3})?)?$/'],
+    'invoice.footer' => ['group' => 'invoice', 'type' => 'text', 'default' => '', 'label' => 'Invoice footer', 'help' => 'E.g. commercial register, managing directors, court of registration.'],
+    'invoice.e_invoice_b2b' => ['group' => 'invoice', 'type' => 'bool', 'default' => true, 'label' => 'Attach e-invoices (XRechnung) for business customers', 'help' => 'Customers with a company name or VAT ID receive the XML file in addition to the PDF.'],
+
     // ------------------------------------------------------------------ taxes
     'tax.home_country' => ['group' => 'tax', 'type' => 'string', 'default' => 'DE', 'label' => 'Country of the business (ISO code)', 'rules' => 'required|country'],
     'tax.small_business' => ['group' => 'tax', 'type' => 'bool', 'default' => false, 'label' => 'Small business (§ 19 UStG): no VAT on invoices', 'help' => 'Invoices show 0 % VAT and the note below. Not the same as a sole proprietorship – ask your tax advisor.'],
@@ -58,6 +71,7 @@ return [
 
     // ---------------------------------------------------------------- billing
     'billing.invoice_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'NX-', 'label' => 'Invoice number prefix', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],
+    'billing.credit_note_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'RK-', 'label' => 'Number prefix for cancellation and correction documents', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],
     'billing.order_prefix' => ['group' => 'billing', 'type' => 'string', 'default' => 'ORD-', 'label' => 'Order number prefix', 'rules' => 'nullable|regex:/^[A-Za-z0-9-]{0,10}$/'],
     'billing.invoice_due_days' => ['group' => 'billing', 'type' => 'int', 'default' => 7, 'label' => 'Invoice payment term (days)', 'rules' => 'required|int|min:0|max:90'],
     'billing.renewal_notice_days' => ['group' => 'billing', 'type' => 'int', 'default' => 7, 'label' => 'Create renewal invoices … days before due date', 'rules' => 'required|int|min:1|max:60'],

@@ -27,7 +27,7 @@ COPY --from=vendor --chown=root:root /app /var/www/nebrix
 
 # Only storage/ and public/uploads/ are writable by the web server user.
 RUN rm -rf .git tests .docker/Dockerfile \
-    && mkdir -p storage/logs storage/cache public/uploads/branding \
+    && mkdir -p storage/logs storage/cache storage/invoices public/uploads/branding \
     && chown -R www-data:www-data storage public/uploads \
     && chmod -R u=rwX,g=rX,o= storage public/uploads
 

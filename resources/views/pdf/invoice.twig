@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="{{ locale }}"><head><meta charset="utf-8"><title>{{ invoice.number }}</title>
+<style>
+  @page { margin: 22mm 18mm 26mm 20mm; }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #1f2937; }
+  .sender { font-size: 7.5pt; color: #6b7280; border-bottom: 0.5pt solid #9ca3af; padding-bottom: 2pt; margin-bottom: 6pt; }
+  table { border-collapse: collapse; width: 100%; }
+  .head td { vertical-align: top; }
+  .meta td { padding: 1pt 0; }
+  .meta td.k { color: #6b7280; padding-right: 8pt; }
+  h1 { font-size: 15pt; margin: 16pt 0 4pt 0; }
+  .items th { text-align: left; border-bottom: 1pt solid #374151; padding: 4pt 3pt; font-size: 8.5pt; }
+  .items td { padding: 4pt 3pt; border-bottom: 0.5pt solid #e5e7eb; vertical-align: top; }
+  .r, .items th.r { text-align: right; }
+  .totals td { padding: 2pt 3pt; }
+  .totals .grand td { font-weight: bold; border-top: 1pt solid #374151; }
+  .note { margin-top: 10pt; }
+  .small { font-size: 8pt; color: #4b5563; }
+  .footer { position: fixed; bottom: -18mm; left: 0; right: 0; font-size: 7pt; color: #6b7280; border-top: 0.5pt solid #d1d5db; padding-top: 3pt; }
+</style></head>
+<body>
+<div class="footer">
+  {{ seller.name }}{% for line in seller.addressLines %} · {{ line }}{% endfor %}{% if seller.email %} · {{ seller.email }}{% endif %}{% if seller.phone %} · {{ seller.phone }}{% endif %}
+  {% if seller.vatId %} · {{ labels.vat_id }} {{ seller.vatId }}{% endif %}{% if seller.taxNumber %} · {{ labels.tax_number }} {{ seller.taxNumber }}{% endif %}
+  {% if seller.iban %}<br>{{ labels.bank }}: {{ seller.accountHolder }} · IBAN {{ seller.iban }}{% if seller.bic %} · BIC {{ seller.bic }}{% endif %}{% endif %}
+  {% if seller.footer %}<br>{{ seller.footer|nl2br }}{% endif %}
+</div>
+
+<table class="head"><tr>
+  <td style="width:60%">
+    <div class="sender">{{ seller.name }}{% for line in seller.addressLines %} · {{ line }}{% endfor %}</div>
+    {% if billing.company %}<strong>{{ billing.company }}</strong><br>{% endif %}
+    {{ billing.name }}<br>
+    {% if billing.address_line1 %}{{ billing.address_line1 }}<br>{% endif %}
+    {% if billing.address_line2 %}{{ billing.address_line2 }}<br>{% endif %}
+    {{ billing.postcode }} {{ billing.city }}<br>
+    {{ billing.country }}
+    {% if billing.vat_id %}<br><span class="small">{{ labels.customer_vat_id }}: {{ billing.vat_id }}</span>{% endif %}
+  </td>
+  <td style="width:40%">
+    <strong style="font-size:12pt">{{ seller.name }}</strong><br>
+    {% for line in seller.addressLines %}{{ line }}<br>{% endfor %}
+    <table class="meta" style="margin-top:8pt">
+      <tr><td class="k">{{ correction ? labels.document_number : labels.number }}</td><td>{{ invoice.number }}</td></tr>
+      <tr><td class="k">{{ labels.date }}</td><td>{{ issue_date }}</td></tr>
+      <tr><td class="k">{{ labels.customer_number }}</td><td>C{{ invoice.user_id }}</td></tr>
+      {% if not correction and invoice.due_at %}<tr><td class="k">{{ labels.due }}</td><td>{{ due_date }}</td></tr>{% endif %}
+    </table>
+  </td>
+</tr></table>
+
+<h1>{{ title }}</h1>
+{% if original %}<p>{{ labels.refers_to }} {{ original.number }} ({{ original_date }}).</p>{% endif %}
+
+<table class="items">
+  <thead><tr><th>{{ labels.description }}</th><th class="r">{{ labels.quantity }}</th><th class="r">{{ labels.unit_price }}</th><th class="r">{{ labels.tax_rate }}</th><th class="r">{{ labels.net }}</th></tr></thead>
+  <tbody>
+  {% for item in items %}
+    <tr>
+      <td>{{ item.description }}{% if item.period %}<br><span class="small">{{ labels.period }}: {{ item.period }}</span>{% endif %}</td>
+      <td class="r">{{ item.quantity }}</td>
+      <td class="r">{{ item.unit }}</td>
+      <td class="r">{{ item.rate }}</td>
+      <td class="r">{{ item.net }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<table class="totals" style="margin-top:6pt; width:55%; margin-left:45%">
+  <tr><td>{{ labels.subtotal }}</td><td class="r">{{ subtotal }}</td></tr>
+  {% for row in tax_rows %}<tr><td>{{ row.label }}</td><td class="r">{{ row.amount }}</td></tr>{% endfor %}
+  <tr class="grand"><td>{{ correction ? labels.total_credit : labels.total }}</td><td class="r">{{ total }}</td></tr>
+</table>
+
+<div class="note">
+  {% if not has_period %}<p class="small">{{ labels.delivery_date }}</p>{% endif %}
+  {% if invoice.tax_note %}<p><strong>{{ invoice.tax_note }}</strong></p>{% endif %}
+  {% if correction %}
+    <p>{{ labels.correction_text }}</p>
+  {% elseif invoice.type != 'credit' %}
+    <p>{{ labels.payment_text|replace({'%date%': due_date}) }}{% if seller.iban %} {{ labels.transfer_text|replace({'%number%': invoice.number}) }}{% endif %}</p>
+  {% endif %}
+</div>
+</body></html>

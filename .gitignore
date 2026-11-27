@@ -5,6 +5,7 @@
 /storage/logs/*
 /storage/cache/*
 /storage/uploads/*
+/storage/invoices/*
 !/storage/**/.gitkeep
 /public/uploads/*
 !/public/uploads/.gitkeep

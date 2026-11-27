@@ -55,6 +55,8 @@ return static function (Router $r): void {
 
             $r->get('/invoices', [Api\InvoiceController::class, 'index'], ['middleware' => ['api.scope:invoices:read']]);
             $r->get('/invoices/{id:\d+}', [Api\InvoiceController::class, 'show'], ['middleware' => ['api.scope:invoices:read']]);
+            $r->get('/invoices/{id:\d+}/pdf', [Api\InvoiceController::class, 'pdf'], ['middleware' => ['api.scope:invoices:read']]);
+            $r->get('/invoices/{id:\d+}/xml', [Api\InvoiceController::class, 'xml'], ['middleware' => ['api.scope:invoices:read']]);
             $r->post('/invoices/{id:\d+}/pay', [Api\InvoiceController::class, 'pay'], ['middleware' => ['api.scope:invoices:pay', 'api.idempotent']]);
 
             $r->get('/tickets', [Api\TicketController::class, 'index'], ['middleware' => ['api.scope:tickets:read']]);
@@ -148,6 +150,8 @@ return static function (Router $r): void {
         $r->get('/invoices', [Customer\InvoiceController::class, 'index']);
         $r->post('/invoices/top-up', [Customer\InvoiceController::class, 'topUp']);
         $r->get('/invoices/{id:\d+}', [Customer\InvoiceController::class, 'show']);
+        $r->get('/invoices/{id:\d+}/pdf', [Customer\InvoiceController::class, 'pdf']);
+        $r->get('/invoices/{id:\d+}/xml', [Customer\InvoiceController::class, 'xml']);
         $r->post('/invoices/{id:\d+}/pay', [Customer\InvoiceController::class, 'pay']);
         $r->get('/invoices/{id:\d+}/return/{gateway:[a-z]+}', [Customer\InvoiceController::class, 'complete']);
 
@@ -259,6 +263,8 @@ return static function (Router $r): void {
         $r->group(['middleware' => ['permission:invoices.view']], static function (Router $r): void {
             $r->get('/invoices', [Admin\InvoiceController::class, 'index']);
             $r->get('/invoices/{id:\d+}', [Admin\InvoiceController::class, 'show']);
+            $r->get('/invoices/{id:\d+}/pdf', [Admin\InvoiceController::class, 'pdf']);
+            $r->get('/invoices/{id:\d+}/xml', [Admin\InvoiceController::class, 'xml']);
             $r->post('/invoices/{id:\d+}/cancel', [Admin\InvoiceController::class, 'cancel']);
             $r->post('/invoices/{id:\d+}/payment', [Admin\InvoiceController::class, 'recordPayment']);
         });

@@ -49,6 +49,8 @@ abstract class DatabaseTestCase extends TestCase
                 'password' => getenv('TEST_DB_PASSWORD') ?: 'nebrix',
                 'socket' => '',
             ],
+            // Generated invoice documents go to a temporary directory, not storage/.
+            'paths' => ['invoices' => sys_get_temp_dir() . '/nebrix-test-invoices'],
         ], false);
         // Fast password hashing in tests.
         $this->app->container()->set(PasswordHasher::class, static fn (): PasswordHasher => new PasswordHasher(['memory_cost' => 8192, 'time_cost' => 1]));

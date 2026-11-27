@@ -1,8 +1,9 @@
 {% extends 'layouts/customer.twig' %}
 {% block title %}{{ 'Invoice'|t }} {{ invoice.number }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Invoice'|t }} {{ invoice.number }} <span class="badge {{ invoice.status|status_class }}">{{ invoice.status|t }}</span></h1><p class="muted"><a href="/invoices">&larr; {{ 'All invoices'|t }}</a></p></div></div>
+<div class="page-header"><div><h1>{{ (invoice.type == 'credit_note' ? 'Correction document' : 'Invoice')|t }} {{ invoice.number }} <span class="badge {{ invoice.status|status_class }}">{{ invoice.status|t }}</span></h1><p class="muted"><a href="/invoices">&larr; {{ 'All invoices'|t }}</a></p></div></div>
 {% if cancelled and invoice.status == 'unpaid' %}<div class="alert alert-info">{{ 'The payment was cancelled. You can choose another payment method below.'|t }}</div>{% endif %}
+<p class="actions mb-2"><a class="btn btn-sm btn-outline" href="/invoices/{{ invoice.id }}/pdf">{{ 'Download PDF'|t }}</a> <a class="btn btn-sm btn-outline" href="/invoices/{{ invoice.id }}/xml">{{ 'E-invoice (XRechnung)'|t }}</a>{% if invoice.reference_invoice_id %} · {{ 'Refers to invoice'|t }} <a href="/invoices/{{ invoice.reference_invoice_id }}">#{{ invoice.reference_invoice_id }}</a>{% endif %}</p>
 <div class="grid grid-3">
     <div class="card" >
         <div class="card-body">

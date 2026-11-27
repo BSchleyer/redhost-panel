@@ -100,6 +100,12 @@ return [
         'subject' => 'Your declaration {{ reference }}',
         'html' => '<p>Hello {{ name }},</p><p>we could not process your declaration {{ reference }}:</p><p>{{ note }}</p><p>If you have questions, please contact {{ support_email }}.</p>',
     ],
+    'invoice_correction' => [
+        'name' => 'Cancellation / correction document',
+        'variables' => ['name', 'document_number', 'invoice_number', 'amount', 'document_url'],
+        'subject' => 'Document {{ document_number }} for invoice {{ invoice_number }}',
+        'html' => '<p>Hello {{ name }},</p><p>we have issued the document <strong>{{ document_number }}</strong> over {{ amount }} for invoice {{ invoice_number }} (cancellation or refund). It is attached and available in your customer area.</p><p><a class="button" href="{{ document_url }}">View document</a></p>',
+    ],
     'ticket_reply' => [
         'name' => 'Support ticket reply',
         'variables' => ['name', 'ticket_subject', 'ticket_url'],

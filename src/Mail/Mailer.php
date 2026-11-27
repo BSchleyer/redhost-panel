@@ -40,13 +40,19 @@ class Mailer
      * language of the installation.
      *
      * @param array<string, scalar|null> $variables
+     * @param list<array{filename: string, content: string, mime: string}> $attachments stored encrypted with the queued message
      */
-    public function queue(string $toEmail, ?string $toName, string $template, array $variables = [], ?string $locale = null): void
+    public function queue(string $toEmail, ?string $toName, string $template, array $variables = [], ?string $locale = null, array $attachments = []): void
     {
         $message = $this->templates->render($template, $variables, $locale ?? $this->localeFor($toEmail)) + [
             'to' => $toEmail,
             'to_name' => $toName ?? '',
             'template' => $template,
+            'attachments' => array_map(static fn (array $a): array => [
+                'filename' => (string) preg_replace('/[^A-Za-z0-9._-]/', '_', $a['filename']),
+                'content' => base64_encode($a['content']),
+                'mime' => in_array($a['mime'], ['application/pdf', 'application/xml'], true) ? $a['mime'] : 'application/octet-stream',
+            ], $attachments),
         ];
 
         $this->queue->dispatch(self::JOB_TYPE, [
@@ -60,7 +66,7 @@ class Mailer
      */
     public function sendQueued(array $payload): void
     {
-        /** @var array{to: string, to_name: string, subject: string, html: string, text: string, template: string} $message */
+        /** @var array{to: string, to_name: string, subject: string, html: string, text: string, template: string, attachments?: list<array{filename: string, content: string, mime: string}>} $message */
         $message = $this->encrypter->decryptArray((string) ($payload['message'] ?? ''), 'mail-job');
         $this->deliver($message);
     }
@@ -82,7 +88,7 @@ class Mailer
     }
 
     /**
-     * @param array{to: string, to_name: string, subject: string, html: string, text: string, template: string} $message
+     * @param array{to: string, to_name: string, subject: string, html: string, text: string, template: string, attachments?: list<array{filename: string, content: string, mime: string}>} $message
      */
     private function deliver(array $message): void
     {
@@ -107,6 +113,9 @@ class Mailer
             $mail->Subject = $message['subject'];
             $mail->Body = $message['html'];
             $mail->AltBody = $message['text'];
+            foreach ($message['attachments'] ?? [] as $attachment) {
+                $mail->addStringAttachment((string) base64_decode($attachment['content'], true), $attachment['filename'], PHPMailer::ENCODING_BASE64, $attachment['mime']);
+            }
             $mail->send();
         } catch (PHPMailerException $exception) {
             throw new RuntimeException('SMTP delivery failed: ' . $this->sanitizeError($mail->ErrorInfo ?: $exception->getMessage()), 0, $exception);

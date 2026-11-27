@@ -68,6 +68,10 @@ return [
         'subject' => 'Ihre Erklärung {{ reference }}',
         'html' => '<p>Hallo {{ name }},</p><p>wir konnten Ihre Erklärung {{ reference }} nicht bearbeiten:</p><p>{{ note }}</p><p>Bei Fragen wenden Sie sich bitte an {{ support_email }}.</p>',
     ],
+    'invoice_correction' => [
+        'subject' => 'Beleg {{ document_number }} zu Rechnung {{ invoice_number }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir haben den Beleg <strong>{{ document_number }}</strong> über {{ amount }} zur Rechnung {{ invoice_number }} ausgestellt (Storno oder Erstattung). Sie finden ihn im Anhang und in Ihrem Kundenbereich.</p><p><a class="button" href="{{ document_url }}">Beleg ansehen</a></p>',
+    ],
     'ticket_reply' => [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',

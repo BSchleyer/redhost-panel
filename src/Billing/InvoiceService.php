@@ -44,6 +44,7 @@ class InvoiceService
         private readonly Config $config,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
         private readonly \Nebrix\Repository\ProductRepository $products,
+        private readonly \Nebrix\Billing\Documents\InvoiceDocuments $documents,
     ) {
     }
 
@@ -60,7 +61,11 @@ class InvoiceService
     public function nextNumber(string $kind): string
     {
         $year = $this->clock->now()->format('Y');
-        $prefix = $kind === 'order' ? $this->settings->string('billing.order_prefix') : $this->settings->string('billing.invoice_prefix');
+        $prefix = match ($kind) {
+            'order' => $this->settings->string('billing.order_prefix'),
+            'credit_note' => $this->settings->string('billing.credit_note_prefix'),
+            default => $this->settings->string('billing.invoice_prefix'),
+        };
 
         return sprintf('%s%s-%06d', $prefix, $year, $this->sequences->next($kind . ':' . $year));
     }
@@ -188,7 +193,7 @@ class InvoiceService
                 'service_name' => $service->name,
                 'due_date' => $periodStart->format('Y-m-d'),
                 'invoice_url' => $this->url('/invoices/' . $id),
-            ]);
+            ], null, $this->documents->attachments($id));
 
             return $invoice !== null ? (int) $invoice['id'] : null;
         });
@@ -302,6 +307,8 @@ class InvoiceService
                 throw new RuntimeException('Only unpaid invoices can be cancelled.');
             }
             $this->invoices->update($invoiceId, ['status' => InvoiceRepository::STATUS_CANCELLED, 'cancelled_at' => $this->clock->nowString()]);
+            // An issued invoice is not deleted or changed: a cancellation document voids it.
+            $this->createCorrection($invoice, (int) $invoice['total']);
             if ($invoice['order_id'] !== null && $invoice['type'] === InvoiceRepository::TYPE_ORDER) {
                 $this->orders->update((int) $invoice['order_id'], ['status' => OrderRepository::STATUS_CANCELLED, 'cancelled_at' => $this->clock->nowString()]);
                 foreach ($this->orders->items((int) $invoice['order_id']) as $item) {
@@ -311,6 +318,99 @@ class InvoiceService
                 }
             }
         });
+    }
+
+    /**
+     * Cancellation or correction document for an invoice: the full amount
+     * mirrors all items (cancellation invoice), a partial amount (refund)
+     * becomes one line with the invoice's tax rate. The document refers to
+     * the original invoice and keeps its recipient and tax treatment.
+     *
+     * @param array<string, mixed> $invoice
+     * @return int|null ID of the document (null for documents that are themselves corrections or zero amounts)
+     */
+    public function createCorrection(array $invoice, int $gross): ?int
+    {
+        if ($invoice['type'] === InvoiceRepository::TYPE_CREDIT_NOTE || $gross <= 0) {
+            return null;
+        }
+        $items = $this->invoices->items((int) $invoice['id']);
+        if ($gross >= (int) $invoice['total']) {
+            $lines = array_map(static fn (array $item): array => [
+                'order_item_id' => $item['order_item_id'],
+                'service_id' => $item['service_id'],
+                'description' => (string) $item['description'],
+                'quantity' => (int) $item['quantity'],
+                'unit_amount' => (int) $item['unit_amount'],
+                'tax_rate_bp' => (int) $item['tax_rate_bp'],
+                'total' => (int) $item['total'],
+                'period_start' => $item['period_start'],
+                'period_end' => $item['period_end'],
+            ], $items);
+            [$net, $tax] = [(int) $invoice['subtotal'], (int) $invoice['tax']];
+        } else {
+            $rate = (int) ($items[0]['tax_rate_bp'] ?? 0);
+            [$net, $tax] = self::splitGross($gross, $rate);
+            $lines = [[
+                'service_id' => $invoice['service_id'],
+                'description' => sprintf('Partial refund for invoice %s', $invoice['number']),
+                'quantity' => 1,
+                'unit_amount' => $net,
+                'tax_rate_bp' => $rate,
+                'total' => $net,
+            ]];
+        }
+
+        $id = $this->invoices->create([
+            'number' => $this->nextNumber('credit_note'),
+            'user_id' => (int) $invoice['user_id'],
+            'order_id' => $invoice['order_id'],
+            'service_id' => $invoice['service_id'],
+            'reference_invoice_id' => (int) $invoice['id'],
+            'type' => InvoiceRepository::TYPE_CREDIT_NOTE,
+            'status' => InvoiceRepository::STATUS_ISSUED,
+            'currency' => (string) $invoice['currency'],
+            'subtotal' => $net,
+            'tax' => $tax,
+            'total' => $net + $tax,
+            'tax_category' => $invoice['tax_category'] ?? null,
+            'tax_note' => $invoice['tax_note'] ?? null,
+            'tax_country' => $invoice['tax_country'] ?? null,
+            'billing_details' => $invoice['billing_details'],
+            'due_at' => $this->clock->nowString(),
+        ], $lines);
+
+        $user = $this->users->find((int) $invoice['user_id']);
+        if ($user !== null) {
+            $this->mailer->queue($user->email, $user->displayName(), 'invoice_correction', [
+                'name' => $user->displayName(),
+                'document_number' => (string) ($this->invoices->find($id)['number'] ?? ''),
+                'invoice_number' => (string) $invoice['number'],
+                'amount' => Money::format($net + $tax, (string) $invoice['currency']),
+                'document_url' => $this->url('/invoices/' . $id),
+            ], null, $this->documents->attachments($id));
+        }
+
+        return $id;
+    }
+
+    /**
+     * Net and tax of a gross amount such that net + round(net × rate) equals
+     * the gross amount whenever possible.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public static function splitGross(int $gross, int $rateBp): array
+    {
+        $estimate = (int) round($gross * 10000 / (10000 + $rateBp));
+        foreach ([0, -1, 1, -2, 2] as $delta) {
+            $net = $estimate + $delta;
+            if ($net + Money::tax($net, $rateBp) === $gross) {
+                return [$net, $gross - $net];
+            }
+        }
+
+        return [$estimate, $gross - $estimate];
     }
 
     private function url(string $path): string

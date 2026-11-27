@@ -18,6 +18,7 @@ services:
         condition: service_healthy
     volumes:
       - uploads:/var/www/nebrix/public/uploads
+      - invoices:/var/www/nebrix/storage/invoices
     restart: unless-stopped
 
   worker:
@@ -27,6 +28,8 @@ services:
       DB_HOST: db
       LOG_PATH: php://stderr
     command: ["php", "bin/nebrix", "queue:work"]
+    volumes:
+      - invoices:/var/www/nebrix/storage/invoices
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +42,8 @@ services:
       DB_HOST: db
       LOG_PATH: php://stderr
     command: ["sh", "-c", "while true; do php bin/nebrix schedule:run; sleep 60; done"]
+    volumes:
+      - invoices:/var/www/nebrix/storage/invoices
     depends_on:
       db:
         condition: service_healthy
@@ -79,3 +84,4 @@ services:
 volumes:
   db-data:
   uploads:
+  invoices:

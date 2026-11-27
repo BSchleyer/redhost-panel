@@ -28,7 +28,7 @@ final class SettingsController extends Controller
 {
     /** page => [permission, title, groups] */
     private const PAGES = [
-        'general' => [Permission::SETTINGS_GENERAL, 'General settings', ['general' => 'Company & localization', 'auth' => 'Registration & sign-in', 'billing' => 'Billing', 'tax' => 'Taxes']],
+        'general' => [Permission::SETTINGS_GENERAL, 'General settings', ['general' => 'Company & localization', 'auth' => 'Registration & sign-in', 'billing' => 'Billing', 'tax' => 'Taxes', 'invoice' => 'Invoice details']],
         'branding' => [Permission::SETTINGS_BRANDING, 'Branding & design', ['branding' => 'Colors & texts']],
         'email' => [Permission::SETTINGS_EMAIL, 'E-mail delivery', ['mail' => 'SMTP server']],
         'payments' => [Permission::PAYMENTS_SETTINGS, 'Payment providers', ['payments_paypal' => 'PayPal', 'payments_stripe' => 'Stripe', 'payments_credit' => 'Account credit']],

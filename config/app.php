@@ -78,5 +78,7 @@ return [
         'cache' => $basePath . '/storage/cache',
         'public' => $basePath . '/public',
         'uploads' => $basePath . '/public/uploads',
+        // Archive of issued invoice documents (PDF/XML) – keep for the statutory retention period and back it up.
+        'invoices' => Env::get('INVOICE_ARCHIVE_PATH', $basePath . '/storage/invoices'),
     ],
 ];

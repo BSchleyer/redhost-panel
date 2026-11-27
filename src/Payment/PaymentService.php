@@ -289,6 +289,8 @@ class PaymentService
                         'amount_refunded' => $refunded,
                         'status' => $fullyRefunded ? InvoiceRepository::STATUS_REFUNDED : $invoice['status'],
                     ]);
+                    // Correction document for the refunded amount (refers to the invoice).
+                    $this->invoiceService->createCorrection($invoice, $amount);
                     $this->reverseInvoiceEffects($gateway, $refundReference, $invoice, $amount, $fullyRefunded, 'Payment refunded');
                 }
             }
