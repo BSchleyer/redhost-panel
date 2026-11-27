@@ -121,13 +121,22 @@ This file is the single source of truth for modernization progress. It is update
   - Final state: 196 tests (1068 assertions) green on PHP 8.4.28 and PHP 8.3.6 with MariaDB 11.4, PHPStan level 6 clean, lint clean on 8.3/8.4, `composer validate --strict` and `composer audit` without findings.
 - **Next step:** live verification in a staging environment (see "Remaining work").
 
-## Remaining work (not done in this modernization)
-- Verify every integration (Proxmox, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only mocked tests exist.
+### Session 2 (2026-11-28) – missing infrastructure features
+- Foundation: service actions with validated input, staff remote actions, reinstall flow via the provisioning queue, integration-aware provisioning (manual products stay manual) – commit `9494a07`.
+- Dedicated servers via **Hetzner Robot** (pool/order modes, install, firewall suspension, rescue, rDNS, reinstall, wipe queue) – `9494a07`.
+- **Proxmox**: IP pools (admin UI, static IPv4), reinstall, root password reset, noVNC console with WebSocket proxy (`console:proxy`) – `40abe15`.
+- **Plesk** webhosting and **INWX** domains (prechecks before payment, encrypted auth codes) – `58f96a1`.
+- Legacy import of services, tickets and payment history; optional CAPTCHA; `db:triggers` – `6db9f8f`.
+- Documentation updated – `7db4e7c`. 233 tests green on PHP 8.4.28 and 8.3.6 (MariaDB 11.4), PHPStan level 6 clean; UI of the new pages checked in Chromium (no CSP/console errors).
+- **Next step:** public REST API (scoped tokens), then live verification of all integrations on staging.
+
+## Remaining work
+- **Public REST API** with scoped tokens (next task requested by the owner).
+- Verify every integration (Proxmox incl. console, Hetzner Robot in order test mode, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only tests against fakes exist.
 - Verify the Docker build stage (`composer install` in the `composer:2` image) in CI or locally.
-- Proxmox: customer reinstall, password reset, noVNC console and IP address management (currently DHCP only).
-- Automated fulfilment for dedicated servers, webhosting (e.g. Plesk) and domains (registrar API).
-- Import of legacy services, invoices and tickets (site-specific; see UPGRADE_GUIDE.md).
-- Optional: public REST API with scoped tokens, CAPTCHA on registration, database triggers for append-only tables (see DATABASE.md).
+- Hetzner: automatic disk wipe of returned pool servers and server market (auction) orders are not implemented.
+- Proxmox: IPv6 address management (SLAAC only); LXC root password changes only by reinstall (no API).
+- Additional registrars or hosting panels can be added behind `Domain\Registrar` / `Provisioner`.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.
