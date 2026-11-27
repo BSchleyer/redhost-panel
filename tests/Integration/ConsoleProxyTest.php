@@ -47,21 +47,21 @@ final class ConsoleProxyTest extends TestCase
         return (int) trim((string) file_get_contents($this->portFile));
     }
 
-    private function proxy(int $upstreamPort): WebSocketProxy
+    private function proxy(int $upstreamPort, int $maxPerIp = 10, int $maxPerUser = 3): WebSocketProxy
     {
         return new WebSocketProxy(function (string $token) use ($upstreamPort): ?array {
-            if ($token !== str_repeat('ab', 32) || in_array($token, $this->redeemed, true)) {
+            if (!in_array($token, [str_repeat('ab', 32), str_repeat('ef', 32)], true) || in_array($token, $this->redeemed, true)) {
                 return null;
             }
             $this->redeemed[] = $token;
 
             return [
-                'service_id' => 7, 'scheme' => 'ws', 'host' => '127.0.0.1', 'ip' => '127.0.0.1', 'port' => $upstreamPort,
+                'service_id' => 7, 'user_id' => 3, 'scheme' => 'ws', 'host' => '127.0.0.1', 'ip' => '127.0.0.1', 'port' => $upstreamPort,
                 'path' => '/api2/json/nodes/pve1/qemu/101/vncwebsocket?port=5900&vncticket=PVEVNC%3ATICKET',
                 'headers' => ['Authorization' => 'PVEAPIToken=nebrix@pve!panel=secret-token', 'Accept' => 'application/json'],
                 'verify_tls' => true,
             ];
-        }, new NullLogger(), self::ORIGIN);
+        }, new NullLogger(), self::ORIGIN, 100, 14400, 3, [], $maxPerIp, $maxPerUser);
     }
 
     /**
@@ -142,6 +142,37 @@ final class ConsoleProxyTest extends TestCase
             self::assertStringStartsWith('HTTP/1.1 ' . $status, $this->readUntil($proxy, $socket, "\r\n\r\n"));
         }
         self::assertSame([], $this->redeemed, 'Tokens are not redeemed for requests from foreign origins or without upgrade.');
+        $proxy->shutdown();
+    }
+
+    public function testLimitsOpenConsolesPerUser(): void
+    {
+        $proxy = $this->proxy($this->upstreamPort(), 10, 1);
+        $address = $proxy->listen('127.0.0.1:0');
+        $first = $this->client($address, str_repeat('ab', 32));
+        self::assertStringStartsWith('HTTP/1.1 101', $this->readUntil($proxy, $first, 'RFB 003.008'));
+
+        $second = $this->client($address, str_repeat('ef', 32));
+        self::assertStringStartsWith('HTTP/1.1 429', $this->readUntil($proxy, $second, "\r\n\r\n"));
+        self::assertSame(1, $proxy->connectionCount());
+        $proxy->shutdown();
+    }
+
+    public function testLimitsConnectionsPerClientIp(): void
+    {
+        $proxy = $this->proxy(9, 2);
+        $address = $proxy->listen('127.0.0.1:0');
+        $sockets = [];
+        for ($i = 0; $i < 3; $i++) {
+            $socket = stream_socket_client('tcp://' . $address, $errno, $error, 2);
+            self::assertNotFalse($socket, $error);
+            stream_set_blocking($socket, false);
+            $sockets[] = $socket;
+            $proxy->tick(0.05);
+        }
+
+        self::assertSame(2, $proxy->connectionCount(), 'Idle handshakes from one address are capped.');
+        self::assertStringStartsWith('HTTP/1.1 503', $this->readUntil($proxy, $sockets[2], "\r\n\r\n"));
         $proxy->shutdown();
     }
 }

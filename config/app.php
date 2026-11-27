@@ -52,9 +52,14 @@ return [
     'console' => [
         // Public WebSocket URL of the console proxy (bin/nebrix console:proxy behind the reverse proxy).
         'ws_url' => Env::get('CONSOLE_WS_URL', (str_starts_with($appUrl, 'https://') ? 'wss://' . substr($appUrl, 8) : 'ws://' . substr($appUrl, 7)) . '/console/ws'),
-        'listen' => Env::get('CONSOLE_LISTEN', '0.0.0.0:8081'),
+        // Loopback by default; the reverse proxy forwards to it (Docker: --listen=0.0.0.0:8081 inside the container).
+        'listen' => Env::get('CONSOLE_LISTEN', '127.0.0.1:8081'),
         'max_connections' => Env::int('CONSOLE_MAX_CONNECTIONS', 100),
+        // Concurrent connections per client IP (X-Forwarded-For from TRUSTED_PROXIES) and open consoles per user; 0 = unlimited.
+        'max_per_ip' => Env::int('CONSOLE_MAX_PER_IP', 10),
+        'max_per_user' => Env::int('CONSOLE_MAX_PER_USER', 3),
         'max_lifetime' => Env::int('CONSOLE_MAX_LIFETIME', 14400),
+        'memory_limit' => Env::get('CONSOLE_MEMORY_LIMIT', '512M'),
     ],
 
     'integrations' => [

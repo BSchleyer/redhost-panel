@@ -14,7 +14,7 @@ use Nebrix\RemoteConsole\WebSocketProxy;
 use Psr\Log\LoggerInterface;
 
 /**
- * bin/nebrix console:proxy [--listen=0.0.0.0:8081]
+ * bin/nebrix console:proxy [--listen=127.0.0.1:8081]
  *
  * WebSocket relay for server consoles. Run it behind the TLS-terminating
  * reverse proxy, which forwards CONSOLE_WS_URL (default /console/ws) to it.
@@ -33,11 +33,14 @@ final class ConsoleProxyCommand implements Command
 
     public static function description(): string
     {
-        return 'Run the WebSocket proxy for server consoles [--listen=0.0.0.0:8081]';
+        return 'Run the WebSocket proxy for server consoles [--listen=127.0.0.1:8081]';
     }
 
     public function run(Input $input, Output $output): int
     {
+        // Long-running process: an explicit ceiling instead of the unlimited
+        // CLI default. Buffers are bounded per connection (see WebSocketProxy).
+        ini_set('memory_limit', $this->config->string('console.memory_limit', '512M'));
         if (function_exists('pcntl_async_signals')) {
             pcntl_async_signals(true);
             pcntl_signal(SIGTERM, fn () => $this->stop = true);
@@ -57,9 +60,13 @@ final class ConsoleProxyCommand implements Command
             $origin,
             max(1, $this->config->int('console.max_connections', 100)),
             max(60, $this->config->int('console.max_lifetime', 14400)),
+            3,
+            array_values(array_filter($this->config->array('app.trusted_proxies'), 'is_string')),
+            max(0, $this->config->int('console.max_per_ip', 10)),
+            max(0, $this->config->int('console.max_per_user', 3)),
         );
 
-        $address = $proxy->listen((string) ($input->option('listen') ?? $this->config->string('console.listen', '0.0.0.0:8081')));
+        $address = $proxy->listen((string) ($input->option('listen') ?? $this->config->string('console.listen', '127.0.0.1:8081')));
         $output->info(sprintf('Console proxy listening on %s (origin %s).', $address, $origin));
         $proxy->run(fn (): bool => $this->stop);
 

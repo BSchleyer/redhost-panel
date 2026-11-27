@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nebrix\RemoteConsole;
 
+use Nebrix\Http\IpRange;
+use Nebrix\Http\Request;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -20,8 +22,11 @@ use Psr\Log\LoggerInterface;
  * Checks: GET + WebSocket upgrade headers, Origin equal to the panel origin,
  * token redeemed exactly once, upstream address pinned and TLS verified per
  * integration setting, upstream Sec-WebSocket-Accept verified. Limits:
- * connection count, header size, handshake timeout, connection lifetime and
- * buffered bytes per direction.
+ * connection count, concurrent handshakes, connections per client IP (the
+ * X-Forwarded-For address when the peer is a trusted proxy), relays per
+ * user, header size, handshake timeout, connection lifetime and buffered
+ * bytes per direction. A side is not read while the opposite direction has
+ * more than HIGH_WATER bytes queued (backpressure).
  */
 final class WebSocketProxy
 {
@@ -29,13 +34,18 @@ final class WebSocketProxy
     private const MAX_HEADER_BYTES = 8192;
     private const HANDSHAKE_TIMEOUT = 10;
     private const CHUNK = 65536;
-    private const MAX_BUFFER = 16 * 1024 * 1024;
+    /** Bytes read from one socket per event-loop pass. */
+    private const MAX_READ = 262144;
+    /** Reading pauses while the opposite buffer holds more than this. */
+    private const HIGH_WATER = 524288;
+    /** Safety net; with backpressure a buffer stays below HIGH_WATER + MAX_READ. */
+    private const MAX_BUFFER = 2097152;
 
     /** @var resource|null */
     private $server = null;
 
     /**
-     * @var array<int, array{client: resource, upstream: resource|null, state: string, in: string, to_client: string, to_upstream: string, since: int, service: int, peer: string}>
+     * @var array<int, array{client: resource, upstream: resource|null, state: string, in: string, to_client: string, to_upstream: string, since: int, service: int, user: int, peer: string, ip: string}>
      */
     private array $connections = [];
 
@@ -45,7 +55,10 @@ final class WebSocketProxy
     private int $nextId = 1;
 
     /**
-     * @param \Closure(string): ?array{service_id: int, scheme: string, host: string, ip: string, port: int, path: string, headers: array<string, string>, verify_tls: bool} $redeem
+     * @param \Closure(string): ?array{service_id: int, user_id: int, scheme: string, host: string, ip: string, port: int, path: string, headers: array<string, string>, verify_tls: bool} $redeem
+     * @param list<string> $trustedProxies    peers whose X-Forwarded-For is used for the per-IP limit
+     * @param int          $maxPerIp          connections per client IP (0 = unlimited)
+     * @param int          $maxPerUser        console relays per panel user (0 = unlimited)
      */
     public function __construct(
         private readonly \Closure $redeem,
@@ -53,7 +66,11 @@ final class WebSocketProxy
         private readonly string $allowedOrigin,
         private readonly int $maxConnections = 100,
         private readonly int $maxLifetime = 14400,
-        private readonly int $connectTimeout = 5,
+        private readonly int $connectTimeout = 3,
+        private readonly array $trustedProxies = [],
+        private readonly int $maxPerIp = 10,
+        private readonly int $maxPerUser = 3,
+        private readonly int $maxHandshakes = 32,
     ) {
     }
 
@@ -92,7 +109,7 @@ final class WebSocketProxy
     {
         // Data already decrypted by the TLS layer is not signalled by select().
         foreach ($this->connections as $id => $connection) {
-            if ($connection['upstream'] !== null && stream_get_meta_data($connection['upstream'])['unread_bytes'] > 0) {
+            if ($connection['upstream'] !== null && strlen($connection['to_client']) < self::HIGH_WATER && stream_get_meta_data($connection['upstream'])['unread_bytes'] > 0) {
                 $this->readFrom($connection['upstream']);
                 $timeout = 0.0;
             }
@@ -101,9 +118,14 @@ final class WebSocketProxy
         $read = $this->server !== null ? [$this->server] : [];
         $write = [];
         foreach ($this->connections as $connection) {
-            $read[] = $connection['client'];
+            // Backpressure: stop reading a side while the other cannot keep up.
+            if (strlen($connection['to_upstream']) < self::HIGH_WATER) {
+                $read[] = $connection['client'];
+            }
             if ($connection['upstream'] !== null) {
-                $read[] = $connection['upstream'];
+                if (strlen($connection['to_client']) < self::HIGH_WATER) {
+                    $read[] = $connection['upstream'];
+                }
                 if ($connection['to_upstream'] !== '') {
                     $write[] = $connection['upstream'];
                 }
@@ -158,7 +180,11 @@ final class WebSocketProxy
         if ($client === false) {
             return;
         }
-        if (count($this->connections) >= $this->maxConnections) {
+        $ip = self::peerIp((string) $peer);
+        $handshakes = count(array_filter($this->connections, static fn (array $c): bool => $c['state'] === 'handshake'));
+        if (count($this->connections) >= $this->maxConnections
+            || $handshakes >= $this->maxHandshakes
+            || (!$this->isTrustedProxy($ip) && $this->limitReached('ip', $ip, $this->maxPerIp))) {
             @fwrite($client, "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
             fclose($client);
 
@@ -166,7 +192,7 @@ final class WebSocketProxy
         }
         stream_set_blocking($client, false);
         $id = $this->nextId++;
-        $this->connections[$id] = ['client' => $client, 'upstream' => null, 'state' => 'handshake', 'in' => '', 'to_client' => '', 'to_upstream' => '', 'since' => time(), 'service' => 0, 'peer' => (string) $peer];
+        $this->connections[$id] = ['client' => $client, 'upstream' => null, 'state' => 'handshake', 'in' => '', 'to_client' => '', 'to_upstream' => '', 'since' => time(), 'service' => 0, 'user' => 0, 'peer' => (string) $peer, 'ip' => $ip];
         $this->sockets[get_resource_id($client)] = [$id, 'client'];
     }
 
@@ -215,7 +241,7 @@ final class WebSocketProxy
     private function readAvailable($socket): ?string
     {
         $buffer = '';
-        while (true) {
+        while (strlen($buffer) < self::MAX_READ) {
             $chunk = @fread($socket, self::CHUNK);
             if ($chunk === false || $chunk === '') {
                 if (feof($socket)) {
@@ -286,11 +312,29 @@ final class WebSocketProxy
 
             return;
         }
+        if ($this->isTrustedProxy($this->connections[$id]['ip'])) {
+            $server = ['REMOTE_ADDR' => $this->connections[$id]['ip']];
+            if (isset($headers['x-forwarded-for'])) {
+                $server['HTTP_X_FORWARDED_FOR'] = $headers['x-forwarded-for'];
+            }
+            $this->connections[$id]['ip'] = (new Request('GET', '/', [], [], [], [], $server, '', $this->trustedProxies))->clientIp();
+            if ($this->limitReached('ip', $this->connections[$id]['ip'], $this->maxPerIp, $id)) {
+                $this->reject($id, 429, 'Too Many Requests');
+
+                return;
+            }
+        }
 
         parse_str((string) parse_url($match[1], PHP_URL_QUERY), $query);
         $target = ($this->redeem)(is_string($query['token'] ?? null) ? $query['token'] : '');
         if ($target === null) {
             $this->reject($id, 403, 'Forbidden');
+
+            return;
+        }
+        if ($this->limitReached('user', $target['user_id'], $this->maxPerUser, $id)) {
+            $this->logger->notice('Console session refused: too many open consoles', ['user' => $target['user_id'], 'service' => $target['service_id']]);
+            $this->reject($id, 429, 'Too Many Requests');
 
             return;
         }
@@ -315,9 +359,10 @@ final class WebSocketProxy
         $this->connections[$id]['state'] = 'relay';
         $this->connections[$id]['since'] = time();
         $this->connections[$id]['service'] = $target['service_id'];
+        $this->connections[$id]['user'] = $target['user_id'];
         $this->connections[$id]['to_client'] = $response . "\r\n" . $leftover;
         $this->sockets[get_resource_id($socket)] = [$id, 'upstream'];
-        $this->logger->info('Console session started', ['service' => $target['service_id'], 'peer' => $this->connections[$id]['peer']]);
+        $this->logger->info('Console session started', ['service' => $target['service_id'], 'user' => $target['user_id'], 'ip' => $this->connections[$id]['ip']]);
     }
 
     /**
@@ -343,7 +388,8 @@ final class WebSocketProxy
         stream_set_timeout($socket, $this->connectTimeout);
 
         $key = base64_encode(random_bytes(16));
-        $request = sprintf("GET %s HTTP/1.1\r\nHost: %s:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\n", $target['path'], $target['host'], $target['port'], $key);
+        $hostHeader = str_contains($target['host'], ':') && !str_starts_with($target['host'], '[') ? '[' . $target['host'] . ']' : $target['host'];
+        $request = sprintf("GET %s HTTP/1.1\r\nHost: %s:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: binary\r\n", $target['path'], $hostHeader, $target['port'], $key);
         foreach ($target['headers'] as $name => $value) {
             if (preg_match('/^[A-Za-z0-9-]+$/', $name) === 1 && !preg_match('/[\r\n]/', $value) && !in_array(strtolower($name), ['host', 'upgrade', 'connection', 'content-type', 'accept'], true)) {
                 $request .= $name . ': ' . $value . "\r\n";
@@ -387,6 +433,53 @@ final class WebSocketProxy
         stream_set_blocking($socket, false);
 
         return [$socket, $leftover, $headers['sec-websocket-protocol'] ?? ''];
+    }
+
+    /**
+     * "192.0.2.1:5000" / "[2001:db8::1]:5000" → address without port.
+     */
+    private static function peerIp(string $peer): string
+    {
+        if (str_starts_with($peer, '[')) {
+            $end = strpos($peer, ']');
+
+            return $end === false ? $peer : substr($peer, 1, $end - 1);
+        }
+        $colon = strrpos($peer, ':');
+        if ($colon !== false && substr_count($peer, ':') === 1) {
+            return substr($peer, 0, $colon);
+        }
+
+        return $peer;
+    }
+
+    private function isTrustedProxy(string $ip): bool
+    {
+        foreach ($this->trustedProxies as $proxy) {
+            if (IpRange::contains($proxy, $ip)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param 'ip'|'user' $field
+     */
+    private function limitReached(string $field, int|string $value, int $limit, int $exceptId = 0): bool
+    {
+        if ($limit <= 0) {
+            return false;
+        }
+        $count = 0;
+        foreach ($this->connections as $id => $connection) {
+            if ($id !== $exceptId && $connection[$field] === $value && ($field === 'ip' || $connection['state'] === 'relay')) {
+                $count++;
+            }
+        }
+
+        return $count >= $limit;
     }
 
     private function reject(int $id, int $status, string $reason): void
