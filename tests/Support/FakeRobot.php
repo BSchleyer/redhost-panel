@@ -84,6 +84,11 @@ final class FakeRobot
 
                 return $json(['rescue' => $this->rescue[(int) $m['n']]]);
             })
+            ->on('DELETE', '/boot/(?<n>\d+)/rescue', function ($r, array $m) use ($json): Response {
+                $this->rescue[(int) $m['n']] = ['active' => false, 'password' => null];
+
+                return $json(['rescue' => $this->rescue[(int) $m['n']]]);
+            })
             ->on('POST', '/reset/(?<n>\d+)', function (RequestInterface $r, array $m) use ($json): Response {
                 $this->resets[] = ['server' => (int) $m['n'], 'type' => FakeHttp::form($r)['type']];
 

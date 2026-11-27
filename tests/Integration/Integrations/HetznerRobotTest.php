@@ -167,7 +167,6 @@ final class HetznerRobotTest extends IntegrationTestCase
         $service = $this->dedicated($integrationId);
         $this->provisionToEnd($service);
         $this->robot->servers[600]['server_name'] = 'moved-to-other-customer';
-        $this->db->run("UPDATE nx_services SET remote = JSON_REMOVE(remote, '$.owner_checked_at') WHERE id = ?", [$service->id]);
 
         try {
             $this->provisioner()->perform($this->reload($service->id), 'hard_reset');
@@ -306,5 +305,106 @@ final class HetznerRobotTest extends IntegrationTestCase
         self::assertTrue($result->isHealthy());
         self::assertStringContainsString('2 server(s)', $result->message);
         self::assertStringContainsString('1 free', $result->message);
+    }
+
+    public function testReinstallIsRefusedAtomicallyWhenTheServerChangedHands(): void
+    {
+        $integrationId = $this->integration();
+        $this->robot->addServer(910, 'nebrix-free-m');
+        $service = $this->dedicated($integrationId);
+        $this->provisionToEnd($service);
+        $this->db->update('nx_services', ['status' => 'active'], ['id' => $service->id]);
+        $runner = $this->app->container()->get(ServiceActionRunner::class);
+        $this->robot->servers[910]['server_name'] = 'moved-to-other-customer';
+
+        try {
+            $runner->run($this->reload($service->id), 'reinstall', ['image' => 'Debian 12 base'], null, null);
+            self::fail('Reinstall of a foreign server accepted.');
+        } catch (\Nebrix\Provisioning\ServiceStateException $exception) {
+            self::assertStringContainsString('cannot be reinstalled', $exception->getMessage());
+        }
+        self::assertSame('active', $this->reload($service->id)->status, 'The status is restored when the reinstall is refused.');
+        self::assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE unique_key LIKE ?", ['service.provision:' . $service->id . ':reinstall:%']));
+
+        // A second request while a reinstall runs is refused (status guard).
+        $this->robot->servers[910]['server_name'] = 'nebrix-service-' . $service->id;
+        $runner->run($this->reload($service->id), 'reinstall', ['image' => 'Debian 12 base'], null, null);
+        $this->expectException(\Nebrix\Provisioning\ServiceStateException::class);
+        $runner->run($this->reload($service->id), 'reinstall', ['image' => 'Debian 12 base'], null, null);
+    }
+
+    public function testRetryAfterACompletedJobQueuesANewProvisioningJob(): void
+    {
+        $integrationId = $this->integration();
+        $this->robot->addServer(920, 'nebrix-free-q');
+        $service = $this->dedicated($integrationId);
+        $jobs = $this->app->container()->get(\Nebrix\Queue\JobQueue::class);
+        $first = $jobs->dispatch('service.provision', ['service_id' => $service->id], 'service.provision:' . $service->id);
+        $this->db->update('nx_jobs', ['status' => 'completed'], ['id' => $first]);
+        $this->db->update('nx_services', ['status' => 'failed'], ['id' => $service->id]);
+
+        $manager = $this->app->container()->get(\Nebrix\Provisioning\ServiceManager::class);
+        $manager->retryProvisioning($this->reload($service->id), null);
+
+        $pending = $this->db->fetchAll("SELECT unique_key FROM nx_jobs WHERE type = 'service.provision' AND status = 'pending'");
+        self::assertCount(1, $pending);
+        self::assertStringStartsWith('service.provision:' . $service->id . ':retry:', (string) $pending[0]['unique_key']);
+        self::assertSame('pending', $this->reload($service->id)->status);
+
+        // A failed job is re-run instead of queueing another one.
+        $this->db->run("UPDATE nx_jobs SET status = 'failed' WHERE status = 'pending'");
+        $this->db->update('nx_services', ['status' => 'failed'], ['id' => $service->id]);
+        $manager->retryProvisioning($this->reload($service->id), null);
+        self::assertSame(2, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'service.provision'"));
+        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'service.provision' AND status = 'pending'"));
+    }
+
+    public function testActiveRescueSystemIsDisabledBeforeTheInstallation(): void
+    {
+        $integrationId = $this->integration();
+        $this->robot->addServer(930, 'nebrix-free-s');
+        $this->robot->rescue[930] = ['active' => true, 'password' => 'leftover'];
+
+        $this->provisionToEnd($this->dedicated($integrationId));
+
+        self::assertFalse($this->robot->rescue[930]['active']);
+        self::assertCount(1, $this->http->requests('DELETE', '/boot/930/rescue'));
+    }
+
+    public function testTestOrderIsReplacedByARealOrderWhenTestModeIsSwitchedOff(): void
+    {
+        $config = ['allow_orders' => true, 'order_test_mode' => true];
+        $integrationId = $this->integration($config);
+        $service = $this->dedicated($integrationId, ['mode' => 'order', 'server_product' => 'AX41-NVMe']);
+        try {
+            $this->provisionToEnd($service);
+            self::fail('A test order is never processed.');
+        } catch (IntegrationException) {
+        }
+        self::assertTrue($this->reload($service->id)->remote['order_test'] ?? false);
+
+        $repository = $this->app->container()->get(\Nebrix\Integration\IntegrationRepository::class);
+        $integration = $repository->find($integrationId);
+        self::assertNotNull($integration);
+        $repository->update($integrationId, 'Hetzner', true, ['order_test_mode' => false] + $integration->config, []);
+        $owner = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($service->userId);
+        self::assertNotNull($owner);
+        try {
+            $this->provisioner()->provision($this->reload($service->id), $owner);
+            self::fail('Expected RetryLater while Hetzner processes the real order.');
+        } catch (RetryLaterException) {
+        }
+
+        $orders = $this->http->requests('POST', '/order/server/transaction');
+        self::assertCount(2, $orders);
+        self::assertArrayNotHasKey('test', FakeHttp::form($orders[1]));
+        self::assertArrayNotHasKey('order_test', $this->reload($service->id)->remote);
+    }
+
+    public function testPoolPrefixMustNotOverlapAssignedServerNames(): void
+    {
+        foreach (['nebrix-free' => true, 'pool-' => true, '' => false, 'nebrix-' => false, 'nebrix-service' => false, 'nebrix-service-1' => false, 'nebrix-wipe-' => false, 'nebrix-w' => false] as $prefix => $safe) {
+            self::assertSame($safe, HetznerRobotProvisioner::isSafePoolPrefix((string) $prefix), (string) $prefix);
+        }
     }
 }

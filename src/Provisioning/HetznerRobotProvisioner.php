@@ -93,8 +93,13 @@ final class HetznerRobotProvisioner implements Provisioner
             if ($image === '') {
                 throw new IntegrationException('No operating system image is configured on the product.');
             }
+            // Never install on a server that is not (or no longer) this service's.
+            $this->assertMarker($service, $client, $number);
             $credentials = $this->services->credentials($service);
             if (($credentials['password'] ?? '') === '') {
+                if (($client->rescue($number)['active'] ?? false) === true) {
+                    $client->deactivateRescue($number); // only one boot configuration can be active
+                }
                 $linux = $client->linuxInstall($number);
                 if (($linux['active'] ?? false) === true) {
                     // Activated by an earlier attempt whose password was not stored: start over.
@@ -113,6 +118,7 @@ final class HetznerRobotProvisioner implements Provisioner
         }
 
         if ($step === 'reset') {
+            $this->assertMarker($service, $client, $number);
             $client->reset($number, 'hw');
             $remote = $this->merge($service, ['step' => 'installing', 'reset_at' => $this->clock->now()->getTimestamp()]);
             $step = 'installing';
@@ -152,6 +158,7 @@ final class HetznerRobotProvisioner implements Provisioner
                 'status' => (string) ($firewall['status'] ?? 'disabled'),
                 'whitelist_hos' => (bool) ($firewall['whitelist_hos'] ?? true),
                 'input' => array_values(array_filter((array) ($firewall['rules']['input'] ?? []), 'is_array')),
+                'output' => array_values(array_filter((array) ($firewall['rules']['output'] ?? []), 'is_array')),
             ]]);
         }
 
@@ -176,13 +183,11 @@ final class HetznerRobotProvisioner implements Provisioner
         }
 
         try {
-            if (($backup['status'] ?? 'disabled') === 'active') {
-                /** @var list<array<string, scalar|null>> $rules */
-                $rules = is_array($backup['input'] ?? null) ? $backup['input'] : [];
-                $client->setFirewall($number, 'active', (bool) ($backup['whitelist_hos'] ?? true), $rules);
-            } else {
-                $client->setFirewall($number, 'disabled', (bool) ($backup['whitelist_hos'] ?? true));
-            }
+            /** @var list<array<string, scalar|null>> $input */
+            $input = is_array($backup['input'] ?? null) ? $backup['input'] : [];
+            /** @var list<array<string, scalar|null>> $output */
+            $output = is_array($backup['output'] ?? null) ? $backup['output'] : [];
+            $client->setFirewall($number, ($backup['status'] ?? 'disabled') === 'active' ? 'active' : 'disabled', (bool) ($backup['whitelist_hos'] ?? true), $input, $output);
         } catch (IntegrationException $exception) {
             if ($exception->httpStatus() === 409) {
                 throw new RetryLaterException('The Robot firewall is being updated.', 30);
@@ -327,6 +332,12 @@ final class HetznerRobotProvisioner implements Provisioner
         if (!isset($service->remote['server_number'])) {
             throw new ServiceStateException('No server has been assigned yet.');
         }
+        [, $client] = $this->client($service);
+        try {
+            $this->assertMarker($service, $client, (int) $service->remote['server_number']);
+        } catch (IntegrationException) {
+            throw new ServiceStateException('The server cannot be reinstalled right now. Please contact support.');
+        }
 
         // Clearing the password makes the provisioning run activate a new installation.
         $this->services->setCredentials($service->id, []);
@@ -357,7 +368,11 @@ final class HetznerRobotProvisioner implements Provisioner
             throw new IntegrationException('Ordering new servers is disabled for this Hetzner integration.');
         }
         if (($remote['order_test'] ?? false) === true) {
-            throw new IntegrationException('Hetzner accepted the order in test mode (not processed). Disable test mode on the integration and retry to order the server.');
+            if ((bool) $integration->config('order_test_mode', true)) {
+                throw new IntegrationException('Hetzner accepted the order in test mode (not processed). Disable test mode on the integration and retry to order the server.');
+            }
+            // Test mode was switched off: place the real order.
+            $remote = $this->merge($service, ['order_test' => null, 'transaction_id' => null]);
         }
 
         if (!isset($remote['transaction_id'])) {
@@ -408,6 +423,9 @@ final class HetznerRobotProvisioner implements Provisioner
     private function reserveFromPool(Service $service, Integration $integration, RobotClient $client): array
     {
         $prefix = (string) $integration->config('pool_prefix', 'nebrix-free');
+        if (!self::isSafePoolPrefix($prefix)) {
+            throw new IntegrationException('The pool prefix of the Hetzner integration overlaps the names of assigned servers; change it.');
+        }
         $productFilter = mb_strtolower((string) $service->config('server_product', ''));
         $location = (string) $service->config('location', '');
 
@@ -441,15 +459,33 @@ final class HetznerRobotProvisioner implements Provisioner
         if ($number < 1) {
             throw new IntegrationException('No server has been assigned yet.');
         }
-        if (($service->remote['owner_checked_at'] ?? 0) < $this->clock->now()->getTimestamp() - 3600) {
-            $name = (string) ($client->server($number)['server_name'] ?? '');
-            if ($name !== self::marker($service)) {
-                throw new IntegrationException(sprintf('Server #%d is no longer named "%s"; the action was not executed.', $number, self::marker($service)));
-            }
-            $this->merge($service, ['owner_checked_at' => $this->clock->now()->getTimestamp()]);
-        }
+        $this->assertMarker($service, $client, $number);
 
         return $number;
+    }
+
+    /** Checks (uncached) that the server still carries the service's marker name. */
+    private function assertMarker(Service $service, RobotClient $client, int $number): void
+    {
+        $name = (string) ($client->server($number)['server_name'] ?? '');
+        if ($name !== self::marker($service)) {
+            throw new IntegrationException(sprintf('Server #%d is no longer named "%s"; the action was not executed.', $number, self::marker($service)));
+        }
+    }
+
+    /**
+     * The pool prefix must not match the names the panel gives to assigned
+     * or returned servers.
+     */
+    public static function isSafePoolPrefix(string $prefix): bool
+    {
+        foreach (['nebrix-service-', 'nebrix-wipe-'] as $reserved) {
+            if ($prefix === '' || str_starts_with($reserved, $prefix) || str_starts_with($prefix, rtrim($reserved, '-'))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -270,6 +270,9 @@ final class IntegrationController extends Controller
         } catch (UnsafeUrlException $exception) {
             throw ValidationException::withMessages([isset($config['base_url']) ? 'config_base_url' : 'config_host' => $exception->getMessage()]);
         }
+        if ($type === IntegrationType::HETZNER_ROBOT && !\Nebrix\Provisioning\HetznerRobotProvisioner::isSafePoolPrefix((string) $config['pool_prefix'])) {
+            throw ValidationException::withMessages(['config_pool_prefix' => 'The prefix must not match "nebrix-service-" or "nebrix-wipe-" (names of assigned and returned servers).']);
+        }
         if ($type === IntegrationType::TEAMSPEAK && (int) $config['port_min'] > (int) $config['port_max']) {
             throw ValidationException::withMessages(['config_port_max' => 'The last port must be greater than the first port.']);
         }

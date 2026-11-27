@@ -44,9 +44,7 @@ class RobotClient
      */
     public function servers(): array
     {
-        $data = $this->get('/server', 'server.list');
-
-        return $this->unwrapList($data, 'server');
+        return $this->unwrapList($this->getList('/server', 'server.list'), 'server');
     }
 
     /**
@@ -109,6 +107,11 @@ class RobotClient
         return $this->unwrap($this->post('/boot/' . $this->number($number) . '/rescue', ['os' => 'linux', 'authorized_key' => $authorizedKeys], 'boot.rescue.activate'), 'rescue');
     }
 
+    public function deactivateRescue(int $number): void
+    {
+        $this->api->request('DELETE', '/boot/' . $this->number($number) . '/rescue', ['action' => 'boot.rescue.deactivate']);
+    }
+
     public function reset(int $number, string $type): void
     {
         if (!in_array($type, self::RESET_TYPES, true)) {
@@ -127,17 +130,20 @@ class RobotClient
 
     /**
      * @param list<array<string, scalar|null>> $inputRules
+     * @param list<array<string, scalar|null>> $outputRules
      */
-    public function setFirewall(int $number, string $status, bool $whitelistHetznerServices, array $inputRules = []): void
+    public function setFirewall(int $number, string $status, bool $whitelistHetznerServices, array $inputRules = [], array $outputRules = []): void
     {
         if (!in_array($status, ['active', 'disabled'], true)) {
             throw new IntegrationException('Invalid firewall status.');
         }
         $params = ['status' => $status, 'whitelist_hos' => $whitelistHetznerServices ? 'true' : 'false'];
-        foreach (array_values($inputRules) as $index => $rule) {
-            foreach ($rule as $field => $value) {
-                if ($value !== null && $value !== '' && preg_match('/^[a-z_]{1,20}$/', (string) $field) === 1) {
-                    $params[sprintf('rules[input][%d][%s]', $index, $field)] = (string) $value;
+        foreach (['input' => $inputRules, 'output' => $outputRules] as $direction => $rules) {
+            foreach (array_values($rules) as $index => $rule) {
+                foreach ($rule as $field => $value) {
+                    if ($value !== null && $value !== '' && preg_match('/^[a-z_]{1,20}$/', (string) $field) === 1) {
+                        $params[sprintf('rules[%s][%d][%s]', $direction, $index, $field)] = (string) $value;
+                    }
                 }
             }
         }
@@ -180,7 +186,7 @@ class RobotClient
      */
     public function orderTransactions(): array
     {
-        return $this->unwrapList($this->get('/order/server/transaction', 'order.transactions'), 'transaction');
+        return $this->unwrapList($this->getList('/order/server/transaction', 'order.transactions'), 'transaction');
     }
 
     /**
@@ -224,6 +230,22 @@ class RobotClient
     private function get(string $path, string $action): mixed
     {
         return $this->api->request('GET', $path, ['action' => $action])['json'];
+    }
+
+    /**
+     * List endpoints of the Robot API answer 404 (NOT_FOUND) when there are
+     * no entries.
+     */
+    private function getList(string $path, string $action): mixed
+    {
+        try {
+            return $this->get($path, $action);
+        } catch (IntegrationException $exception) {
+            if ($exception->isNotFound()) {
+                return [];
+            }
+            throw $exception;
+        }
     }
 
     /**
