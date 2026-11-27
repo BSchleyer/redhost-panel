@@ -83,8 +83,14 @@ class ServiceManager
         }
 
         $this->services->update($service->id, ['status' => Service::STATUS_PENDING]);
-        $jobId = $this->jobs->dispatch(ProvisioningService::JOB_PROVISION, ['service_id' => $service->id], ProvisioningService::JOB_PROVISION . ':' . $service->id);
-        $this->jobs->retry($jobId);
+        // Re-run the latest provisioning job if it failed; if it already
+        // finished (e.g. a reinstall failed later) queue a new one.
+        $latest = $this->jobs->latestByKeyPrefix(ProvisioningService::JOB_PROVISION . ':' . $service->id);
+        if ($latest === null || $latest['status'] === JobQueue::STATUS_COMPLETED) {
+            $this->jobs->dispatch(ProvisioningService::JOB_PROVISION, ['service_id' => $service->id], ProvisioningService::JOB_PROVISION . ':' . $service->id . ':retry:' . $this->clock->now()->getTimestamp());
+        } else {
+            $this->jobs->retry((int) $latest['id']);
+        }
         $this->audit->log($actorId, 'service.provisioning_retried', 'service', $service->id);
     }
 
@@ -99,15 +105,20 @@ class ServiceManager
      */
     public function reinstall(Service $service, array $input, ?int $actorId): void
     {
-        if ($service->status !== Service::STATUS_ACTIVE) {
-            throw new ServiceStateException('Only active services can be reinstalled.');
-        }
         if (!$this->provisioners->supportsService($service)) {
             throw new ServiceStateException('This service is managed manually.');
         }
+        // Atomic: a second, concurrent request cannot start another reinstall.
+        if (!$this->services->transitionStatus($service->id, Service::STATUS_ACTIVE, Service::STATUS_PROVISIONING)) {
+            throw new ServiceStateException('Only active services can be reinstalled.');
+        }
 
-        $this->provisioners->for($service->category)->prepareReinstall($service, $input);
-        $this->services->update($service->id, ['status' => Service::STATUS_PROVISIONING, 'last_error' => null]);
+        try {
+            $this->provisioners->for($service->category)->prepareReinstall($service, $input);
+        } catch (\Throwable $exception) {
+            $this->services->transitionStatus($service->id, Service::STATUS_PROVISIONING, Service::STATUS_ACTIVE);
+            throw $exception;
+        }
         $this->jobs->dispatch(
             ProvisioningService::JOB_PROVISION,
             ['service_id' => $service->id],

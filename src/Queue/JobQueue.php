@@ -157,6 +157,21 @@ class JobQueue
     }
 
     /** Manually re-queues a failed or cancelled job (admin action). */
+    /**
+     * Latest job whose unique key is $prefix or starts with "$prefix:".
+     *
+     * @return array{id: int, status: string}|null
+     */
+    public function latestByKeyPrefix(string $prefix): ?array
+    {
+        $row = $this->db->fetchOne(
+            'SELECT `id`, `status` FROM `nx_jobs` WHERE `unique_key` = ? OR `unique_key` LIKE ? ORDER BY `id` DESC LIMIT 1',
+            [$prefix, addcslashes($prefix, '%_\\') . ':%'],
+        );
+
+        return $row === null ? null : ['id' => (int) $row['id'], 'status' => (string) $row['status']];
+    }
+
     public function retry(int $id): bool
     {
         $now = $this->clock->nowString();

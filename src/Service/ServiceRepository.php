@@ -67,6 +67,18 @@ class ServiceRepository
     }
 
     /**
+     * Changes the status only if it still has the expected value (atomic
+     * guard against concurrent requests). Returns false if it had changed.
+     */
+    public function transitionStatus(int $id, string $from, string $to): bool
+    {
+        return $this->db->run(
+            'UPDATE `nx_services` SET `status` = ?, `last_error` = NULL, `updated_at` = ? WHERE `id` = ? AND `status` = ?',
+            [$to, $this->clock->nowString(), $id, $from],
+        )->rowCount() === 1;
+    }
+
+    /**
      * Merges keys into the remote state. Called before and after every
      * remote side effect so a retried job can continue where it stopped.
      *
