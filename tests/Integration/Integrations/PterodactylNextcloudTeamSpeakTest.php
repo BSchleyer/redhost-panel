@@ -335,4 +335,29 @@ final class PterodactylNextcloudTeamSpeakTest extends IntegrationTestCase
         $this->expectExceptionMessage('is disabled');
         $this->app->container()->get(NextcloudProvisioner::class)->provision($this->createService($owner, 'nextcloud', $integrationId, ['quota_gb' => 1]), $owner);
     }
+
+    public function testLegacyGameServerIsOnlyDeletedWithTheRecordedIdentifier(): void
+    {
+        $integrationId = $this->pterodactyl();
+        $this->http->on('GET', '/api/application/servers/(?<id>\\d+)', fn ($r, array $m): Response => new Response(200, ['Content-Type' => 'application/json'], json_encode(['object' => 'server', 'attributes' => ['id' => (int) $m['id'], 'identifier' => $m['id'] === '41' ? 'abcd1234' : 'ffff0000']], JSON_THROW_ON_ERROR)));
+        $owner = $this->createUser();
+        $provisioner = $this->app->container()->get(PterodactylProvisioner::class);
+        $services = $this->app->container()->get(\Nebrix\Service\ServiceRepository::class);
+
+        // Server ID 42 now belongs to someone else (ID reused after the legacy server was deleted).
+        $reused = $this->createService($owner, 'minecraft', $integrationId, []);
+        $services->mergeRemote($reused->id, ['legacy' => true, 'server_id' => 42, 'identifier' => 'abcd1234']);
+        try {
+            $provisioner->terminate($this->reload($reused->id));
+            self::fail('Server with another identifier deleted.');
+        } catch (\Nebrix\Integration\IntegrationException $exception) {
+            self::assertStringContainsString('another identifier', $exception->getMessage());
+        }
+        self::assertSame([], $this->http->requests('DELETE', '/api/application/servers/42'));
+
+        $legacy = $this->createService($owner, 'minecraft', $integrationId, []);
+        $services->mergeRemote($legacy->id, ['legacy' => true, 'server_id' => 41, 'identifier' => 'abcd1234']);
+        $provisioner->terminate($this->reload($legacy->id));
+        self::assertCount(1, $this->http->requests('DELETE', '/api/application/servers/41'));
+    }
 }

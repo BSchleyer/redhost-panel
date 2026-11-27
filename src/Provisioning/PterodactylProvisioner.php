@@ -152,12 +152,18 @@ final class PterodactylProvisioner implements Provisioner
         // database recorded their server ID.
         if (($service->remote['legacy'] ?? false) === true && (int) $service->remote('server_id', 0) > 0) {
             try {
-                $client->deleteServer((int) $service->remote('server_id', 0));
+                $server = $client->server((int) $service->remote('server_id', 0));
             } catch (IntegrationException $exception) {
-                if (!$exception->isNotFound()) {
-                    throw $exception;
+                if ($exception->isNotFound()) {
+                    return;
                 }
+                throw $exception;
             }
+            // Only delete the server the legacy database recorded (identifier check).
+            if ((string) ($server['identifier'] ?? '') === '' || (string) $server['identifier'] !== (string) $service->remote('identifier', '')) {
+                throw new IntegrationException('The game server with the recorded ID has another identifier; nothing was deleted.');
+            }
+            $client->deleteServer((int) $service->remote('server_id', 0));
         }
     }
 

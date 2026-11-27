@@ -215,14 +215,21 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             return false;
         }
 
-        // Guests imported from RED-Host carry no marker: the legacy database
-        // assigned exactly this VMID to the service.
-        if (($service->remote['legacy'] ?? false) === true && (int) ($service->remote['vmid'] ?? 0) === (int) $guest['vmid']) {
-            return true;
-        }
-
         $config = $client->guestConfig($node, $type, (int) $guest['vmid']);
         $marker = 'nebrix-service-' . $service->id;
+
+        // Guests imported from RED-Host carry no marker: accept the VMID the
+        // legacy database recorded only if the guest still has the recorded
+        // host name and no marker of another service (a deleted legacy VM's
+        // VMID may have been reused).
+        if (($service->remote['legacy'] ?? false) === true && (int) ($service->remote['vmid'] ?? 0) === (int) $guest['vmid']) {
+            $legacyName = (string) $service->option('hostname', '');
+
+            return $legacyName !== ''
+                && (string) ($guest['name'] ?? $config['hostname'] ?? $config['name'] ?? '') === $legacyName
+                && !str_contains((string) ($config['description'] ?? ''), 'nebrix-service-');
+        }
+
         foreach (preg_split('/\R/', (string) ($config['description'] ?? '')) ?: [] as $line) {
             if (trim($line) === $marker) {
                 return true;
@@ -423,7 +430,14 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
                 $client->setUserPassword($node, $vmid, 'root', $password);
                 $message = 'A new root password has been set. You can view it under access data.';
             } catch (IntegrationException) {
-                // … or through cloud-init, applied at the next boot.
+                // … or through cloud-init, applied at the next boot – only if the VM has a cloud-init drive.
+                $hasCloudInit = false;
+                foreach ($client->guestConfig($node, ProxmoxClient::TYPE_QEMU, $vmid) as $value) {
+                    $hasCloudInit = $hasCloudInit || (is_string($value) && str_contains($value, 'cloudinit'));
+                }
+                if (!$hasCloudInit) {
+                    throw new IntegrationException('The QEMU guest agent is not running and the server has no cloud-init drive. Start the guest agent and try again.');
+                }
                 $client->updateVmConfig($node, $vmid, ['cipassword' => $password]);
                 $message = 'The new root password takes effect after the next restart of the server. You can view it under access data.';
             }

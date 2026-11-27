@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Tests\Integration\Integrations;
 
 use GuzzleHttp\Psr7\Response;
+use Nebrix\Integration\IntegrationException;
 use Nebrix\Network\IpPoolService;
 use Nebrix\Network\PoolExhaustedException;
 use Nebrix\Provisioning\ProvisionResult;
@@ -24,7 +25,7 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
 {
     private int $integrationId;
 
-    /** @var array<int, array{name: string, status: string, description: string, type: string}> */
+    /** @var array<int, array{name: string, status: string, description: string, type: string, config?: array<string, string>}> */
     private array $guests = [];
 
     /** @var array<string, string> */
@@ -53,7 +54,7 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
 
                 return $json($task('vzcreate', (int) $form['vmid']));
             })
-            ->on('GET', '/api2/json/nodes/pve1/(?<type>lxc|qemu)/(?<vmid>\d+)/config', fn ($r, array $m): Response => $json(['description' => $this->guests[(int) $m['vmid']]['description'] ?? '']))
+            ->on('GET', '/api2/json/nodes/pve1/(?<type>lxc|qemu)/(?<vmid>\d+)/config', fn ($r, array $m): Response => $json(['description' => $this->guests[(int) $m['vmid']]['description'] ?? ''] + ($this->guests[(int) $m['vmid']]['config'] ?? [])))
             ->on('GET', '/api2/json/nodes/pve1/(?<type>lxc|qemu)/(?<vmid>\d+)/status/current', fn ($r, array $m): Response => $json(['status' => $this->guests[(int) $m['vmid']]['status'] ?? 'stopped']))
             ->on('POST', '/api2/json/nodes/pve1/(?<type>lxc|qemu)/(?<vmid>\d+)/status/(?<action>\w+)', function ($r, array $m) use ($json, $task): Response {
                 $this->guests[(int) $m['vmid']]['status'] = in_array($m['action'], ['stop', 'shutdown'], true) ? 'stopped' : 'running';
@@ -252,10 +253,47 @@ final class ProxmoxLifecycleTest extends IntegrationTestCase
         self::assertSame($password, FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/agent/set-user-password')[0])['password']);
 
         $this->agentRunning = false;
+        try {
+            $runner->run($this->reload($service->id), 'reset_password', [], null, null);
+            self::fail('Password reset accepted without guest agent and cloud-init drive.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('no cloud-init drive', $exception->getMessage());
+        }
+        self::assertSame([], $this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/config'), 'No cipassword is set on a VM without cloud-init.');
+        self::assertSame($password, (string) $repository->credentials($this->reload($service->id))['password'], 'Stored credentials are unchanged.');
+
+        $this->guests[10500] = ['name' => 'vm10500', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id, 'type' => 'qemu', 'config' => ['ide2' => 'local-lvm:vm-10500-cloudinit,media=cdrom']];
         $message = $runner->run($this->reload($service->id), 'reset_password', [], null, null)['message'];
         self::assertStringContainsString('next restart', $message);
         $fallback = FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve1/qemu/10500/config')[0]);
         self::assertSame((string) $repository->credentials($this->reload($service->id))['password'], $fallback['cipassword']);
         self::assertNotSame($password, $fallback['cipassword']);
+    }
+
+    public function testLegacyGuestIsOnlyDeletedWhileItKeepsItsRecordedHostname(): void
+    {
+        $service = $this->createService($this->createUser(), 'lxc', $this->integrationId, ['_options' => ['hostname' => 'legacy01']]);
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => 333, 'type' => 'lxc', 'legacy' => true, 'step' => 'done']);
+        $provisioner = $this->app->container()->get(ProxmoxProvisioner::class);
+
+        // The legacy VMID was reused for another guest (or claimed by a Nebrix service).
+        foreach ([['reused-by-admin', ''], ['legacy01', "nebrix-service-999"]] as [$name, $description]) {
+            $this->guests[333] = ['name' => $name, 'status' => 'stopped', 'description' => $description, 'type' => 'lxc'];
+            try {
+                $provisioner->terminate($this->reload($service->id));
+                self::fail('Foreign guest deleted: ' . $name);
+            } catch (IntegrationException $exception) {
+                self::assertStringContainsString('was not deleted', $exception->getMessage());
+            }
+        }
+        self::assertSame([], $this->http->requests('DELETE', '/api2/json/nodes/pve1/lxc/333'));
+
+        $this->guests[333] = ['name' => 'legacy01', 'status' => 'stopped', 'description' => '', 'type' => 'lxc'];
+        try {
+            $provisioner->terminate($this->reload($service->id));
+            self::fail('Expected RetryLater while Proxmox deletes the guest.');
+        } catch (RetryLaterException) {
+        }
+        self::assertCount(1, $this->http->requests('DELETE', '/api2/json/nodes/pve1/lxc/333'));
     }
 }
