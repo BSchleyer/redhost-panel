@@ -19,7 +19,8 @@ use Nebrix\View\View;
  */
 final class MaintenanceMode implements Middleware
 {
-    private const ALWAYS_ALLOWED_PREFIXES = ['/login', '/logout', '/two-factor', '/webhooks/', '/assets/', '/health', '/branding.css'];
+    // Cancellation and withdrawal must stay available at all times (§ 312k BGB).
+    private const ALWAYS_ALLOWED_PREFIXES = ['/login', '/logout', '/two-factor', '/webhooks/', '/assets/', '/health', '/branding.css', '/cancel-contract', '/withdraw-contract'];
 
     public function __construct(
         private readonly SettingsRepository $settings,

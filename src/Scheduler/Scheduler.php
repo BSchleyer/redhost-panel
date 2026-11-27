@@ -53,6 +53,7 @@ class Scheduler
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
         private readonly \Nebrix\Billing\AutoPayment $autoPayment,
         private readonly \Nebrix\Billing\PaymentReminders $reminders,
+        private readonly \Nebrix\Contract\CancellationService $cancellations,
     ) {
     }
 
@@ -69,6 +70,7 @@ class Scheduler
             'billing.payment_reminders' => [60, fn (): string => sprintf('%d reminder(s) sent', $this->reminders->send())],
             'billing.suspend_overdue' => [15, $this->suspendOverdue(...)],
             'billing.terminate_suspended' => [60, $this->terminateLongSuspended(...)],
+            'services.cancellations' => [60, fn (): string => sprintf('%d cancelled service(s) terminated', $this->cancellations->executeDue())],
             'billing.cancel_stale_orders' => [60, $this->cancelStaleOrders(...)],
             'integrations.health' => [30, fn (): string => sprintf('%d integration(s) checked', count($this->integrations->checkAll()))],
             'maintenance.cleanup' => [1440, $this->cleanup(...)],
@@ -141,6 +143,7 @@ class Scheduler
             "SELECT s.`id` FROM `nx_services` s
              WHERE s.`status` IN ('active', 'suspended') AND s.`next_due_at` IS NOT NULL AND s.`next_due_at` <= ?
                AND s.`billing_cycle` <> 'one_time'
+               AND (s.`cancel_at` IS NULL OR s.`cancel_at` > s.`next_due_at`)
                AND NOT EXISTS (SELECT 1 FROM `nx_invoices` i WHERE i.`service_id` = s.`id` AND i.`type` = 'renewal' AND i.`status` = 'unpaid')",
             [$horizon],
         );

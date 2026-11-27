@@ -1,0 +1,35 @@
+{% extends user ? 'layouts/customer.twig' : 'layouts/auth.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ (withdrawal ? 'Withdraw from contract here' : 'Cancel contracts here')|t }}{% endblock %}
+{% block content %}
+<h1>{{ (withdrawal ? 'Withdraw from contract' : 'Cancel contracts')|t }}</h1>
+<p class="muted">
+    {% if withdrawal %}
+        {{ 'Use this form to withdraw from a contract within the statutory withdrawal period. You receive a confirmation of receipt by e-mail immediately.'|t }}
+    {% else %}
+        {{ 'Use this form to cancel a contract. You receive a confirmation of receipt by e-mail immediately; without a chosen date the contract ends at the earliest possible date.'|t }}
+    {% endif %}
+</p>
+<form method="post" action="{{ withdrawal ? '/withdraw-contract' : '/cancel-contract' }}" novalidate>
+    {{ csrf_field() }}
+    {% if not withdrawal %}
+        {{ f.select('kind', 'Type of cancellation', {'ordinary': 'Ordinary cancellation', 'extraordinary': 'Extraordinary cancellation (for good cause)'}, 'ordinary') }}
+    {% endif %}
+    {{ f.input('name', 'Your name', user ? user.displayName : '', 'text', {required: true, autocomplete: 'name'}) }}
+    {{ f.input('email', 'E-mail address for the confirmation', user ? user.email : '', 'email', {required: true, autocomplete: 'email'}) }}
+    {% if services|length > 0 %}
+        {{ f.select('service_id', 'Contract', services, preselect, {placeholder: 'Other contract (describe below)'}) }}
+    {% else %}
+        {{ f.input('customer_reference', 'Customer number or e-mail address of your account', '', 'text', {maxlength: 255}) }}
+    {% endif %}
+    {{ f.input('contract', 'Contract (service name, domain, server or order number)', '', 'text', {maxlength: 500, help: services|length > 0 ? 'Only needed if the contract is not listed above.' : 'Which contract do you want to end?'}) }}
+    {% if not withdrawal %}
+        {{ f.select('effective', 'End of the contract', {'earliest': 'At the earliest possible date (end of the paid term)', 'date': 'On a later date'}, 'earliest') }}
+        {{ f.input('requested_date', 'Date (only for a later date)', '', 'date', {min: today}) }}
+    {% endif %}
+    {{ f.textarea('reason', withdrawal ? 'Message (optional)' : 'Reason (required for an extraordinary cancellation)', '', {rows: 3, maxlength: 5000}) }}
+    {% include 'partials/captcha.twig' with {captcha: captcha} only %}
+    <button class="btn btn-danger btn-block" type="submit">{{ (withdrawal ? 'Confirm withdrawal' : 'Cancel now')|t }}</button>
+</form>
+{% if not user %}<div class="auth-links"><a href="/login">{{ 'Back to sign-in'|t }}</a></div>{% endif %}
+{% endblock %}

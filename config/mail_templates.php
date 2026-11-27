@@ -82,6 +82,24 @@ return [
         'subject' => 'Payment reminder: invoice {{ invoice_number }}',
         'html' => '<p>Hello {{ name }},</p><p>invoice {{ invoice_number }} over {{ invoice_total }} is due on {{ due_date }} and has not been paid yet. Please pay it in time – services with unpaid renewal invoices are suspended after the due date.</p><p><a class="button" href="{{ invoice_url }}">Pay invoice</a></p><p>If you have already paid, please ignore this e-mail.</p>',
     ],
+    'cancellation_received' => [
+        'name' => 'Cancellation / withdrawal received',
+        'variables' => ['name', 'reference', 'kind', 'contract', 'received_at', 'effective', 'reason'],
+        'subject' => 'Confirmation of receipt: {{ kind }} {{ reference }}',
+        'html' => '<p>Hello {{ name }},</p><p>we have received your declaration and confirm its receipt:</p><p>Reference: <strong>{{ reference }}</strong><br>Type: {{ kind }}<br>Contract: {{ contract }}<br>Received: {{ received_at }}<br>Requested end: {{ effective }}<br>Reason: {{ reason }}</p><p>We will confirm the exact end date separately. If you did not send this declaration, please contact {{ support_email }} immediately.</p>',
+    ],
+    'cancellation_confirmed' => [
+        'name' => 'Cancellation confirmed',
+        'variables' => ['name', 'reference', 'service_name', 'effective_date', 'service_url'],
+        'subject' => 'Your cancellation of "{{ service_name }}" takes effect on {{ effective_date }}',
+        'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> ends on <strong>{{ effective_date }}</strong> (reference {{ reference }}). No further invoices will be issued for it. Please save your data before that date – the service and its data are deleted when it ends.</p><p>Until then you can take back the cancellation in your customer area.</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
+    ],
+    'cancellation_rejected' => [
+        'name' => 'Cancellation / withdrawal not accepted',
+        'variables' => ['name', 'reference', 'note'],
+        'subject' => 'Your declaration {{ reference }}',
+        'html' => '<p>Hello {{ name }},</p><p>we could not process your declaration {{ reference }}:</p><p>{{ note }}</p><p>If you have questions, please contact {{ support_email }}.</p>',
+    ],
     'ticket_reply' => [
         'name' => 'Support ticket reply',
         'variables' => ['name', 'ticket_subject', 'ticket_url'],

@@ -1,0 +1,18 @@
+{% extends auth_user ? 'layouts/customer.twig' : 'layouts/auth.twig' %}
+{% block title %}{{ 'Declaration received'|t }}{% endblock %}
+{% block content %}
+<h1>{{ (withdrawal ? 'Withdrawal received' : 'Cancellation received')|t }}</h1>
+<div class="alert alert-success">{{ 'Your declaration has been received. A confirmation has been sent to your e-mail address. Please save or print this page for your records.'|t }}</div>
+<dl class="details">
+    <dt>{{ 'Reference'|t }}</dt><dd class="mono">{{ declaration.reference }}</dd>
+    <dt>{{ 'Received on'|t }}</dt><dd>{{ declaration.received_at }} UTC</dd>
+    <dt>{{ 'Type'|t }}</dt><dd>{{ declaration.kind == 'withdrawal' ? 'Withdrawal'|t : (declaration.kind == 'extraordinary' ? 'Extraordinary cancellation'|t : 'Ordinary cancellation'|t) }}</dd>
+    <dt>{{ 'Name'|t }}</dt><dd>{{ declaration.name }}</dd>
+    <dt>{{ 'E-mail address'|t }}</dt><dd>{{ declaration.email }}</dd>
+    <dt>{{ 'Contract'|t }}</dt><dd>{{ declaration.contract }}</dd>
+    {% if not withdrawal %}<dt>{{ 'Requested end'|t }}</dt><dd>{{ declaration.requested_date ?: 'At the earliest possible date'|t }}</dd>{% endif %}
+    {% if declaration.effective_at %}<dt>{{ 'Contract ends on'|t }}</dt><dd><strong>{{ declaration.effective_at|slice(0, 10) }}</strong></dd>{% endif %}
+    {% if declaration.reason %}<dt>{{ 'Reason'|t }}</dt><dd>{{ declaration.reason }}</dd>{% endif %}
+</dl>
+{% if not declaration.effective_at %}<p class="muted">{{ 'We will check your declaration and confirm the end date by e-mail.'|t }}</p>{% endif %}
+{% endblock %}

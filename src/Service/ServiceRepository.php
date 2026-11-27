@@ -13,7 +13,7 @@ class ServiceRepository
     private const WRITABLE = [
         'user_id', 'product_id', 'order_item_id', 'integration_id', 'category', 'name', 'status', 'billing_cycle',
         'recurring_amount', 'tax_rate_bp', 'currency', 'next_due_at', 'external_id', 'config', 'suspension_reason',
-        'last_error', 'provisioned_at', 'suspended_at', 'terminated_at', 'cancelled_at',
+        'last_error', 'provisioned_at', 'suspended_at', 'terminated_at', 'cancelled_at', 'cancel_at', 'cancellation_id',
     ];
 
     public function __construct(

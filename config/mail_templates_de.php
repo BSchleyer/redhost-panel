@@ -56,6 +56,18 @@ return [
         'subject' => 'Zahlungserinnerung: Rechnung {{ invoice_number }}',
         'html' => '<p>Hallo {{ name }},</p><p>die Rechnung {{ invoice_number }} über {{ invoice_total }} ist am {{ due_date }} fällig und noch nicht bezahlt. Bitte begleichen Sie sie rechtzeitig – Dienste mit unbezahlter Verlängerungsrechnung werden nach dem Fälligkeitsdatum gesperrt.</p><p><a class="button" href="{{ invoice_url }}">Rechnung bezahlen</a></p><p>Falls Sie bereits bezahlt haben, betrachten Sie diese E-Mail bitte als gegenstandslos.</p>',
     ],
+    'cancellation_received' => [
+        'subject' => 'Eingangsbestätigung: {{ kind }} {{ reference }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir haben Ihre Erklärung erhalten und bestätigen den Eingang:</p><p>Referenz: <strong>{{ reference }}</strong><br>Art: {{ kind }}<br>Vertrag: {{ contract }}<br>Eingegangen: {{ received_at }}<br>Gewünschtes Vertragsende: {{ effective }}<br>Grund: {{ reason }}</p><p>Das genaue Vertragsende bestätigen wir Ihnen gesondert. Falls Sie diese Erklärung nicht abgegeben haben, wenden Sie sich bitte umgehend an {{ support_email }}.</p>',
+    ],
+    'cancellation_confirmed' => [
+        'subject' => 'Ihre Kündigung von „{{ service_name }}“ wird zum {{ effective_date }} wirksam',
+        'html' => '<p>Hallo {{ name }},</p><p>Ihr Dienst <strong>{{ service_name }}</strong> endet am <strong>{{ effective_date }}</strong> (Referenz {{ reference }}). Es werden keine weiteren Rechnungen dafür gestellt. Bitte sichern Sie Ihre Daten vorher – mit dem Vertragsende werden der Dienst und seine Daten gelöscht.</p><p>Bis dahin können Sie die Kündigung in Ihrem Kundenbereich zurücknehmen.</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
+    ],
+    'cancellation_rejected' => [
+        'subject' => 'Ihre Erklärung {{ reference }}',
+        'html' => '<p>Hallo {{ name }},</p><p>wir konnten Ihre Erklärung {{ reference }} nicht bearbeiten:</p><p>{{ note }}</p><p>Bei Fragen wenden Sie sich bitte an {{ support_email }}.</p>',
+    ],
     'ticket_reply' => [
         'subject' => 'Neue Antwort auf Ihr Ticket „{{ ticket_subject }}“',
         'html' => '<p>Hallo {{ name }},</p><p>unser Support-Team hat auf Ihr Ticket <strong>{{ ticket_subject }}</strong> geantwortet.</p><p><a class="button" href="{{ ticket_url }}">Ticket ansehen</a></p>',

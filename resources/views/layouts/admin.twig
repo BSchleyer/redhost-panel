@@ -12,6 +12,7 @@
             {% if can('customers.view') %}<a href="/admin/customers" class="{{ active('/admin/customers') }}">{{ 'Customers'|t }}</a>{% endif %}
             {% if can('customer_groups.manage') %}<a href="/admin/customer-groups" class="{{ active('/admin/customer-groups') }}">{{ 'Customer groups'|t }}</a>{% endif %}
             {% if can('services.view') %}<a href="/admin/services" class="{{ active('/admin/services') }}">{{ 'Services'|t }}</a>{% endif %}
+            {% if can('services.view') %}<a href="/admin/cancellations" class="{{ active('/admin/cancellations') }}">{{ 'Cancellations'|t }}</a>{% endif %}
             {% if can('tickets.view') %}<a href="/admin/tickets" class="{{ active('/admin/tickets') }}">{{ 'Support tickets'|t }}</a>{% endif %}
 
             <div class="nav-section">{{ 'Sales'|t }}</div>

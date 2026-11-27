@@ -191,7 +191,8 @@ class Mailer
         return mb_substr(trim($error), 0, 300);
     }
 
-    private function localeFor(string $email): string
+    /** Language for e-mails to this address (account language, else the default language). */
+    public function localeFor(string $email): string
     {
         $language = $this->db->fetchValue('SELECT `language` FROM `nx_users` WHERE `email` = ?', [mb_strtolower($email)]);
         if (is_string($language) && $language !== '') {

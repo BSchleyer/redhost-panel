@@ -28,7 +28,11 @@
             <a href="/admin">{{ 'Administration'|t }}</a>
             {% endif %}
         </nav>
-        <div class="sidebar-footer">&copy; {{ 'now'|date('Y') }} {{ brand.name }}</div>
+        <div class="sidebar-footer">
+            <a href="/cancel-contract">{{ 'Cancel contracts here'|t }}</a><br>
+            <a href="/withdraw-contract">{{ 'Withdraw from contract here'|t }}</a><br>
+            &copy; {{ 'now'|date('Y') }} {{ brand.name }}
+        </div>
     </aside>
     <div class="main">
         <header class="topbar">

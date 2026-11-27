@@ -46,6 +46,11 @@ final class OpenApi
                 'additionalProperties' => true,
             ]],
             ['GET', '/services/{id}/credentials', ApiScope::SERVICES_CREDENTIALS, 'Access data of the service (audit-logged)', 'Credentials'],
+            ['POST', '/services/{id}/cancel', ApiScope::SERVICES_MANAGE, 'Cancel the service at the end of the paid term (or a later date)', 'CancellationResult', [
+                'type' => 'object',
+                'properties' => ['end_date' => ['type' => 'string', 'format' => 'date', 'description' => 'Optional later end date; earlier dates are moved to the end of the paid term.'], 'reason' => ['type' => 'string', 'maxLength' => 5000]],
+            ]],
+            ['POST', '/services/{id}/cancel/withdraw', ApiScope::SERVICES_MANAGE, 'Take back a scheduled cancellation', 'Service'],
             ['GET', '/invoices', ApiScope::INVOICES_READ, 'Your invoices', 'InvoiceList', [], [...$list, 'status', 'type']],
             ['GET', '/invoices/{id}', ApiScope::INVOICES_READ, 'One of your invoices with items and payment methods', 'Invoice'],
             ['POST', '/invoices/{id}/pay', ApiScope::INVOICES_PAY, 'Pay with account credit or get the provider checkout URL', 'PaymentStarted', [
@@ -168,7 +173,7 @@ final class OpenApi
         if ($method !== 'POST') {
             return '200';
         }
-        if (in_array($path, ['/orders', '/tickets'], true) || str_ends_with($path, '/replies')) {
+        if (in_array($path, ['/orders', '/tickets', '/services/{id}/cancel'], true) || str_ends_with($path, '/replies')) {
             return '201';
         }
 
@@ -208,7 +213,7 @@ final class OpenApi
         $service = ['type' => 'object', 'properties' => [
             'id' => $int, 'user_id' => $int, 'name' => $str, 'category' => $str, 'status' => ['type' => 'string', 'enum' => ['pending', 'provisioning', 'active', 'suspended', 'terminated', 'failed', 'cancelled']],
             'product_id' => $nullableInt, 'billing_cycle' => $str, 'recurring_amount' => $int, 'tax_rate_bp' => $int, 'currency' => $str, 'next_due_at' => $date,
-            'options' => ['type' => 'object'], 'has_credentials' => ['type' => 'boolean'], 'created_at' => $date,
+            'cancel_at' => $date, 'options' => ['type' => 'object'], 'has_credentials' => ['type' => 'boolean'], 'created_at' => $date,
         ]];
         $order = ['type' => 'object', 'properties' => [
             'id' => $int, 'number' => $str, 'user_id' => $int, 'status' => $str, 'currency' => $str, 'subtotal' => $int, 'discount' => $int, 'tax' => $int, 'total' => $int,
@@ -257,6 +262,9 @@ final class OpenApi
                 'requires_confirmation' => ['type' => 'boolean'], 'confirmation_text' => $nullableStr, 'fields' => ['type' => 'array', 'items' => ['type' => 'object']],
             ]]]]],
             'ActionResult' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => ['message' => $str, 'redirect_url' => $nullableStr, 'service' => ['$ref' => '#/components/schemas/ServiceData']]]]],
+            'CancellationResult' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'properties' => [
+                'reference' => $str, 'received_at' => $date, 'ends_at' => $date, 'service' => ['$ref' => '#/components/schemas/ServiceData'],
+            ]]]],
             'Credentials' => ['type' => 'object', 'properties' => ['data' => ['type' => 'object', 'additionalProperties' => ['type' => ['string', 'number', 'boolean', 'null']]]]],
             'InvoiceData' => $invoice,
             'Invoice' => $data('InvoiceData'),

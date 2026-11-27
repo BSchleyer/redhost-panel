@@ -1,0 +1,30 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Cancellations'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Cancellations and withdrawals'|t }}</h1><p class="muted">{{ 'Declarations from the cancellation and withdrawal pages. Ordinary cancellations of signed-in customers are scheduled automatically.'|t }}</p></div></div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            {{ f.select('status', 'Status', {'': 'All', 'received': 'To review', 'scheduled': 'Scheduled', 'completed': 'Completed', 'rejected': 'Rejected', 'withdrawn': 'Taken back'}, status, {'data-autosubmit': true}) }}
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Reference'|t }}</th><th>{{ 'Received'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Name'|t }}</th><th>{{ 'Contract'|t }}</th><th>{{ 'Ends on'|t }}</th><th>{{ 'Status'|t }}</th></tr></thead>
+        <tbody>
+        {% for c in result.items %}
+            <tr>
+                <td class="mono"><a href="/admin/cancellations/{{ c.id }}">{{ c.reference }}</a></td>
+                <td class="nowrap">{{ c.received_at|dt }}</td>
+                <td>{{ c.kind|humanize|t }}</td>
+                <td>{{ c.name }}<div class="small muted">{{ c.email }}</div></td>
+                <td>{{ c.service_name ?: c.contract }}</td>
+                <td class="nowrap">{{ c.effective_at ? c.effective_at|d : '–' }}</td>
+                <td><span class="badge {{ c.status|status_class }}">{{ c.status|humanize|t }}</span></td>
+            </tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No declarations.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

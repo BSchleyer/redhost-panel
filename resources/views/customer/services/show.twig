@@ -6,6 +6,8 @@
 {% if service.status == 'pending' or service.status == 'provisioning' %}<div class="alert alert-info">{{ 'Your service is being set up. This page updates when it is ready.'|t }}</div>{% endif %}
 {% if service.status == 'failed' %}<div class="alert alert-warning">{{ 'The setup is delayed. Our team has been notified and will complete it as soon as possible.'|t }}</div>{% endif %}
 {% if service.status == 'suspended' %}<div class="alert alert-danger">{{ 'This service is suspended.'|t }}{% if renewal %} <a href="/invoices/{{ renewal.id }}">{{ 'Pay the open invoice to reactivate it.'|t }}</a>{% endif %}</div>{% endif %}
+{% if service.attributes.cancel_at %}<div class="alert alert-info">{{ 'This service has been cancelled and ends on'|t }} <strong>{{ service.attributes.cancel_at|d }}</strong>.
+    {% if service.attributes.cancel_at > now %}<form method="post" action="/services/{{ service.id }}/cancellation/withdraw" class="d-inline" data-confirm="{{ 'Take back the cancellation? The service will be renewed as usual.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Take back cancellation'|t }}</button></form>{% endif %}</div>{% endif %}
 {% if renewal and service.status == 'active' %}<div class="alert alert-warning">{{ 'A renewal invoice is open.'|t }} <a href="/invoices/{{ renewal.id }}">{{ 'Pay now'|t }} ({{ renewal.total|money(renewal.currency) }})</a></div>{% endif %}
 
 <div class="grid grid-2">
@@ -39,6 +41,7 @@
                 <p class="mt-2"><a class="btn btn-primary" href="/services/{{ service.id }}/credentials">{{ 'Show access data'|t }}</a></p>
             {% endif %}
             {% if setting('system.tickets_enabled') %}<p class="mt-2"><a href="/tickets/create?service={{ service.id }}">{{ 'Need help with this service?'|t }}</a></p>{% endif %}
+            {% if service.status in ['active', 'suspended'] and not service.attributes.cancel_at %}<p class="mt-2"><a class="text-danger" href="/cancel-contract?service={{ service.id }}">{{ 'Cancel this contract'|t }}</a></p>{% endif %}
         </div>
     </div>
 </div>

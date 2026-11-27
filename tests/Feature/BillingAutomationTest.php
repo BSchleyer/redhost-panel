@@ -46,7 +46,10 @@ final class BillingAutomationTest extends FeatureTestCase
         $serviceId = $this->service($customer);
 
         $this->app->container()->get(Scheduler::class)->createRenewalInvoices();
+        self::assertSame('unpaid', $this->renewalStatus($serviceId), 'Not charged a week ahead of the due date.');
 
+        $this->clock()->freeze(new DateTimeImmutable('2026-06-30 08:00:00'));
+        self::assertSame(1, $this->app->container()->get(AutoPayment::class)->run());
         self::assertSame('paid', $this->renewalStatus($serviceId));
         self::assertSame(2000 - 595, $this->app->container()->get(CreditService::class)->balance($customer->id));
         self::assertSame('2026-08-01 00:00:00', $this->db->fetchValue('SELECT next_due_at FROM nx_services WHERE id = ?', [$serviceId]));
@@ -74,8 +77,9 @@ final class BillingAutomationTest extends FeatureTestCase
         self::assertSame('unpaid', $this->renewalStatus($poorService));
         self::assertSame('unpaid', $this->renewalStatus($optedOutService));
 
-        // Credit topped up later: the next run pays the renewal before the overdue check.
+        // Credit topped up later: the run on the due date pays the renewal before the overdue check.
         $credit->adjust($poor->id, 1000, 'top-up');
+        $this->clock()->freeze(new DateTimeImmutable('2026-07-01 00:30:00'));
         self::assertSame(1, $autoPayment->run());
         self::assertSame('paid', $this->renewalStatus($poorService));
         self::assertSame('unpaid', $this->renewalStatus($optedOutService), 'Customers can switch automatic payment off.');

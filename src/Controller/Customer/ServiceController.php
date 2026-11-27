@@ -77,6 +77,7 @@ final class ServiceController extends Controller
             'renewal' => $this->invoices->openRenewalFor($id),
             'has_credentials' => $service->hasCredentials && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true),
             'console' => $this->mayManage($request) && $this->consoles->supports($service),
+            'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
         ]);
     }
 
@@ -132,6 +133,20 @@ final class ServiceController extends Controller
         } catch (IntegrationException $exception) {
             $this->logger->warning('Customer service action failed', ['service' => $id, 'action' => $data['action'], 'message' => $exception->getMessage()]);
             $this->flash($request, 'error', 'The action could not be executed. Please try again later or contact support.');
+        }
+
+        return $this->redirect('/services/' . $id);
+    }
+
+    /** Takes back a scheduled cancellation before it takes effect. */
+    public function withdrawCancellation(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        try {
+            $this->container->get(\Nebrix\Contract\CancellationService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
+            $this->flash($request, 'success', 'The cancellation has been taken back. The service will be renewed as usual.');
+        } catch (\RuntimeException $exception) {
+            $this->flash($request, 'error', $exception->getMessage());
         }
 
         return $this->redirect('/services/' . $id);

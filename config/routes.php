@@ -7,6 +7,7 @@ use Nebrix\Controller\Admin;
 use Nebrix\Controller\Api;
 use Nebrix\Controller\Auth;
 use Nebrix\Controller\BrandingController;
+use Nebrix\Controller\ContractController;
 use Nebrix\Controller\Customer;
 use Nebrix\Controller\HealthController;
 use Nebrix\Controller\WebhookController;
@@ -49,6 +50,8 @@ return static function (Router $r): void {
             $r->get('/services/{id:\d+}/actions', [Api\ServiceController::class, 'actions'], ['middleware' => ['api.scope:services:read']]);
             $r->post('/services/{id:\d+}/actions/{action:[a-z0-9_]{1,30}}', [Api\ServiceController::class, 'runAction'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
             $r->get('/services/{id:\d+}/credentials', [Api\ServiceController::class, 'credentials'], ['middleware' => ['api.scope:services:credentials']]);
+            $r->post('/services/{id:\d+}/cancel', [Api\ServiceController::class, 'cancel'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
+            $r->post('/services/{id:\d+}/cancel/withdraw', [Api\ServiceController::class, 'withdrawCancellation'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
 
             $r->get('/invoices', [Api\InvoiceController::class, 'index'], ['middleware' => ['api.scope:invoices:read']]);
             $r->get('/invoices/{id:\d+}', [Api\InvoiceController::class, 'show'], ['middleware' => ['api.scope:invoices:read']]);
@@ -82,6 +85,13 @@ return static function (Router $r): void {
             });
         });
     });
+
+    // Cancellation button (§ 312k BGB) and withdrawal function: reachable
+    // without signing in and during maintenance.
+    $r->get('/cancel-contract', [ContractController::class, 'cancelForm']);
+    $r->post('/cancel-contract', [ContractController::class, 'cancel']);
+    $r->get('/withdraw-contract', [ContractController::class, 'withdrawForm']);
+    $r->post('/withdraw-contract', [ContractController::class, 'withdraw']);
 
     // Payment webhooks: authenticated by provider signatures, therefore no CSRF token.
     $r->post('/webhooks/stripe', [WebhookController::class, 'stripe'], ['csrf' => false]);
@@ -125,6 +135,7 @@ return static function (Router $r): void {
         $r->post('/services/{id:\d+}/action', [Customer\ServiceController::class, 'action']);
         $r->get('/services/{id:\d+}/console', [Customer\ServiceController::class, 'console']);
         $r->post('/services/{id:\d+}/console/session', [Customer\ServiceController::class, 'consoleSession']);
+        $r->post('/services/{id:\d+}/cancellation/withdraw', [Customer\ServiceController::class, 'withdrawCancellation']);
         $r->get('/orders', [Customer\ServiceController::class, 'orders']);
 
         $r->get('/tickets', [Customer\TicketController::class, 'index']);
@@ -252,6 +263,9 @@ return static function (Router $r): void {
             $r->post('/invoices/{id:\d+}/payment', [Admin\InvoiceController::class, 'recordPayment']);
         });
         $r->group(['middleware' => ['permission:services.view']], static function (Router $r): void {
+            $r->get('/cancellations', [Admin\CancellationController::class, 'index']);
+            $r->get('/cancellations/{id:\d+}', [Admin\CancellationController::class, 'show']);
+            $r->post('/cancellations/{id:\d+}', [Admin\CancellationController::class, 'process']);
             $r->get('/services', [Admin\ServiceController::class, 'index']);
             $r->get('/services/{id:\d+}', [Admin\ServiceController::class, 'show']);
             $r->get('/services/{id:\d+}/credentials', [Admin\ServiceController::class, 'credentials']);

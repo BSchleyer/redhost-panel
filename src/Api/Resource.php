@@ -198,6 +198,7 @@ final class Resource
             'tax_rate_bp' => $service->taxRateBp,
             'currency' => $service->currency,
             'next_due_at' => self::date($service->nextDueAt),
+            'cancel_at' => self::date($service->attributes['cancel_at'] ?? null),
             'options' => self::publicOptions(is_array($options) ? $options : [], $service->category),
             'has_credentials' => $service->hasCredentials,
             'created_at' => self::date($service->attributes['created_at'] ?? null),

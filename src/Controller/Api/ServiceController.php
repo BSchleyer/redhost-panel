@@ -171,6 +171,54 @@ final class ServiceController extends ApiController
         ], $definition->mode === ServiceAction::REINSTALL ? 202 : 200);
     }
 
+    /**
+     * Ordinary cancellation of the service (end of the paid term or a later
+     * date), same rules as the cancellation page.
+     */
+    public function cancel(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        if (!in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true)) {
+            throw ApiException::conflict('Only active or suspended services can be cancelled here.');
+        }
+        if ($service->attributes['cancel_at'] !== null) {
+            throw ApiException::conflict('The service is already cancelled.');
+        }
+        $data = $this->validateInput($request, ['end_date' => 'nullable|date', 'reason' => 'nullable|string|max:5000']);
+        if ($data['end_date'] !== null && (string) $data['end_date'] < $this->container->get(\Nebrix\Core\Clock::class)->now()->format('Y-m-d')) {
+            throw \Nebrix\Security\ValidationException::withMessages(['end_date' => 'Please choose a date in the future.']);
+        }
+        $this->throttle('contract-declaration:' . $request->clientIp(), 10, 3600);
+        $user = $this->user($request);
+        $declaration = $this->container->get(\Nebrix\Contract\CancellationService::class)->submit([
+            'kind' => \Nebrix\Contract\CancellationService::ORDINARY,
+            'name' => $user->displayName(),
+            'email' => $user->email,
+            'reason' => $data['reason'] !== null ? (string) $data['reason'] : null,
+            'requested_date' => $data['end_date'] !== null ? (string) $data['end_date'] : null,
+            'service_id' => $id,
+        ], $user, $request->clientIp());
+
+        return $this->data([
+            'reference' => (string) $declaration['reference'],
+            'received_at' => Resource::date($declaration['received_at']),
+            'ends_at' => Resource::date($declaration['effective_at']),
+            'service' => Resource::service($this->services->find($id) ?? $service),
+        ], 201);
+    }
+
+    public function withdrawCancellation(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        try {
+            $this->container->get(\Nebrix\Contract\CancellationService::class)->withdraw($service, $this->user($request)->id, $request->clientIp());
+        } catch (\RuntimeException $exception) {
+            throw ApiException::conflict($exception->getMessage());
+        }
+
+        return $this->data(Resource::service($this->services->find($id) ?? $service));
+    }
+
     public function credentials(Request $request, int $id): Response
     {
         $service = $this->find($request, $id);

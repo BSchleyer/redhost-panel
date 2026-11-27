@@ -1,0 +1,50 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ declaration.reference }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ declaration.kind|humanize|t }} {{ declaration.reference }} <span class="badge {{ declaration.status|status_class }}">{{ declaration.status|humanize|t }}</span></h1><p class="muted"><a href="/admin/cancellations">&larr; {{ 'Cancellations'|t }}</a></p></div></div>
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Declaration'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'Received'|t }}</dt><dd>{{ declaration.received_at }} UTC</dd>
+                <dt>{{ 'Name'|t }}</dt><dd>{{ declaration.name }}</dd>
+                <dt>{{ 'E-mail address'|t }}</dt><dd>{{ declaration.email }}</dd>
+                <dt>{{ 'Customer reference'|t }}</dt><dd>{{ declaration.customer_reference ?: '–' }}</dd>
+                <dt>{{ 'Contract'|t }}</dt><dd>{{ declaration.contract }}</dd>
+                <dt>{{ 'Requested end'|t }}</dt><dd>{{ declaration.requested_date ?: 'earliest possible date'|t }}</dd>
+                <dt>{{ 'Reason / message'|t }}</dt><dd>{{ declaration.reason ?: '–' }}</dd>
+                <dt>{{ 'Submitted while signed in'|t }}</dt><dd>{{ declaration.user_id ? 'yes'|t : 'no – identity not verified'|t }}</dd>
+                <dt>IP</dt><dd class="mono">{{ declaration.ip }}</dd>
+                {% if declaration.effective_at %}<dt>{{ 'Ends on'|t }}</dt><dd><strong>{{ declaration.effective_at|d }}</strong></dd>{% endif %}
+                {% if declaration.staff_note %}<dt>{{ 'Note'|t }}</dt><dd>{{ declaration.staff_note }}</dd>{% endif %}
+                <dt>{{ 'Matching account'|t }}</dt><dd>{% if owner %}<a href="/admin/customers/{{ owner.id }}">{{ owner.email }}</a>{% else %}{{ 'none found'|t }}{% endif %}</dd>
+            </dl>
+        </div>
+    </div>
+    {% if can_manage and declaration.status in ['received', 'scheduled'] %}
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Process'|t }}</h2></div>
+        <div class="card-body">
+            {% if declaration.status == 'received' %}
+            <form method="post" action="/admin/cancellations/{{ declaration.id }}" novalidate>
+                {{ csrf_field() }}<input type="hidden" name="action" value="schedule">
+                {% if services|length > 0 %}{{ f.select('service_id', 'Contract (service)', services, declaration.service_id, {placeholder: 'Choose…'}) }}{% else %}{{ f.input('service_id', 'Service ID', declaration.service_id, 'number') }}{% endif %}
+                {{ f.input('effective_date', 'End date (empty = end of the paid term or the requested date)', '', 'date') }}
+                <button class="btn btn-primary" type="submit">{{ 'Confirm end of contract'|t }}</button>
+            </form>
+            <hr>
+            {% endif %}
+            <form method="post" action="/admin/cancellations/{{ declaration.id }}" novalidate>
+                {{ csrf_field() }}
+                {{ f.textarea('note', 'Note (sent to the customer when rejecting)', '', {rows: 3}) }}
+                <button class="btn btn-outline" type="submit" name="action" value="complete">{{ 'Mark as handled'|t }}</button>
+                <button class="btn btn-danger" type="submit" name="action" value="reject">{{ 'Reject'|t }}</button>
+            </form>
+            <p class="help mt-1">{{ 'Withdrawals: terminate the service and refund the payment (Transactions), then mark the declaration as handled.'|t }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

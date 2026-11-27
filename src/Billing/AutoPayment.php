@@ -14,6 +14,10 @@ use Throwable;
  * Pays open renewal invoices automatically from the customer's account
  * credit (setting billing.auto_pay_credit and the customer's preference).
  *
+ * Invoices are paid at the earliest one day before their due date (not when
+ * the renewal invoice is created), so a customer who cancels shortly before
+ * the end of the term is not charged for the next period.
+ *
  * Uses the regular credit gateway, so the invoice is locked, the balance is
  * checked inside the transaction and the payment is recorded exactly like a
  * manual credit payment (no double spending, payment confirmation e-mail).
@@ -26,6 +30,7 @@ class AutoPayment
         private readonly GatewayRegistry $gateways,
         private readonly UserRepository $users,
         private readonly LoggerInterface $logger,
+        private readonly \Nebrix\Core\Clock $clock,
     ) {
     }
 
@@ -45,8 +50,8 @@ class AutoPayment
 
         $sql = "SELECT i.* FROM `nx_invoices` i JOIN `nx_users` u ON u.`id` = i.`user_id`
                 WHERE i.`type` = 'renewal' AND i.`status` = 'unpaid' AND i.`total` > 0
-                  AND u.`auto_pay_credit` = 1 AND u.`status` = 'active' AND u.`credit_balance` >= i.`total`";
-        $params = [];
+                  AND u.`auto_pay_credit` = 1 AND u.`status` = 'active' AND u.`credit_balance` >= i.`total` AND i.`due_at` <= ?";
+        $params = [$this->clock->now()->modify('+1 day')->format('Y-m-d H:i:s')];
         if ($invoiceId !== null) {
             $sql .= ' AND i.`id` = ?';
             $params[] = $invoiceId;
