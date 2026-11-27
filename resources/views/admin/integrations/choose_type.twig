@@ -1,0 +1,10 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Add integration'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Add integration'|t }}</h1></div></div>
+<div class="grid grid-4">
+    {% for key, type in types %}
+        <a class="card stat" href="/admin/integrations/create?type={{ key }}"><div class="stat-value small">{{ type.label }}</div><div class="stat-hint">{{ type.description|t }}</div></a>
+    {% endfor %}
+</div>
+{% endblock %}

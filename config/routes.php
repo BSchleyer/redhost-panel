@@ -138,6 +138,19 @@ return static function (Router $r): void {
             $r->post('/roles/{id:\d+}/delete', [Admin\RoleController::class, 'delete']);
         });
 
+        // Integrations
+        $r->group(['middleware' => ['permission:integrations.view']], static function (Router $r): void {
+            $r->get('/integrations', [Admin\IntegrationController::class, 'index']);
+            $r->get('/integrations/create', [Admin\IntegrationController::class, 'create']);
+            $r->post('/integrations', [Admin\IntegrationController::class, 'store']);
+            $r->get('/integrations/{id:\d+}', [Admin\IntegrationController::class, 'show']);
+            $r->get('/integrations/{id:\d+}/edit', [Admin\IntegrationController::class, 'edit']);
+            $r->post('/integrations/{id:\d+}', [Admin\IntegrationController::class, 'update']);
+            $r->post('/integrations/{id:\d+}/test', [Admin\IntegrationController::class, 'test']);
+            $r->post('/integrations/{id:\d+}/delete', [Admin\IntegrationController::class, 'delete']);
+            $r->get('/integrations/{id:\d+}/resources', [Admin\IntegrationController::class, 'resources']);
+        });
+
         $r->get('/audit-log', [Admin\LogController::class, 'auditLog'], ['middleware' => ['permission:audit.view']]);
 
         $r->get('/jobs', [Admin\JobController::class, 'index'], ['middleware' => ['permission:jobs.view']]);

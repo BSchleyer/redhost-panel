@@ -20,8 +20,8 @@ This file is the single source of truth for modernization progress. It is update
 | D | Database & core architecture (migrations, container, HTTP kernel) | [x] |
 | E | Authentication, 2FA, password reset, RBAC | [x] |
 | F | Administration panel | [x] |
-| G | Integration architecture + Proxmox VE | [ ] |
-| H | Pterodactyl, Nextcloud, TeamSpeak 3 | [ ] |
+| G | Integration architecture + Proxmox VE | [x] |
+| H | Pterodactyl, Nextcloud, TeamSpeak 3 | [x] |
 | I | PayPal & Stripe | [ ] |
 | J | Orders & automated provisioning | [ ] |
 | K | Customer dashboard | [ ] |
@@ -65,11 +65,11 @@ This file is the single source of truth for modernization progress. It is update
 - [x] Staff, roles & permissions, audit log, login history
 
 ### Phase G/H – Integrations
-- [ ] Integration registry, encrypted credentials, health checks, logs, enable/disable
-- [ ] Proxmox VE (multi-cluster, nodes, VM + LXC lifecycle, tasks)
-- [ ] Pterodactyl (Application API: nodes, nests, eggs, locations, users, servers)
-- [ ] Nextcloud (OCS provisioning: users, quota, enable/disable)
-- [ ] TeamSpeak 3 (ServerQuery: virtual servers, slots, ports, tokens)
+- [x] Integration registry, encrypted credentials, health checks, logs, enable/disable
+- [x] Proxmox VE (multi-cluster, nodes, VM + LXC lifecycle, tasks)
+- [x] Pterodactyl (Application API: nodes, nests, eggs, locations, users, servers)
+- [x] Nextcloud (OCS provisioning: users, quota, enable/disable)
+- [x] TeamSpeak 3 (ServerQuery: virtual servers, slots, ports, tokens)
 
 ### Phase I – Payments
 - [ ] Gateway abstraction, settings (enable, sandbox/live, credentials)
@@ -105,7 +105,9 @@ This file is the single source of truth for modernization progress. It is update
 - Environment notes: Composer dist downloads from GitHub are blocked in this sandbox; dependencies were installed with `--prefer-source` (PHPStan from a locally built archive). Tests run in Docker (`php:8.4-cli` + `pdo_mysql`, `mariadb:11.4`).
 - Completed Phase F (admin dashboard, settings pages, branding uploads, SMTP test, mail templates, customers, groups, products with per-category provisioning schema, staff with escalation guards, roles/permissions matrix, audit log, login history, jobs). 114 tests green.
 - Admin pages for orders, invoices, transactions, services, integrations and tickets are linked in the navigation and are implemented in phases G–K.
-- **Next step:** Phase G – integration architecture + Proxmox VE.
+- Completed Phases G–H: integration registry, encrypted credentials, SSRF-guarded API client with DNS pinning, health checks, per-integration logs, admin UI (CRUD, test, logs, remote resources), Proxmox/Pterodactyl/Nextcloud/TeamSpeak clients and idempotent provisioners. All tested against fake APIs/ServerQuery (no live systems available). 144 tests green.
+- Fixed a flaky test (EncrypterTest tamper case, ~1/64 false pass).
+- **Next step:** Phase I – PayPal & Stripe.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.

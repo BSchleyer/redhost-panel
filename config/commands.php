@@ -14,4 +14,5 @@ return [
     'migrate' => Command\MigrateCommand::class,
     'migrate:status' => Command\MigrateStatusCommand::class,
     'user:create-admin' => Command\CreateAdminCommand::class,
+    'integrations:check' => Command\IntegrationsCheckCommand::class,
 ];

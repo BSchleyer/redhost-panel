@@ -40,7 +40,10 @@ final class EncrypterTest extends TestCase
     {
         $encrypter = Encrypter::fromAppKey(Encrypter::generateKey());
         $cipher = $encrypter->encrypt('secret');
-        $tampered = substr($cipher, 0, -2) . (str_ends_with($cipher, 'A') ? 'B' : 'A') . substr($cipher, -1);
+        // Flip one character inside the authentication tag (always different from the original).
+        $position = strlen($cipher) - 5;
+        $tampered = substr_replace($cipher, $cipher[$position] === 'A' ? 'B' : 'A', $position, 1);
+        self::assertNotSame($cipher, $tampered);
 
         $this->expectException(RuntimeException::class);
         $encrypter->decrypt($tampered);

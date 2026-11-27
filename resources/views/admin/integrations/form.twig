@@ -1,0 +1,36 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ definition.label }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ id ? name : ('New :type integration'|t({type: definition.label})) }}</h1><p class="muted">{{ definition.description|t }} · <a href="{{ id ? '/admin/integrations/' ~ id : '/admin/integrations' }}">&larr; {{ 'Back'|t }}</a></p></div></div>
+<form method="post" action="{{ id ? '/admin/integrations/' ~ id : '/admin/integrations' }}" novalidate>
+    {{ csrf_field() }}
+    <input type="hidden" name="type" value="{{ type }}">
+    <div class="grid grid-2">
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Connection'|t }}</h2></div>
+            <div class="card-body">
+                {{ f.input('name', 'Name', name, 'text', {required: true, help: 'For example the cluster or location name.'}) }}
+                {{ f.checkbox('is_enabled', 'Enabled', enabled) }}
+                {% for key, field in definition.config %}
+                    {% if field.type|default('') == 'bool' %}
+                        {{ f.checkbox('config_' ~ key, field.label, config[key], field.help is defined ? {help: field.help} : {}) }}
+                    {% else %}
+                        {{ f.input('config_' ~ key, field.label, config[key], 'text', field.help is defined ? {help: field.help} : {}) }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Credentials'|t }}</h2></div>
+            <div class="card-body">
+                <div class="alert alert-info">{{ 'Credentials are encrypted and are never displayed again after saving. Leave a field empty to keep the stored value.'|t }}</div>
+                {% for key, field in definition.secrets %}
+                    {{ f.secret('secret_' ~ key, field.label, secrets_set[key], field.help is defined ? {help: field.help} : {}) }}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{{ 'Save and test connection'|t }}</button></div>
+</form>
+{% endblock %}

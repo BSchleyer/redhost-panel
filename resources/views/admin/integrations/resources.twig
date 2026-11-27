@@ -1,0 +1,44 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Remote resources'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Remote resources'|t }} – {{ integration.name }}</h1><p class="muted"><a href="/admin/integrations/{{ integration.id }}">&larr; {{ 'Back'|t }}</a></p></div></div>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+{% if resources.nodes is defined and integration.type == 'proxmox' %}
+<div class="card"><div class="card-header"><h2>{{ 'Nodes'|t }}</h2></div><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Node'|t }}</th><th>{{ 'Status'|t }}</th><th>CPU</th><th>{{ 'Memory'|t }}</th><th>{{ 'Disk'|t }}</th><th>{{ 'Uptime'|t }}</th></tr></thead>
+    <tbody>{% for n in resources.nodes %}
+        <tr><td><strong>{{ n.node }}</strong></td><td><span class="badge {{ n.status == 'online' ? 'badge-success' : 'badge-danger' }}">{{ n.status }}</span></td>
+            <td>{{ (n.cpu * 100)|round(1) }} % / {{ n.maxcpu }} {{ 'cores'|t }}</td><td>{{ n.mem|bytes }} / {{ n.maxmem|bytes }}</td><td>{{ n.disk|bytes }} / {{ n.maxdisk|bytes }}</td><td>{{ (n.uptime / 86400)|round(1) }} d</td></tr>
+    {% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+
+{% if integration.type == 'pterodactyl' and resources.nests is defined %}
+<div class="grid grid-2">
+    <div class="card"><div class="card-header"><h2>{{ 'Locations'|t }}</h2></div><div class="table-wrap"><table class="table">
+        <thead><tr><th>ID</th><th>{{ 'Short'|t }}</th><th>{{ 'Description'|t }}</th></tr></thead>
+        <tbody>{% for l in resources.locations %}<tr><td class="mono">{{ l.id }}</td><td>{{ l.short }}</td><td>{{ l.long }}</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    <div class="card"><div class="card-header"><h2>{{ 'Nodes'|t }}</h2></div><div class="table-wrap"><table class="table">
+        <thead><tr><th>ID</th><th>{{ 'Name'|t }}</th><th>{{ 'Location'|t }}</th><th>{{ 'Memory'|t }}</th><th>{{ 'Disk'|t }}</th></tr></thead>
+        <tbody>{% for n in resources.nodes %}<tr><td class="mono">{{ n.id }}</td><td>{{ n.name }}</td><td>{{ n.location_id }}</td><td>{{ n.memory }} MB</td><td>{{ n.disk }} MB</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+</div>
+<div class="card"><div class="card-header"><h2>{{ 'Nests & eggs'|t }}</h2></div><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Nest'|t }}</th><th>{{ 'Egg ID'|t }}</th><th>{{ 'Egg'|t }}</th><th>{{ 'Docker image'|t }}</th></tr></thead>
+    <tbody>{% for nest in resources.nests %}{% for egg in nest.eggs %}
+        <tr><td>{{ nest.name }} <span class="mono small">#{{ nest.id }}</span></td><td class="mono">{{ egg.id }}</td><td>{{ egg.name }}</td><td class="mono small">{{ egg.docker_image }}</td></tr>
+    {% endfor %}{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+
+{% if resources.servers is defined %}
+<div class="card"><div class="card-header"><h2>{{ 'Virtual servers'|t }}</h2></div><div class="table-wrap"><table class="table">
+    <thead><tr><th>SID</th><th>{{ 'Name'|t }}</th><th>{{ 'Port'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Clients'|t }}</th></tr></thead>
+    <tbody>{% for s in resources.servers %}<tr><td class="mono">{{ s.virtualserver_id }}</td><td>{{ s.virtualserver_name|default('') }}</td><td>{{ s.virtualserver_port }}</td><td><span class="badge {{ s.virtualserver_status == 'online' ? 'badge-success' : 'badge-neutral' }}">{{ s.virtualserver_status }}</span></td><td>{{ s.virtualserver_clientsonline|default(0) }} / {{ s.virtualserver_maxclients|default('?') }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+
+{% if resources.health is defined %}<div class="alert alert-info">{{ resources.health.status }}: {{ resources.health.message }}</div>{% endif %}
+{% endblock %}

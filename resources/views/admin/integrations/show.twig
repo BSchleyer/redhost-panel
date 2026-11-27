@@ -1,0 +1,43 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ integration.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div><h1>{{ integration.name }} <span class="badge {{ integration.health_status|status_class }}">{{ integration.health_status|t }}</span></h1><p class="muted">{{ type.label }} · <a href="/admin/integrations">&larr; {{ 'Integrations'|t }}</a></p></div>
+    <div class="gap">
+        <form method="post" action="/admin/integrations/{{ integration.id }}/test" class="inline">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Test connection'|t }}</button></form>
+        <a class="btn btn-outline" href="/admin/integrations/{{ integration.id }}/resources">{{ 'Remote resources'|t }}</a>
+        {% if can('integrations.manage') %}<a class="btn btn-primary" href="/admin/integrations/{{ integration.id }}/edit">{{ 'Edit'|t }}</a>{% endif %}
+    </div>
+</div>
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Configuration'|t }}</h2></div>
+        <div class="card-body">
+            <dl class="details">
+                <dt>{{ 'State'|t }}</dt><dd>{{ integration.is_enabled ? 'enabled'|t : 'disabled'|t }}</dd>
+                {% for key, field in type.config %}<dt>{{ field.label|t }}</dt><dd>{% if config[key] is same as(true) %}{{ 'yes'|t }}{% elseif config[key] is same as(false) %}{{ 'no'|t }}{% else %}{{ config[key]|default('–') }}{% endif %}</dd>{% endfor %}
+                {% for key, field in type.secrets %}<dt>{{ field.label|t }}</dt><dd>••••••••</dd>{% endfor %}
+                <dt>{{ 'Health'|t }}</dt><dd>{{ integration.health_message|default('–') }}<div class="small muted">{{ integration.last_checked_at|dt }}</div></dd>
+                <dt>{{ 'Usage'|t }}</dt><dd>{{ integration.product_count }} {{ 'products'|t }} · {{ integration.service_count }} {{ 'active services'|t }}</dd>
+            </dl>
+        </div>
+        {% if can('integrations.manage') %}
+        <div class="card-footer"><form method="post" action="/admin/integrations/{{ integration.id }}/delete" data-confirm="{{ 'Delete this integration? Products using it will no longer be provisioned automatically.'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Delete integration'|t }}</button></form></div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Log'|t }}</h2>
+            <div class="tabs mb-0">{% for l in ['', 'error', 'warning', 'info', 'debug'] %}<a href="?level={{ l }}" class="{{ level == l ? 'is-active' : '' }}">{{ l == '' ? 'all'|t : l }}</a>{% endfor %}</div>
+        </div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Time'|t }}</th><th>{{ 'Level'|t }}</th><th>{{ 'Action'|t }}</th><th>{{ 'Message'|t }}</th><th>ms</th></tr></thead>
+            <tbody>
+            {% for e in logs.items %}
+                <tr><td class="nowrap small">{{ e.created_at|dt }}</td><td><span class="badge {{ e.level == 'error' ? 'badge-danger' : (e.level == 'warning' ? 'badge-warning' : 'badge-neutral') }}">{{ e.level }}</span></td><td><code class="small">{{ e.action }}</code></td><td class="small">{{ e.message }}</td><td class="small">{{ e.duration_ms }}</td></tr>
+            {% else %}<tr><td colspan="5" class="empty">{{ 'No log entries.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        {% include 'partials/pagination.twig' with {total: logs.total, per_page: 50} %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Integrations'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Integrations'|t }}</h1><p class="muted">{{ 'Proxmox clusters, Pterodactyl panels, Nextcloud and TeamSpeak instances used for provisioning.'|t }}</p></div>{% if can('integrations.manage') %}<a class="btn btn-primary" href="/admin/integrations/create">{{ 'Add integration'|t }}</a>{% endif %}</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'State'|t }}</th><th>{{ 'Health'|t }}</th><th>{{ 'Last check'|t }}</th><th>{{ 'Products'|t }}</th><th>{{ 'Services'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for i in integrations %}
+        <tr><td><a href="/admin/integrations/{{ i.id }}"><strong>{{ i.name }}</strong></a></td><td>{{ types[i.type].label|default(i.type) }}</td>
+            <td>{% if i.is_enabled %}<span class="badge badge-success">{{ 'enabled'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'disabled'|t }}</span>{% endif %}</td>
+            <td><span class="badge {{ i.health_status|status_class }}">{{ i.health_status|t }}</span><div class="small muted">{{ i.health_message }}</div></td>
+            <td>{{ i.last_checked_at|dt }}</td><td>{{ i.product_count }}</td><td>{{ i.service_count }}</td>
+            <td class="actions"><form method="post" action="/admin/integrations/{{ i.id }}/test" class="inline">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Test'|t }}</button></form> <a class="btn btn-sm btn-outline" href="/admin/integrations/{{ i.id }}">{{ 'Open'|t }}</a></td></tr>
+    {% else %}<tr><td colspan="8" class="empty">{{ 'No integrations yet. Add one to enable automatic provisioning.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}
