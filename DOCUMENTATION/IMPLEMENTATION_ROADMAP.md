@@ -128,6 +128,7 @@ This file is the single source of truth for modernization progress. It is update
 - **Plesk** webhosting and **INWX** domains (prechecks before payment, encrypted auth codes) – `58f96a1`.
 - Legacy import of services, tickets and payment history; optional CAPTCHA; `db:triggers` – `6db9f8f`.
 - Documentation updated – `7db4e7c`. 233 tests green on PHP 8.4.28 and 8.3.6 (MariaDB 11.4), PHPStan level 6 clean; UI of the new pages checked in Chromium (no CSP/console errors).
+- Second independent security review of the session-2 features (1 high, 4 medium, 7 low, plus 6 unverified points); all findings and four of the unverified points fixed with regression tests (see SECURITY.md, "Security review"). 245 tests (1636 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** public REST API (scoped tokens), then live verification of all integrations on staging.
 
 ## Remaining work

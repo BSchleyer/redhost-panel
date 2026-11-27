@@ -39,7 +39,7 @@ There are no other unauthenticated endpoints that change state, and there is no 
 | `queue:work [--once] [--max-jobs=N] [--max-time=SECONDS] [--sleep=3]` | Processes background jobs. |
 | `schedule:run [--force]` | Runs due scheduler tasks (every minute from cron). |
 | `legacy:import [--dry-run] [--only=users,services,tickets,history] [--proxmox-nodes=…] [--teamspeak-hosts=…] [--pterodactyl=…] [--plesk=…]` | Imports accounts, services, tickets and payment history from a RED-Host database (see [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md)). |
-| `console:proxy [--listen=0.0.0.0:8081]` | WebSocket proxy for server consoles (long-running). |
+| `console:proxy [--listen=127.0.0.1:8081]` | WebSocket proxy for server consoles (long-running). |
 | `db:triggers [--install\|--remove]` | Shows, installs or removes the append-only triggers. |
 
 Exit code `0` means success; any other value indicates an error (printed to stderr).

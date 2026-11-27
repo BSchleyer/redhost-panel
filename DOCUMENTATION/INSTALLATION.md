@@ -62,10 +62,10 @@ docker compose exec app php bin/nebrix user:create-admin --email=admin@example.c
 
 The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, the database in `db-data`.
 
-Reverse proxy: route everything to port 8080 and the console WebSocket path (`CONSOLE_WS_URL`, default `/console/ws`) to port 8081 with WebSocket upgrade, e.g. nginx:
+Reverse proxy: route everything to port 8080 and the console WebSocket path (`CONSOLE_WS_URL`, default `/console/ws`) to port 8081 with WebSocket upgrade (the proxy's address as seen by the containers – usually the Docker gateway – belongs in `TRUSTED_PROXIES`), e.g. nginx:
 
 ```nginx
-location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 4h; }
+location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_read_timeout 4h; access_log off; }
 location / { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto https; }
 ```
 

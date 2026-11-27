@@ -29,8 +29,10 @@ Configuration is split into two layers:
 | `INTEGRATIONS_ALLOW_LOOPBACK` | `false` | Allow integrations on `127.0.0.0/8`/`::1` (same host). |
 | `INTEGRATIONS_TIMEOUT` | `20` | Timeout in seconds for integration API requests. |
 | `CONSOLE_WS_URL` | `APP_URL` with `ws(s)://` + `/console/ws` | Public WebSocket URL of the console proxy. |
-| `CONSOLE_LISTEN` | `0.0.0.0:8081` | Listen address of `console:proxy` (overridden by `--listen`). |
+| `CONSOLE_LISTEN` | `127.0.0.1:8081` | Listen address of `console:proxy` (overridden by `--listen`; docker-compose uses `--listen=0.0.0.0:8081` inside the container and publishes it on 127.0.0.1 only). |
 | `CONSOLE_MAX_CONNECTIONS` / `CONSOLE_MAX_LIFETIME` | `100` / `14400` | Concurrent console connections and maximum session length in seconds. |
+| `CONSOLE_MAX_PER_IP` / `CONSOLE_MAX_PER_USER` | `10` / `3` | Concurrent connections per client IP (uses `X-Forwarded-For` from `TRUSTED_PROXIES`) and open consoles per panel user; `0` = unlimited. |
+| `CONSOLE_MEMORY_LIMIT` | `512M` | PHP memory limit of the long-running console proxy. |
 | `CONSOLE_PORT` | `8081` | Host port of the console service in docker-compose (bound to 127.0.0.1). |
 | `LEGACY_DB_HOST`, `LEGACY_DB_PORT`, `LEGACY_DB_DATABASE`, `LEGACY_DB_USERNAME`, `LEGACY_DB_PASSWORD` | – | Optional, only for `legacy:import` when the RED-Host database is a separate database. |
 
