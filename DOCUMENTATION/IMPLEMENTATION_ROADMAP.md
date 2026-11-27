@@ -25,7 +25,7 @@ This file is the single source of truth for modernization progress. It is update
 | I | PayPal & Stripe | [x] |
 | J | Orders & automated provisioning | [x] |
 | K | Customer dashboard | [x] |
-| L | Tests, documentation, final security review | [ ] |
+| L | Tests, documentation, final security review | [x] |
 
 ## Detailed plan
 
@@ -91,10 +91,13 @@ This file is the single source of truth for modernization progress. It is update
 - [x] Support tickets
 
 ### Phase L – QA & docs
-- [ ] PHPUnit (unit, integration with MariaDB, HTTP feature tests)
-- [ ] PHPStan, `php -l` on 8.4, `composer validate`
-- [ ] All documentation files, README
-- [ ] Final security review
+- [x] PHPUnit (unit, integration with MariaDB, HTTP feature tests) – 196 tests
+- [x] PHPStan level 6, `php -l` on 8.3/8.4, `composer validate`, `composer audit`
+- [x] GitHub Actions CI (PHP 8.3/8.4 matrix, MariaDB service)
+- [x] Legacy importer (`legacy:import`) for RED-Host accounts and balances
+- [x] All documentation files, README
+- [x] Final security review (independent reviewer) – all findings fixed with regression tests
+- [x] Docker runtime image check (Apache config, non-root, exposure of `.env`/code)
 
 ## Session log
 
@@ -110,7 +113,21 @@ This file is the single source of truth for modernization progress. It is update
 - Completed Phase I: invoice service (gapless numbers, billing snapshots, renewal/credit invoices, markPaid side effects via idempotent jobs), PaymentService (idempotency, amount/currency validation, append-only events), Stripe Checkout + verified webhooks + refunds (official SDK), PayPal Orders v2 + capture + verified webhooks + refunds, account credit gateway, customer invoice payment flow, admin transactions/refunds/webhook events, provider connection tests. 158 tests green.
 - Completed Phase J: order placement (server-side pricing, group discounts, stock reservation, free orders), fulfilment/provisioning/suspend/unsuspend/terminate jobs, worker with release/backoff/failure hooks, scheduler (renewal invoices, overdue suspension, opt-in termination, stale order cancellation, health checks, cleanup), admin orders/invoices/services incl. manual payments and manual activation, customer store/services/orders. Fixed: provisioning retry now re-evaluates the node while nothing exists remotely. 166 tests green.
 - Completed Phase K: customer dashboard (services, renewals, open invoices, credit, tickets, admin notice), support tickets for customers and staff (assignment, priority, e-mail on reply, rate limits, isolation), per-user locale with German catalog. 172 tests green.
-- **Next step:** Phase L – legacy importer, CI workflow, documentation set, final security review.
+- Completed Phase L:
+  - `legacy:import` (idempotent, dry run, staff imported suspended, balances via ledger) and GitHub Actions CI.
+  - Independent security review of the whole code base: 0 critical, 1 high, 5 medium, 5 low. All fixed with tests – TeamSpeak port reservation/safe adoption (high); session resurrection, Proxmox ownership marker, staff role-escalation guard, atomic rate limiting, refund/chargeback reversal (medium); registration probing limit, atomic TOTP/recovery codes, password for enabling 2FA, IPv4-embedding IPv6 ranges, free renewals (low). Additionally: refund idempotency keys + per-payment lock, raw PayPal webhook verification, Proxmox termination ownership check, unprivileged-only LXC feature flags.
+  - Docker runtime image built and probed: Apache config valid, runs as `www-data`, `/health` 200, `.env` 403, `composer.json`/`config/` not served, CSP present. The composer build stage itself could not be verified here (registry downloads restricted).
+  - Documentation: ARCHITECTURE, SECURITY, INSTALLATION, CONFIGURATION, DATABASE, INTEGRATIONS, PAYMENTS, ADMIN_GUIDE, API, UPGRADE_GUIDE, CHANGELOG, README; AUDIT corrected (Proxmox password/console flow is not implemented; password check is a deny list, not a breach lookup).
+  - Final state: 196 tests (1068 assertions) green on PHP 8.4.28 and PHP 8.3.6 with MariaDB 11.4, PHPStan level 6 clean, lint clean on 8.3/8.4, `composer validate --strict` and `composer audit` without findings.
+- **Next step:** live verification in a staging environment (see "Remaining work").
+
+## Remaining work (not done in this modernization)
+- Verify every integration (Proxmox, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only mocked tests exist.
+- Verify the Docker build stage (`composer install` in the `composer:2` image) in CI or locally.
+- Proxmox: customer reinstall, password reset, noVNC console and IP address management (currently DHCP only).
+- Automated fulfilment for dedicated servers, webhosting (e.g. Plesk) and domains (registrar API).
+- Import of legacy services, invoices and tickets (site-specific; see UPGRADE_GUIDE.md).
+- Optional: public REST API with scoped tokens, CAPTCHA on registration, database triggers for append-only tables (see DATABASE.md).
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.
