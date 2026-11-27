@@ -8,6 +8,7 @@ use Nebrix\Controller\Auth;
 use Nebrix\Controller\BrandingController;
 use Nebrix\Controller\Customer;
 use Nebrix\Controller\HealthController;
+use Nebrix\Controller\WebhookController;
 use Nebrix\Http\Router;
 
 /*
@@ -21,6 +22,10 @@ return static function (Router $r): void {
     $r->get('/health', [HealthController::class, 'show']);
     $r->get('/branding.css', [BrandingController::class, 'stylesheet']);
     $r->get('/', [Auth\LoginController::class, 'home']);
+
+    // Payment webhooks: authenticated by provider signatures, therefore no CSRF token.
+    $r->post('/webhooks/stripe', [WebhookController::class, 'stripe'], ['csrf' => false]);
+    $r->post('/webhooks/paypal', [WebhookController::class, 'paypal'], ['csrf' => false]);
 
     // ---------------------------------------------------------------- guests
     $r->group(['middleware' => ['guest']], static function (Router $r): void {
@@ -49,6 +54,12 @@ return static function (Router $r): void {
     // ----------------------------------------- authenticated + verified e-mail
     $r->group(['middleware' => ['auth', 'verified']], static function (Router $r): void {
         $r->get('/dashboard', [Customer\DashboardController::class, 'show']);
+
+        $r->get('/invoices', [Customer\InvoiceController::class, 'index']);
+        $r->post('/invoices/top-up', [Customer\InvoiceController::class, 'topUp']);
+        $r->get('/invoices/{id:\d+}', [Customer\InvoiceController::class, 'show']);
+        $r->post('/invoices/{id:\d+}/pay', [Customer\InvoiceController::class, 'pay']);
+        $r->get('/invoices/{id:\d+}/return/{gateway:[a-z]+}', [Customer\InvoiceController::class, 'complete']);
 
         $r->get('/account/profile', [Account\ProfileController::class, 'show']);
         $r->post('/account/profile', [Account\ProfileController::class, 'update']);
@@ -137,6 +148,12 @@ return static function (Router $r): void {
             $r->post('/roles/{id:\d+}', [Admin\RoleController::class, 'update']);
             $r->post('/roles/{id:\d+}/delete', [Admin\RoleController::class, 'delete']);
         });
+
+        // Payments
+        $r->get('/transactions', [Admin\PaymentController::class, 'transactions'], ['middleware' => ['permission:transactions.view']]);
+        $r->post('/transactions/{id:\d+}/refund', [Admin\PaymentController::class, 'refund'], ['middleware' => ['permission:payments.refund']]);
+        $r->get('/payments/webhooks', [Admin\PaymentController::class, 'webhooks'], ['middleware' => ['permission:transactions.view']]);
+        $r->post('/payments/{gateway:[a-z]+}/test', [Admin\PaymentController::class, 'testGateway'], ['middleware' => ['permission:payments.settings']]);
 
         // Integrations
         $r->group(['middleware' => ['permission:integrations.view']], static function (Router $r): void {

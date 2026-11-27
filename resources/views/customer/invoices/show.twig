@@ -1,0 +1,58 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Invoice'|t }} {{ invoice.number }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Invoice'|t }} {{ invoice.number }} <span class="badge {{ invoice.status|status_class }}">{{ invoice.status|t }}</span></h1><p class="muted"><a href="/invoices">&larr; {{ 'All invoices'|t }}</a></p></div></div>
+{% if cancelled and invoice.status == 'unpaid' %}<div class="alert alert-info">{{ 'The payment was cancelled. You can choose another payment method below.'|t }}</div>{% endif %}
+<div class="grid grid-3">
+    <div class="card" >
+        <div class="card-body">
+            <div class="grid grid-2">
+                <div><strong>{{ company.name }}</strong><div class="small muted message-body">{{ company.address }}</div>{% if company.tax_id %}<div class="small muted">{{ 'VAT ID'|t }}: {{ company.tax_id }}</div>{% endif %}</div>
+                <div><strong>{{ billing.company|default(billing.name|default('')) }}</strong>{% if billing.company %}<div>{{ billing.name }}</div>{% endif %}<div class="small muted">{{ billing.address_line1 }} {{ billing.address_line2 }}<br>{{ billing.postcode }} {{ billing.city }} {{ billing.country }}</div>{% if billing.vat_id %}<div class="small muted">{{ 'VAT ID'|t }}: {{ billing.vat_id }}</div>{% endif %}</div>
+            </div>
+            <dl class="details mt-2">
+                <dt>{{ 'Invoice date'|t }}</dt><dd>{{ invoice.created_at|d }}</dd>
+                <dt>{{ 'Due date'|t }}</dt><dd>{{ invoice.due_at|d }}</dd>
+                {% if invoice.paid_at %}<dt>{{ 'Paid on'|t }}</dt><dd>{{ invoice.paid_at|d }}</dd>{% endif %}
+            </dl>
+        </div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>{{ 'Description'|t }}</th><th class="text-right">{{ 'Tax'|t }}</th><th class="text-right">{{ 'Net'|t }}</th></tr></thead>
+            <tbody>
+                {% for item in items %}<tr><td>{{ item.description }}</td><td class="text-right">{{ (item.tax_rate_bp / 100)|number_format(2) }} %</td><td class="text-right">{{ item.total|money(invoice.currency) }}</td></tr>{% endfor %}
+                <tr><td colspan="2" class="text-right">{{ 'Subtotal'|t }}</td><td class="text-right">{{ invoice.subtotal|money(invoice.currency) }}</td></tr>
+                <tr><td colspan="2" class="text-right">{{ 'Tax'|t }}</td><td class="text-right">{{ invoice.tax|money(invoice.currency) }}</td></tr>
+                <tr><td colspan="2" class="text-right"><strong>{{ 'Total'|t }}</strong></td><td class="text-right"><strong>{{ invoice.total|money(invoice.currency) }}</strong></td></tr>
+                {% if invoice.amount_refunded > 0 %}<tr><td colspan="2" class="text-right">{{ 'Refunded'|t }}</td><td class="text-right">−{{ invoice.amount_refunded|money(invoice.currency) }}</td></tr>{% endif %}
+            </tbody>
+        </table></div>
+    </div>
+    <div>
+        {% if invoice.status == 'unpaid' %}
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Pay invoice'|t }}</h2></div>
+            <div class="card-body">
+                {% for key, gateway in gateways %}
+                    <form method="post" action="/invoices/{{ invoice.id }}/pay" class="mt-1">
+                        {{ csrf_field() }}
+                        <input type="hidden" name="gateway" value="{{ key }}">
+                        <button class="btn btn-primary btn-block" type="submit">{{ 'Pay with :method'|t({method: gateway.label|t}) }}</button>
+                    </form>
+                {% else %}
+                    <p class="muted">{{ 'No online payment method is available for this invoice. Please contact support.'|t }}</p>
+                {% endfor %}
+                <p class="help mt-2">{{ 'You will be redirected to the payment provider. Your invoice is updated as soon as the provider confirms the payment.'|t }}</p>
+            </div>
+        </div>
+        {% endif %}
+        {% if transactions|length > 0 %}
+        <div class="card">
+            <div class="card-header"><h2>{{ 'Payments'|t }}</h2></div>
+            <ul class="timeline card-body">
+                {% for t in transactions %}<li>{{ t.created_at|dt }} · {{ t.gateway|humanize }} · {{ t.type == 'refund' ? '−' : '' }}{{ t.amount|money(t.currency) }} <span class="badge {{ t.status|status_class }}">{{ t.status|t }}</span></li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

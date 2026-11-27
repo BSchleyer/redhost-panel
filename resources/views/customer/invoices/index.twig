@@ -1,0 +1,24 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Invoices'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Invoices'|t }}</h1><p class="muted">{{ 'Account credit'|t }}: <strong>{{ auth_user.creditBalance|money }}</strong></p></div>
+    {% if setting('payments.credit.enabled') %}
+    <form method="post" action="/invoices/top-up" class="filters" novalidate>
+        {{ csrf_field() }}
+        {{ f.input('amount', 'Top up credit', '20.00', 'text', {inputmode: 'decimal'}) }}
+        <button class="btn btn-outline" type="submit">{{ 'Create top-up invoice'|t }}</button>
+    </form>
+    {% endif %}
+</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Number'|t }}</th><th>{{ 'Type'|t }}</th><th>{{ 'Date'|t }}</th><th>{{ 'Due'|t }}</th><th class="text-right">{{ 'Total'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+    <tbody>
+    {% for i in invoices %}
+        <tr><td class="mono">{{ i.number }}</td><td>{{ i.type|humanize|t }}</td><td>{{ i.created_at|d }}</td><td>{{ i.due_at|d }}</td><td class="text-right">{{ i.total|money(i.currency) }}</td>
+            <td><span class="badge {{ i.status|status_class }}">{{ i.status|t }}</span></td>
+            <td class="actions"><a class="btn btn-sm {{ i.status == 'unpaid' ? 'btn-primary' : 'btn-outline' }}" href="/invoices/{{ i.id }}">{{ i.status == 'unpaid' ? 'Pay now'|t : 'View'|t }}</a></td></tr>
+    {% else %}<tr><td colspan="7" class="empty">{{ 'No invoices yet.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

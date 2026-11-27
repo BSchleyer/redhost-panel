@@ -22,7 +22,7 @@ This file is the single source of truth for modernization progress. It is update
 | F | Administration panel | [x] |
 | G | Integration architecture + Proxmox VE | [x] |
 | H | Pterodactyl, Nextcloud, TeamSpeak 3 | [x] |
-| I | PayPal & Stripe | [ ] |
+| I | PayPal & Stripe | [x] |
 | J | Orders & automated provisioning | [ ] |
 | K | Customer dashboard | [ ] |
 | L | Tests, documentation, final security review | [ ] |
@@ -72,11 +72,11 @@ This file is the single source of truth for modernization progress. It is update
 - [x] TeamSpeak 3 (ServerQuery: virtual servers, slots, ports, tokens)
 
 ### Phase I – Payments
-- [ ] Gateway abstraction, settings (enable, sandbox/live, credentials)
-- [ ] PayPal Orders v2: create, approve, capture, refund, webhook verification
-- [ ] Stripe Checkout: session, webhooks (signature), refunds, status sync
-- [ ] Idempotent payment recording, amount/currency validation, immutable payment events
-- [ ] Account credit (legacy balance)
+- [x] Gateway abstraction, settings (enable, sandbox/live, credentials)
+- [x] PayPal Orders v2: create, approve, capture, refund, webhook verification
+- [x] Stripe Checkout: session, webhooks (signature), refunds, status sync
+- [x] Idempotent payment recording, amount/currency validation, immutable payment events
+- [x] Account credit (legacy balance)
 
 ### Phase J – Orders & provisioning
 - [ ] Cart/order/invoice flow
@@ -107,7 +107,8 @@ This file is the single source of truth for modernization progress. It is update
 - Admin pages for orders, invoices, transactions, services, integrations and tickets are linked in the navigation and are implemented in phases G–K.
 - Completed Phases G–H: integration registry, encrypted credentials, SSRF-guarded API client with DNS pinning, health checks, per-integration logs, admin UI (CRUD, test, logs, remote resources), Proxmox/Pterodactyl/Nextcloud/TeamSpeak clients and idempotent provisioners. All tested against fake APIs/ServerQuery (no live systems available). 144 tests green.
 - Fixed a flaky test (EncrypterTest tamper case, ~1/64 false pass).
-- **Next step:** Phase I – PayPal & Stripe.
+- Completed Phase I: invoice service (gapless numbers, billing snapshots, renewal/credit invoices, markPaid side effects via idempotent jobs), PaymentService (idempotency, amount/currency validation, append-only events), Stripe Checkout + verified webhooks + refunds (official SDK), PayPal Orders v2 + capture + verified webhooks + refunds, account credit gateway, customer invoice payment flow, admin transactions/refunds/webhook events, provider connection tests. 158 tests green.
+- **Next step:** Phase J – order checkout, order fulfilment job, provisioning worker, renewals/suspension scheduler.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.

@@ -1,0 +1,34 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Payment events'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Payment events'|t }}</h1><p class="muted">{{ 'Verified provider webhooks and the immutable payment history.'|t }}</p></div></div>
+<div class="card">
+    <div class="card-header"><h2>{{ 'Webhooks'|t }}</h2>
+        <form method="get" class="filters">
+            {{ f.select('gateway', 'Gateway', {'': 'All', stripe: 'Stripe', paypal: 'PayPal'}, gateway, {'data-autosubmit': true}) }}
+            {{ f.select('status', 'Status', {'': 'All', processed: 'Processed', failed: 'Failed', ignored: 'Ignored', received: 'Received'}, status, {'data-autosubmit': true}) }}
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Received'|t }}</th><th>{{ 'Gateway'|t }}</th><th>{{ 'Event'|t }}</th><th>{{ 'Event ID'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Error'|t }}</th></tr></thead>
+        <tbody>
+        {% for w in webhooks.items %}
+            <tr><td class="nowrap">{{ w.received_at|dt }}</td><td>{{ w.gateway }}</td><td><code>{{ w.event_type }}</code></td><td class="mono small">{{ w.event_id }}</td><td><span class="badge {{ w.status|status_class }}">{{ w.status }}</span></td><td class="small">{{ w.error }}</td></tr>
+        {% else %}<tr><td colspan="6" class="empty">{{ 'No webhooks received yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: webhooks.total, per_page: 50} %}
+</div>
+<div class="card">
+    <div class="card-header"><h2>{{ 'Payment history (latest 100)'|t }}</h2></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'Time'|t }}</th><th>{{ 'Gateway'|t }}</th><th>{{ 'Event'|t }}</th><th>{{ 'Reference'|t }}</th><th>{{ 'Invoice'|t }}</th><th>{{ 'Customer'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th></tr></thead>
+        <tbody>
+        {% for e in events %}
+            <tr><td class="nowrap">{{ e.created_at|dt }}</td><td>{{ e.gateway }}</td><td><code>{{ e.event_type }}</code></td><td class="mono small">{{ e.reference }}</td><td>{% if e.invoice_id %}<a href="/admin/invoices/{{ e.invoice_id }}">#{{ e.invoice_id }}</a>{% endif %}</td><td>{{ e.email }}</td><td class="text-right">{% if e.amount is not null %}{{ e.amount|money(e.currency) }}{% endif %}</td></tr>
+        {% else %}<tr><td colspan="7" class="empty">{{ 'No payment events yet.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

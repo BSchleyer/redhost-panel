@@ -1,0 +1,36 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Transactions'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Transactions'|t }}</h1></div></div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            {{ f.select('gateway', 'Gateway', {'': 'All', stripe: 'Stripe', paypal: 'PayPal', credit: 'Account credit', free: 'Free'}, filters.gateway, {'data-autosubmit': true}) }}
+            {{ f.select('type', 'Type', {'': 'All', payment: 'Payment', refund: 'Refund'}, filters.type, {'data-autosubmit': true}) }}
+            {{ f.select('status', 'Status', {'': 'All', completed: 'Completed', failed: 'Failed', pending: 'Pending'}, filters.status, {'data-autosubmit': true}) }}
+            <div class="form-row"><label for="q">{{ 'Reference or e-mail'|t }}</label><input id="q" type="search" name="search" value="{{ filters.search }}"></div>
+            <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>#</th><th>{{ 'Date'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Invoice'|t }}</th><th>{{ 'Gateway'|t }}</th><th>{{ 'Reference'|t }}</th><th class="text-right">{{ 'Amount'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for t in items %}
+            <tr><td class="mono">{{ t.id }}</td><td class="nowrap">{{ t.created_at|dt }}</td><td>{{ t.email }}</td><td>{% if t.invoice_id %}<a href="/admin/invoices/{{ t.invoice_id }}">{{ t.invoice_number }}</a>{% endif %}</td>
+                <td>{{ t.gateway|humanize }}{% if t.type == 'refund' %} <span class="badge badge-info">{{ 'refund'|t }}</span>{% endif %}</td><td class="mono small">{{ t.reference }}</td>
+                <td class="text-right nowrap">{{ t.type == 'refund' ? '−' : '' }}{{ t.amount|money(t.currency) }}{% if t.refunded > 0 %}<div class="small muted">{{ 'refunded'|t }} {{ t.refunded|money(t.currency) }}</div>{% endif %}</td>
+                <td><span class="badge {{ t.status|status_class }}" title="{{ t.failure_reason }}">{{ t.status|t }}</span></td>
+                <td class="actions">{% if can('payments.refund') and t.type == 'payment' and t.status == 'completed' and t.refunded < t.amount and t.gateway != 'free' %}
+                    <form method="post" action="/admin/transactions/{{ t.id }}/refund" class="filters" data-confirm="{{ 'Refund this amount to the customer?'|t }}" novalidate>
+                        {{ csrf_field() }}
+                        <input type="text" name="amount" value="{{ ((t.amount - t.refunded) / 100)|number_format(2, '.', '') }}" aria-label="{{ 'Amount'|t }}" size="7">
+                        <input type="text" name="reason" placeholder="{{ 'Reason'|t }}" aria-label="{{ 'Reason'|t }}" size="12">
+                        <button class="btn btn-sm btn-outline" type="submit">{{ 'Refund'|t }}</button>
+                    </form>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="9" class="empty">{{ 'No transactions.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: total, per_page: 50} %}
+</div>
+{% endblock %}
