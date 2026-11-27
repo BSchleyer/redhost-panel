@@ -98,8 +98,8 @@ Configured in Admin → Payments: PayPal (mode sandbox/live, client ID, client s
 | Setting | Default |
 |---|---|
 | Enable the REST API (`api.enabled`) | **off** – `/api/v1` answers `404 api_disabled` |
-| Customers may create API tokens (`api.customer_tokens`) | on – when off, only staff tokens work |
-| Requests per minute and token (`api.rate_limit`) | 120 (10–6000) |
+| Customers may create API tokens (`api.customer_tokens`) | on – when off (or while customer logins are disabled), only staff tokens work |
+| Requests per minute and user (`api.rate_limit`) | 120 (10–6000), shared by all tokens of an account |
 
 See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 

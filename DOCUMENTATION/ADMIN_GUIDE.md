@@ -41,7 +41,7 @@ Shows customer counts by status, pending orders, active and failed services, unp
 * Actions (each requires its own permission and is audit-logged):
   * Edit profile and group, suspend/reactivate the account (suspended customers are signed out).
   * Adjust credit (positive or negative, reason required).
-  * Send a password reset link, resend the verification e-mail or mark the e-mail as verified, reset two-factor authentication, revoke all sessions.
+  * Send a password reset link, resend the verification e-mail or mark the e-mail as verified, reset two-factor authentication, revoke all sessions (both also revoke the customer's API tokens).
   * **Close and anonymize** (GDPR erasure): only possible when the customer has no running services; invoices and payments are retained for legal reasons.
 * Staff never see or set customer passwords and cannot sign in as a customer.
 

@@ -132,7 +132,8 @@ This file is the single source of truth for modernization progress. It is update
 - **Next step:** public REST API (scoped tokens), then live verification of all integrations on staging.
 
 ### Session 3 (2026-11-27) – REST API
-- REST API `/api/v1` (customer and admin endpoints, OpenAPI 3.1 document), personal access tokens with scopes/expiry/IP allowlist, token UI for users and staff, stateless kernel path, per-token rate limits, idempotency keys. Documentation in API.md, SECURITY.md, CONFIGURATION.md, ADMIN_GUIDE.md, DATABASE.md, ARCHITECTURE.md.
+- REST API `/api/v1` (customer and admin endpoints, OpenAPI 3.1 document), personal access tokens with scopes/expiry/IP allowlist, token UI for users and staff, stateless kernel path, rate limits, idempotency keys. Documentation in API.md, SECURITY.md, CONFIGURATION.md, ADMIN_GUIDE.md, DATABASE.md, ARCHITECTURE.md.
+- Independent security review of the API (0 high, 2 medium, 9 low); all fixed with regression tests. Token pages checked in Chromium (no console/CSP errors) and a token created in the UI used against the running API. 271 tests (1980 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** live verification of all integrations and the payment providers on staging.
 
 ## Remaining work

@@ -8,7 +8,7 @@ A token-authenticated JSON API for customers (their own account, orders, service
 
 ### Enabling
 
-The API is **off by default**. Enable it in Admin → Settings → System → *REST API* (`api.enabled`). There you can also restrict token use to staff (`api.customer_tokens`) and set the rate limit per token (`api.rate_limit`, requests per minute, default 120). With the API disabled every `/api/v1` request answers `404 {"error": {"code": "api_disabled"}}`.
+The API is **off by default**. Enable it in Admin → Settings → System → *REST API* (`api.enabled`). There you can also restrict token use to staff (`api.customer_tokens`; customer tokens also stop working while *Allow customer logins* is off) and set the rate limit per user (`api.rate_limit`, requests per minute for all tokens of an account together, default 120). With the API disabled every `/api/v1` request answers `404 {"error": {"code": "api_disabled"}}`.
 
 Behind Apache with PHP-FPM/CGI the `Authorization` header is passed on by the rule in `public/.htaccess`; with nginx + PHP-FPM it is passed automatically (`fastcgi_params`).
 
@@ -19,7 +19,9 @@ Users create personal access tokens under **Account → API tokens** (password c
 * Format `nbx_` + 48 hex characters (192 random bits). The token is shown **once**; only its SHA-256 hash and an 8-character prefix are stored.
 * **Scopes** (permissions of the token) – see below. Admin scopes are only offered to staff and only for permissions their role has.
 * **Lifetime** 7, 30, 90, 180 or 365 days (every token expires), optional **IP allowlist** (addresses or CIDR ranges), at most 20 active tokens per user.
-* Revocation by the owner (Account → API tokens) or by staff with `api_tokens.manage` (Admin → API tokens: single tokens or all tokens of a user). Closing an account revokes its tokens; suspended accounts cannot use their tokens.
+* The owner receives an e-mail for every new token.
+* Revocation by the owner (Account → API tokens) or by staff with `api_tokens.manage` (Admin → API tokens: single tokens or all tokens of a user; tokens of super administrators only by super administrators).
+* **All tokens of an account are revoked** when its password is changed or reset, when staff use *Sign out everywhere* or reset its two-factor authentication, and when the account is closed (the token rows are then anonymised). Suspended accounts cannot use their tokens.
 
 Send the token in every request:
 
@@ -38,15 +40,15 @@ Session cookies are ignored and no session or cookie is created; CSRF tokens are
 | `orders:read` / `orders:create` | list/read own orders / place orders (`POST /orders`) |
 | `services:read` | own services, live status, available actions |
 | `services:manage` | run service actions (`POST /services/{id}/actions/{action}`) |
-| `services:credentials` | access data of own services (audit-logged) |
+| `services:credentials` | access data of own services (audit-logged); also required for single sign-on actions (e.g. *Open Plesk*), which return a one-time login URL |
 | `invoices:read` / `invoices:pay` | own invoices / start a payment |
 | `tickets:read` / `tickets:write` | own tickets / open, reply, close |
 | `admin:customers:read` | `GET /admin/customers…` – needs `customers.view` |
 | `admin:products:read` | `GET /admin/products` – needs `products.view` |
 | `admin:orders:read` | `GET /admin/orders…` – needs `orders.view` |
 | `admin:invoices:read` | `GET /admin/invoices…` – needs `invoices.view` |
-| `admin:services:read` / `admin:services:write` | list services / suspend, unsuspend, terminate, retry – need `services.view` / `services.manage` |
-| `admin:tickets:read` / `admin:tickets:write` | read tickets / reply – need `tickets.view` / `tickets.reply` |
+| `admin:services:read` / `admin:services:write` | list services / suspend, unsuspend, terminate, retry – need `services.view` / `services.view` + `services.manage` |
+| `admin:tickets:read` / `admin:tickets:write` | read tickets / reply – need `tickets.view` / `tickets.view` + `tickets.reply` |
 
 Admin scopes are checked against the staff role **on every request** (plus admin access and, if enforced, two-factor authentication): removing a permission from a role immediately disables the matching scope of existing tokens.
 
@@ -61,9 +63,9 @@ All paths are relative to `/api/v1`. Customer endpoints only ever return the tok
 | GET | `/orders`, `/orders/{id}` | `orders:read` | `?status=` |
 | POST | `/orders` | `orders:create` | `{"product_id": 3, "accept_terms": true, "options": {"hostname": "web01"}}` → order + `invoice_id`; same checks, prices and limits (10/hour) as the store |
 | GET | `/services`, `/services/{id}` | `services:read` | `?status=` |
-| GET | `/services/{id}/status` | `services:read` | Live data from the remote system (`502 upstream_error` if unavailable) |
+| GET | `/services/{id}/status` | `services:read` | Live data from the remote system (`502 upstream_error` if unavailable); together with `/actions` at most 30 requests per minute and user |
 | GET | `/services/{id}/actions` | `services:read` | Available actions with their input fields |
-| POST | `/services/{id}/actions/{action}` | `services:manage` | Field values in the body; actions that the web interface confirms need `"confirm": true`. Reinstalls answer `202`; single sign-on actions return `redirect_url`. Limits: 10 actions per 5 minutes, 3 reinstalls per hour per service |
+| POST | `/services/{id}/actions/{action}` | `services:manage` | Field values in the body; actions that the web interface confirms need `"confirm": true`. Reinstalls answer `202`; single sign-on actions (mode `redirect`) also need `services:credentials` and return `redirect_url`. Limits: 10 actions per 5 minutes, 3 reinstalls per hour per service |
 | GET | `/services/{id}/credentials` | `services:credentials` | Audit-logged |
 | GET | `/invoices`, `/invoices/{id}` | `invoices:read` | `?status=&type=`; detail includes `items` and `payment_methods` |
 | POST | `/invoices/{id}/pay` | `invoices:pay` | `{"gateway": "credit"}` pays from the credit balance; `stripe`/`paypal` return `checkout_url` for the customer. The invoice is only marked paid by the verified provider confirmation |
@@ -74,7 +76,7 @@ All paths are relative to `/api/v1`. Customer endpoints only ever return the tok
 | GET | `/admin/products` | `admin:products:read` | `?category=&active=1` |
 | GET | `/admin/orders`, `/admin/orders/{id}` | `admin:orders:read` | `?status=&search=&user_id=` |
 | GET | `/admin/invoices`, `/admin/invoices/{id}` | `admin:invoices:read` | `?status=&type=&search=&user_id=` |
-| GET | `/admin/services`, `/admin/services/{id}` | `admin:services:read` | `?status=&category=&search=&user_id=&integration_id=` |
+| GET | `/admin/services`, `/admin/services/{id}` | `admin:services:read` | `?status=&category=&search=&user_id=&integration_id=`; adds `integration_id`, `external_id`, `last_error` and `suspension_reason` |
 | POST | `/admin/services/{id}/suspend` | `admin:services:write` | `{"reason"?, "notify"?: true}` → `202` |
 | POST | `/admin/services/{id}/unsuspend`, `/retry` | `admin:services:write` | `202` |
 | POST | `/admin/services/{id}/terminate` | `admin:services:write` | `{"confirm": "TERMINATE", "reason"?}` – deletes the remote resource |
@@ -85,11 +87,11 @@ All paths are relative to `/api/v1`. Customer endpoints only ever return the tok
 
 * **Requests**: JSON bodies (`Content-Type: application/json`, a JSON object, max. 1 MiB) or form data; other content types answer `415`.
 * **Responses**: `{"data": …}`; lists add `"meta": {"page", "per_page", "total", "last_page"}` (`?page=`, `?per_page=` up to 100).
-* **Values**: amounts are integers in minor units (cents) together with `currency`; tax rates in basis points (`1900` = 19 %); timestamps ISO 8601 in UTC. Secret order options (domain auth codes), remote IDs and provisioning settings are never returned.
+* **Values**: amounts are integers in minor units (cents) together with `currency`; tax rates in basis points (`1900` = 19 %); timestamps ISO 8601 in UTC. Secret order options (domain auth codes), provisioning settings and the remote state are never returned; customer endpoints also omit remote IDs and internal suspension notes.
 * **Errors**: `{"error": {"code": "…", "message": "…"}}`, validation errors with `"fields"`, server errors with a `"reference"` for the log. Codes: `unauthenticated` (401), `insufficient_scope`/`forbidden`/`two_factor_required`/`email_unverified`/`api_access_disabled` (403), `not_found`/`api_disabled` (404), `method_not_allowed` (405), `conflict` (409), `validation_failed`/`unprocessable`/`confirmation_required`/`order_rejected`/`payment_method_unavailable`/`idempotency_key_reused` (422), `rate_limited` (429, with `Retry-After`), `upstream_error` (502), `unavailable` (503, maintenance – staff tokens keep working).
-* **Rate limits**: per token and minute (`X-RateLimit-Limit`, `X-RateLimit-Remaining`); additionally the same per-user limits as the web interface (orders, tickets, payments, service actions). After 30 failed authentications per IP within 5 minutes, further failures answer `429` (valid tokens from the same address keep working).
-* **Idempotency**: `POST` requests accept an `Idempotency-Key` header (8–128 characters). The first response is stored for 24 hours per token and returned again for retries with the same key and body (`Idempotent-Replayed: true`); the same key with a different body answers `422 idempotency_key_reused`, a request still running `409`.
-* **Audit**: write operations are recorded in the audit log like their web counterparts (API entries carry `via: api` and the token ID); token creation and revocation are logged.
+* **Rate limits**: per user and minute, shared by all tokens of the account (`X-RateLimit-Limit`, `X-RateLimit-Remaining`); additionally the same per-user limits as the web interface (orders, tickets, payments, service actions). After 30 failed authentications per IP within 5 minutes, further failures answer `429` (valid tokens from the same address keep working).
+* **Idempotency**: `POST` requests accept an `Idempotency-Key` header (8–128 characters). The first response is stored for 24 hours per token and returned again for retries with the same key and body (`Idempotent-Replayed: true`) – only after the scope and permission checks have passed again; the same key with a different body answers `422 idempotency_key_reused`, a request still running `409` (a request without a response after 5 minutes is treated as abandoned and may be retried). Responses containing one-time login URLs are never stored.
+* **Audit**: write operations are recorded in the audit log like their web counterparts; service actions and admin service operations get an additional entry with `via: api` and the token ID; token creation and revocation are logged.
 
 ### Not available through the API
 

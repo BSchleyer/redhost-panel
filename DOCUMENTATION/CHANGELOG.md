@@ -32,7 +32,8 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 ### Added (REST API)
 - Token-authenticated REST API under `/api/v1` with an OpenAPI 3.1 document (`/api/v1/openapi.json`): account, products, order placement, services (status, actions, access data), invoices and payment start, support tickets; admin endpoints for customers, products, orders, invoices, service lifecycle and ticket replies.
 - Personal access tokens (Account → API tokens): scopes, expiry, IP allowlist, shown once, stored hashed; admin overview and revocation (permission `api_tokens.manage`); settings to enable the API, allow customer tokens and set the rate limit.
-- Stateless request handling for API routes (no session/CSRF, JSON errors), per-token rate limits, `Idempotency-Key` support for `POST` requests.
+- Stateless request handling for API routes (no session/CSRF, JSON errors), per-user rate limits, `Idempotency-Key` support for `POST` requests.
+- Security review of the API; all findings fixed: single sign-on needs `services:credentials` and is never stored for replays, tokens are revoked on password change/reset, "sign out everywhere" and 2FA reset and their creation is e-mailed, scope checks before idempotent replays, write scopes require the view permission, suspension e-mails by default, internal suspension notes hidden from customers, customer tokens blocked while customer logins are disabled, rate limit per user plus a limit for live data, robust idempotency hashing and abandoned keys, anonymised token rows on account closure, super administrators' tokens protected. List-valued input for single-value fields is now a validation error instead of a server error (web and API).
 
 ### Security
 - Removed committed secrets from the working tree (they remain in the history and must be rotated by the owner), insecure Docker defaults and phpMyAdmin.
