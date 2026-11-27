@@ -95,10 +95,11 @@ Admin → E-mail templates lists all system e-mails (registration, verification,
 * **Roles**: super administrators manage custom roles and permissions; the system roles cannot be deleted and the super administrator role cannot be restricted.
 * **Login history**: successful and failed sign-ins with IP and user agent.
 * **Audit log**: who changed what and when (settings keys, never secret values).
+* **API tokens** (permission `api_tokens.manage`): all personal access tokens with owner, scopes, last use and expiry; revoke single tokens or all tokens of a user. Token secrets are never shown – only their prefix (`nbx_1a2b3c4d…`).
 
 ## System
 
-* **Settings → System**: maintenance mode (customers see a message; staff can sign in), debug logging, log retention, ticket system on/off. The page also shows PHP version and extensions, database status, pending migrations, the queue and scheduler state.
+* **Settings → System**: maintenance mode (customers see a message; staff can sign in), debug logging, log retention, ticket system on/off, **REST API** (off by default; customer tokens on/off; rate limit per token – see [API.md](API.md#rest-api-v1)). The page also shows PHP version and extensions, database status, pending migrations, the queue and scheduler state.
 * **Jobs**: background jobs with status, attempts and last error; failed jobs can be retried or cancelled.
 * Updates, backups and server maintenance are done on the server, not in the panel – see [INSTALLATION.md](INSTALLATION.md) and [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md).
 

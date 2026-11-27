@@ -1,11 +1,105 @@
 # API and Interfaces
 
-Nebrix currently has **no public REST API** for customers or resellers. All customer and staff functions are available through the server-rendered web interface, which is protected by sessions and CSRF tokens. This document describes the machine-facing endpoints, the command-line interface and the internal extension points.
+This document describes the **REST API** (`/api/v1`), the other machine-facing endpoints, the command-line interface and the internal extension points. The web interface itself is server-rendered and protected by sessions and CSRF tokens.
 
-## HTTP endpoints for machines
+## REST API (v1)
+
+A token-authenticated JSON API for customers (their own account, orders, services, invoices and tickets) and for staff (customers, services, orders, invoices, tickets – limited by their role). The machine-readable description is served at **`GET /api/v1/openapi.json`** (OpenAPI 3.1).
+
+### Enabling
+
+The API is **off by default**. Enable it in Admin → Settings → System → *REST API* (`api.enabled`). There you can also restrict token use to staff (`api.customer_tokens`) and set the rate limit per token (`api.rate_limit`, requests per minute, default 120). With the API disabled every `/api/v1` request answers `404 {"error": {"code": "api_disabled"}}`.
+
+Behind Apache with PHP-FPM/CGI the `Authorization` header is passed on by the rule in `public/.htaccess`; with nginx + PHP-FPM it is passed automatically (`fastcgi_params`).
+
+### Tokens
+
+Users create personal access tokens under **Account → API tokens** (password confirmation required):
+
+* Format `nbx_` + 48 hex characters (192 random bits). The token is shown **once**; only its SHA-256 hash and an 8-character prefix are stored.
+* **Scopes** (permissions of the token) – see below. Admin scopes are only offered to staff and only for permissions their role has.
+* **Lifetime** 7, 30, 90, 180 or 365 days (every token expires), optional **IP allowlist** (addresses or CIDR ranges), at most 20 active tokens per user.
+* Revocation by the owner (Account → API tokens) or by staff with `api_tokens.manage` (Admin → API tokens: single tokens or all tokens of a user). Closing an account revokes its tokens; suspended accounts cannot use their tokens.
+
+Send the token in every request:
+
+```bash
+curl -H "Authorization: Bearer nbx_…" https://panel.example.com/api/v1/me
+```
+
+Session cookies are ignored and no session or cookie is created; CSRF tokens are not needed (and not accepted as authentication).
+
+### Scopes
+
+| Scope | Allows |
+|---|---|
+| `account:read` | `GET /me` |
+| `products:read` | `GET /products`, `GET /products/{id}` (products the customer can order, with group prices) |
+| `orders:read` / `orders:create` | list/read own orders / place orders (`POST /orders`) |
+| `services:read` | own services, live status, available actions |
+| `services:manage` | run service actions (`POST /services/{id}/actions/{action}`) |
+| `services:credentials` | access data of own services (audit-logged) |
+| `invoices:read` / `invoices:pay` | own invoices / start a payment |
+| `tickets:read` / `tickets:write` | own tickets / open, reply, close |
+| `admin:customers:read` | `GET /admin/customers…` – needs `customers.view` |
+| `admin:products:read` | `GET /admin/products` – needs `products.view` |
+| `admin:orders:read` | `GET /admin/orders…` – needs `orders.view` |
+| `admin:invoices:read` | `GET /admin/invoices…` – needs `invoices.view` |
+| `admin:services:read` / `admin:services:write` | list services / suspend, unsuspend, terminate, retry – need `services.view` / `services.manage` |
+| `admin:tickets:read` / `admin:tickets:write` | read tickets / reply – need `tickets.view` / `tickets.reply` |
+
+Admin scopes are checked against the staff role **on every request** (plus admin access and, if enforced, two-factor authentication): removing a permission from a role immediately disables the matching scope of existing tokens.
+
+### Endpoints
+
+All paths are relative to `/api/v1`. Customer endpoints only ever return the token owner's data (other IDs answer `404`).
+
+| Method | Path | Scope | Notes |
+|---|---|---|---|
+| GET | `/me` | `account:read` | Account, credit balance, token details |
+| GET | `/products`, `/products/{id}` | `products:read` | `?category=` |
+| GET | `/orders`, `/orders/{id}` | `orders:read` | `?status=` |
+| POST | `/orders` | `orders:create` | `{"product_id": 3, "accept_terms": true, "options": {"hostname": "web01"}}` → order + `invoice_id`; same checks, prices and limits (10/hour) as the store |
+| GET | `/services`, `/services/{id}` | `services:read` | `?status=` |
+| GET | `/services/{id}/status` | `services:read` | Live data from the remote system (`502 upstream_error` if unavailable) |
+| GET | `/services/{id}/actions` | `services:read` | Available actions with their input fields |
+| POST | `/services/{id}/actions/{action}` | `services:manage` | Field values in the body; actions that the web interface confirms need `"confirm": true`. Reinstalls answer `202`; single sign-on actions return `redirect_url`. Limits: 10 actions per 5 minutes, 3 reinstalls per hour per service |
+| GET | `/services/{id}/credentials` | `services:credentials` | Audit-logged |
+| GET | `/invoices`, `/invoices/{id}` | `invoices:read` | `?status=&type=`; detail includes `items` and `payment_methods` |
+| POST | `/invoices/{id}/pay` | `invoices:pay` | `{"gateway": "credit"}` pays from the credit balance; `stripe`/`paypal` return `checkout_url` for the customer. The invoice is only marked paid by the verified provider confirmation |
+| GET | `/tickets`, `/tickets/{id}` | `tickets:read` | Detail includes messages (`author`: `customer`/`staff`) |
+| POST | `/tickets` | `tickets:write` | `{"subject", "message", "service_id"?, "priority"?}` (5 per hour) |
+| POST | `/tickets/{id}/replies`, `/tickets/{id}/close` | `tickets:write` | |
+| GET | `/admin/customers`, `/admin/customers/{id}` | `admin:customers:read` | `?search=&status=&customer_group_id=`; staff accounts are not listed |
+| GET | `/admin/products` | `admin:products:read` | `?category=&active=1` |
+| GET | `/admin/orders`, `/admin/orders/{id}` | `admin:orders:read` | `?status=&search=&user_id=` |
+| GET | `/admin/invoices`, `/admin/invoices/{id}` | `admin:invoices:read` | `?status=&type=&search=&user_id=` |
+| GET | `/admin/services`, `/admin/services/{id}` | `admin:services:read` | `?status=&category=&search=&user_id=&integration_id=` |
+| POST | `/admin/services/{id}/suspend` | `admin:services:write` | `{"reason"?, "notify"?: true}` → `202` |
+| POST | `/admin/services/{id}/unsuspend`, `/retry` | `admin:services:write` | `202` |
+| POST | `/admin/services/{id}/terminate` | `admin:services:write` | `{"confirm": "TERMINATE", "reason"?}` – deletes the remote resource |
+| GET | `/admin/tickets`, `/admin/tickets/{id}` | `admin:tickets:read` | `?status=&search=&user_id=&assigned_to=` |
+| POST | `/admin/tickets/{id}/replies` | `admin:tickets:write` | E-mails the customer |
+
+### Conventions
+
+* **Requests**: JSON bodies (`Content-Type: application/json`, a JSON object, max. 1 MiB) or form data; other content types answer `415`.
+* **Responses**: `{"data": …}`; lists add `"meta": {"page", "per_page", "total", "last_page"}` (`?page=`, `?per_page=` up to 100).
+* **Values**: amounts are integers in minor units (cents) together with `currency`; tax rates in basis points (`1900` = 19 %); timestamps ISO 8601 in UTC. Secret order options (domain auth codes), remote IDs and provisioning settings are never returned.
+* **Errors**: `{"error": {"code": "…", "message": "…"}}`, validation errors with `"fields"`, server errors with a `"reference"` for the log. Codes: `unauthenticated` (401), `insufficient_scope`/`forbidden`/`two_factor_required`/`email_unverified`/`api_access_disabled` (403), `not_found`/`api_disabled` (404), `method_not_allowed` (405), `conflict` (409), `validation_failed`/`unprocessable`/`confirmation_required`/`order_rejected`/`payment_method_unavailable`/`idempotency_key_reused` (422), `rate_limited` (429, with `Retry-After`), `upstream_error` (502), `unavailable` (503, maintenance – staff tokens keep working).
+* **Rate limits**: per token and minute (`X-RateLimit-Limit`, `X-RateLimit-Remaining`); additionally the same per-user limits as the web interface (orders, tickets, payments, service actions). After 30 failed authentications per IP within 5 minutes, further failures answer `429` (valid tokens from the same address keep working).
+* **Idempotency**: `POST` requests accept an `Idempotency-Key` header (8–128 characters). The first response is stored for 24 hours per token and returned again for retries with the same key and body (`Idempotent-Replayed: true`); the same key with a different body answers `422 idempotency_key_reused`, a request still running `409`.
+* **Audit**: write operations are recorded in the audit log like their web counterparts (API entries carry `via: api` and the token ID); token creation and revocation are logged.
+
+### Not available through the API
+
+Token management itself, the graphical console (it needs a browser session), profile and password changes, two-factor settings, payment provider settings, integrations, refunds and manual payments. These remain in the web interface.
+
+## Other HTTP endpoints for machines
 
 | Method | Path | Authentication | Purpose |
 |---|---|---|---|
+| `GET` | `/api/v1`, `/api/v1/openapi.json` | none (API enabled) | API index and OpenAPI 3.1 document. |
 | `GET` | `/health` | none | Liveness/readiness check. `200 {"status":"ok","database":"ok"}` or `503 {"status":"degraded",…}`. Contains no version or configuration details. |
 | `POST` | `/webhooks/stripe` | Stripe signature (`Stripe-Signature`, signing secret) | Stripe events – see [PAYMENTS.md](PAYMENTS.md). |
 | `POST` | `/webhooks/paypal` | PayPal transmission headers verified via PayPal's API and the configured webhook ID | PayPal events – see [PAYMENTS.md](PAYMENTS.md). |
@@ -23,7 +117,7 @@ Webhook responses:
 | `503` | Verification temporarily impossible (PayPal unreachable) – the provider retries. |
 | `500` | Processing failed; the event is stored with status `failed` and the provider retries. |
 
-There are no other unauthenticated endpoints that change state, and there is no HTTP-triggered cron endpoint.
+Apart from the REST API (token-authenticated) there are no other endpoints for machines that change state, and there is no HTTP-triggered cron endpoint.
 
 ## Command-line interface
 
@@ -74,7 +168,3 @@ Handlers implement `Nebrix\Queue\JobHandler` (optionally `FailureAwareJobHandler
 | Permissions | `Nebrix\Authorization\Permission` (catalog and default role assignments). |
 | CLI command | `Nebrix\Console\Command` – register in `config/commands.php`. |
 | Scheduler task | `Nebrix\Scheduler\Scheduler::tasks()`. |
-
-## A future REST API
-
-If a public API is added, it should use separate API tokens (hashed like other tokens, scoped to permissions), its own rate limits, JSON error responses without CSRF (token-authenticated) and the same service layer and authorization checks as the web interface – never a second implementation of business rules.

@@ -11,6 +11,7 @@ It is the modernized successor of the open-source **RED-Host Panel** by Björn S
 * **Automated provisioning** – Proxmox VE (KVM and LXC, API tokens, multiple clusters, IP pools, reinstall, password reset, noVNC console), Hetzner Robot (dedicated servers from a pool or ordered), Plesk (webhosting), INWX (domain registrations and transfers), Pterodactyl (Minecraft and other game servers), Nextcloud (storage accounts), TeamSpeak 3 (virtual servers). Products without an integration are fulfilled manually.
 * **Payments** – Stripe Checkout and PayPal (Orders v2) with verified webhooks, account credit, manual payments, refunds and dispute handling.
 * **Billing automation** – recurring renewals, overdue suspension, optional termination, idempotent job queue with retries.
+* **REST API** – token-authenticated JSON API (`/api/v1`, OpenAPI 3.1) for customers (orders, services and actions, invoices and payment, tickets) and staff (customers, services, orders, invoices, tickets) with scoped, expiring tokens, rate limits and idempotency keys.
 
 ## Security highlights
 
@@ -54,7 +55,7 @@ Full instructions, including a manual installation: [INSTALLATION.md](DOCUMENTAT
 | [SECURITY.md](DOCUMENTATION/SECURITY.md) | Protections and remaining risks |
 | [ARCHITECTURE.md](DOCUMENTATION/ARCHITECTURE.md) | Code structure and main flows |
 | [DATABASE.md](DOCUMENTATION/DATABASE.md) | Schema, migrations, backups |
-| [API.md](DOCUMENTATION/API.md) | Webhooks, health check, CLI, extension points |
+| [API.md](DOCUMENTATION/API.md) | REST API (tokens, scopes, endpoints), webhooks, health check, CLI, extension points |
 | [UPGRADE_GUIDE.md](DOCUMENTATION/UPGRADE_GUIDE.md) | Migration from RED-Host and updates |
 | [AUDIT.md](DOCUMENTATION/AUDIT.md) | Security audit of the legacy code base |
 | [IMPLEMENTATION_ROADMAP.md](DOCUMENTATION/IMPLEMENTATION_ROADMAP.md) | Modernization progress and open items |

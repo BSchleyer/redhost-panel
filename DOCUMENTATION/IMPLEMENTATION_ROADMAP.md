@@ -131,8 +131,12 @@ This file is the single source of truth for modernization progress. It is update
 - Second independent security review of the session-2 features (1 high, 4 medium, 7 low, plus 6 unverified points); all findings and four of the unverified points fixed with regression tests (see SECURITY.md, "Security review"). 245 tests (1636 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** public REST API (scoped tokens), then live verification of all integrations on staging.
 
+### Session 3 (2026-11-27) – REST API
+- REST API `/api/v1` (customer and admin endpoints, OpenAPI 3.1 document), personal access tokens with scopes/expiry/IP allowlist, token UI for users and staff, stateless kernel path, per-token rate limits, idempotency keys. Documentation in API.md, SECURITY.md, CONFIGURATION.md, ADMIN_GUIDE.md, DATABASE.md, ARCHITECTURE.md.
+- **Next step:** live verification of all integrations and the payment providers on staging.
+
 ## Remaining work
-- **Public REST API** with scoped tokens (next task requested by the owner).
+- REST API: possible extensions – webhooks for API clients, profile changes, staff write access beyond services and tickets (e.g. manual payments), OAuth for third-party apps.
 - Verify every integration (Proxmox incl. console, Hetzner Robot in order test mode, Plesk, INWX OTE, Pterodactyl, Nextcloud, TeamSpeak) and both payment providers against staging/sandbox systems; only tests against fakes exist.
 - Verify the Docker build stage (`composer install` in the `composer:2` image) in CI or locally.
 - Hetzner: automatic disk wipe of returned pool servers and server market (auction) orders are not implemented.

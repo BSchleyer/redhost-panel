@@ -6,7 +6,7 @@ Nebrix is a server-rendered PHP 8.3/8.4 application without a full-stack framewo
 
 | Component | Command / entry point | Purpose |
 |---|---|---|
-| Web application | `public/index.php` (Apache/PHP-FPM) | Customer panel, admin panel, payment webhooks |
+| Web application | `public/index.php` (Apache/PHP-FPM) | Customer panel, admin panel, REST API (`/api/v1`), payment webhooks |
 | Worker | `bin/nebrix queue:work` | Provisioning, suspensions, terminations, e-mail delivery |
 | Scheduler | `bin/nebrix schedule:run` (cron, every minute) | Renewals, overdue suspension, health checks, data retention |
 | Console proxy (optional) | `bin/nebrix console:proxy` | WebSocket relay between noVNC in the browser and the Proxmox console |
@@ -30,6 +30,17 @@ public/index.php
 
 Every middleware layer converts exceptions into responses (`HttpException` → error page, `ValidationException` → redirect back with flashed errors), so session persistence always runs and no stack trace reaches a client.
 
+REST API routes are registered as **stateless** (`/api/v1`). For them the kernel uses a separate global stack without `StartSession`/`VerifyCsrfToken`:
+
+```
+PrepareApiRequest (API enabled? JSON body ≤ 1 MiB)
+ └─ route middleware: api.auth (Bearer token, per-token rate limit) → api.idempotent (Idempotency-Key)
+                      → api.scope:<scope> (token scope; admin scopes also re-check the staff permission)
+    └─ Controller\Api\… (same repositories and services as the web controllers)
+```
+
+Errors on stateless routes (including unknown paths below `/api/`) are rendered as `{"error": {"code", "message"}}`.
+
 ## Source layout
 
 ```
@@ -42,13 +53,14 @@ resources/views/            Twig templates (layouts, auth, account, customer, ad
 resources/lang/             translation catalogs (English source strings → translation)
 src/
   Admin/                    dashboard statistics
+  Api/                      REST API: tokens (ApiTokenService), scopes, middleware, resource representations, OpenAPI document
   Audit/                    append-only audit log
   Auth/                     User model, AuthService, TwoFactorService, TokenService, LoginHistory
   Authorization/            Permission catalog, Gate (RBAC)
   Billing/                  Money, orders, invoices, sequences, credit ledger, OrderService, InvoiceService
   Catalog/                  product categories (provisioning schema), billing cycles
   Console/                  command runner and commands
-  Controller/               Admin/, Customer/, Account/, Auth/, webhooks, health, branding CSS
+  Controller/               Admin/, Customer/, Account/, Auth/, Api/ (REST API), webhooks, health, branding CSS
   Core/                     Application, Container, Config, Env, Clock, ErrorHandler, LoggerFactory
   Customer/                 administrative account operations
   Domain/                   registrar interface, registrant contacts, phone number formatting

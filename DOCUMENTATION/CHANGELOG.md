@@ -29,6 +29,11 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - `legacy:import --only=services,tickets,history` for RED-Host services (Proxmox, TeamSpeak, Pterodactyl, Plesk), tickets and payment history.
 - Optional CAPTCHA (hCaptcha, Cloudflare Turnstile) on registration and password reset; `db:triggers` for append-only tables.
 
+### Added (REST API)
+- Token-authenticated REST API under `/api/v1` with an OpenAPI 3.1 document (`/api/v1/openapi.json`): account, products, order placement, services (status, actions, access data), invoices and payment start, support tickets; admin endpoints for customers, products, orders, invoices, service lifecycle and ticket replies.
+- Personal access tokens (Account → API tokens): scopes, expiry, IP allowlist, shown once, stored hashed; admin overview and revocation (permission `api_tokens.manage`); settings to enable the API, allow customer tokens and set the rate limit.
+- Stateless request handling for API routes (no session/CSRF, JSON errors), per-token rate limits, `Idempotency-Key` support for `POST` requests.
+
 ### Security
 - Removed committed secrets from the working tree (they remain in the history and must be rotated by the owner), insecure Docker defaults and phpMyAdmin.
 - Fixed the legacy vulnerabilities documented in AUDIT.md (session token design, impersonation, SSH command execution, unverified PayPal IPN, double-spend race, CSRF, XSS, IDOR, open redirects, SSRF, unprotected cron endpoints, plaintext third-party credentials).
@@ -43,4 +48,3 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending.
 - LXC root passwords can only be changed by reinstalling (no Proxmox API for it); IPv6 is assigned by SLAAC only.
 - Hetzner: disks of terminated pool servers are not wiped automatically; server market (auction) orders are not supported.
-- No public REST API (planned next).

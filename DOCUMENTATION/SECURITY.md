@@ -39,6 +39,15 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Customer groups can disable ordering and self-service actions; checked server-side.
 * Impersonation ("log in as customer") is intentionally not implemented (C-04).
 
+### REST API
+* Off by default (`api.enabled`). Stateless: no session is read or created and no cookie is set, so CSRF does not apply; a browser session never authenticates an API request.
+* **Tokens**: 192-bit random secrets with the prefix `nbx_` (recognisable by secret scanners), stored only as SHA-256 hash, shown once; creation requires the account password and is rate-limited (10/hour). Every token expires (max. 365 days), has explicit scopes and an optional IP allowlist; at most 20 active tokens per user. Owners and staff (`api_tokens.manage`) can revoke tokens; closing an account revokes them, suspended accounts cannot use them; creation and revocation are audit-logged.
+* **Authorization**: each route declares one scope (enforced by middleware; a test keeps the route table and the OpenAPI document in sync). Admin scopes can only be chosen for permissions the staff member has and are re-checked against the role, `admin.access` and enforced staff 2FA on every request. Customer endpoints use the same user-scoped queries as the web interface (`findForUser`, `user_id` filters) – other customers' IDs answer 404.
+* **Same rules as the web interface**: controllers call the existing services (orders, payments, service actions, tickets) with the same validation, prechecks and per-user rate limits; payments are only settled by verified provider confirmations; dangerous actions need an explicit confirmation (`"confirm": true`, `"confirm": "TERMINATE"`).
+* **Output**: resources are built from explicit field lists – remote IDs, provisioning configuration, encrypted values, secret order options, password hashes and internal notes are never returned; access data only with the `services:credentials` scope (audit-logged).
+* **Abuse limits**: per-token rate limit (default 120/min); failed authentications per IP answer 429 after 30 failures in 5 minutes without blocking valid tokens from that address; JSON bodies max. 1 MiB and depth 32; `Idempotency-Key` replays only for the same token and an identical request.
+* Errors are JSON with stable codes and never contain internal details (server errors carry a log reference only).
+
 ### Web security
 * **XSS**: Twig auto-escaping for all templates; no `|raw` on user data; messages and notes are rendered as escaped text (H-02/H-03).
 * **CSP**: `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' + payment providers`. No inline scripts or styles; brand colours are served as `/branding.css`.

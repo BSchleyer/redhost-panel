@@ -54,6 +54,8 @@ php bin/nebrix migrate
 | `nx_rate_limits` | Throttle counters (hashed key, hits, reset time). |
 | `nx_login_history` | Successful and failed sign-ins (pruned after the retention period). |
 | `nx_audit_log` | Append-only record of administrative and security-relevant actions. |
+| `nx_api_tokens` | REST API personal access tokens: owner, name, SHA-256 hash (unique) and 8-character prefix of the token, scopes (JSON), optional IP allowlist, expiry, last use, revocation time. |
+| `nx_api_idempotency` | Stored first responses of `POST` requests with an `Idempotency-Key` per token (key and request as SHA-256); pruned after 24 hours. |
 | `nx_settings` | Admin settings (`key` → value). Secret settings are stored encrypted with the context `setting:<key>`. |
 | `nx_mail_templates` | Customised e-mail templates (defaults live in `config/mail_templates.php`). |
 
@@ -91,7 +93,7 @@ php bin/nebrix migrate
 
 ## Data retention
 
-The daily `maintenance.cleanup` task deletes expired sessions, used/expired tokens, expired rate-limit counters, login history older than the configured retention (default 180 days), integration logs older than the configured retention (default 30 days) and completed jobs older than 30 days. Financial records (invoices, transactions, payment events, credit ledger) and the audit log are never deleted by the application.
+The daily `maintenance.cleanup` task deletes expired sessions, used/expired tokens, expired rate-limit counters, login history older than the configured retention (default 180 days), integration logs older than the configured retention (default 30 days), completed jobs older than 30 days, console sessions older than a day and API idempotency records older than 24 hours. Revoked and expired API tokens are kept (they are listed for the audit trail). Financial records (invoices, transactions, payment events, credit ledger) and the audit log are never deleted by the application.
 
 Customer accounts are never hard-deleted because invoices and payments reference them. For erasure requests use Admin → Customers → *Close and anonymize* (permission `customers.delete`), which closes the account, ends its sessions and replaces personal data with placeholders while keeping the financial records required by statutory retention periods.
 

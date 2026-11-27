@@ -94,6 +94,15 @@ Configured in Admin → Payments: PayPal (mode sandbox/live, client ID, client s
 | Login history retention | 180 days |
 | Enable support tickets | on |
 
+### REST API
+| Setting | Default |
+|---|---|
+| Enable the REST API (`api.enabled`) | **off** – `/api/v1` answers `404 api_disabled` |
+| Customers may create API tokens (`api.customer_tokens`) | on – when off, only staff tokens work |
+| Requests per minute and token (`api.rate_limit`) | 120 (10–6000) |
+
+See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
+
 ## Scheduler tasks
 
 `php bin/nebrix schedule:run` (every minute) runs these tasks when due:
