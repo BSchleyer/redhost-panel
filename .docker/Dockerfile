@@ -7,7 +7,8 @@
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction --no-progress
+# The composer image has no pdo_mysql; the runtime stage below installs it.
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction --no-progress --ignore-platform-req=ext-pdo_mysql
 COPY . .
 RUN composer dump-autoload --no-dev --optimize --classmap-authoritative --no-interaction
 

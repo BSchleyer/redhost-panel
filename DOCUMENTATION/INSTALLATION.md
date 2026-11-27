@@ -50,6 +50,8 @@ docker compose up -d
 docker compose exec app php bin/nebrix migrate
 ```
 
+   Until the migrations have run, `worker` and `scheduler` log "table … doesn't exist" and restart; that is expected and stops once the schema exists.
+
 4. Create the first super administrator:
 
 ```bash
@@ -60,7 +62,7 @@ docker compose exec app php bin/nebrix user:create-admin --email=admin@example.c
 
 5. Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, …) in front of port `APP_PORT` (default 8080) and add the proxy's address to `TRUSTED_PROXIES`.
 
-The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, issued invoice documents in `invoices` (mounted into app, worker and scheduler – include it in your backups and keep it for the statutory retention period), the database in `db-data`.
+The image is built from `.docker/Dockerfile`; `.dockerignore` keeps `.env`, `.git`, local `vendor/`, tests, logs and runtime data out of the build context, so no secrets end up in the image. The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, issued invoice documents in `invoices` (mounted into app, worker and scheduler – include it in your backups and keep it for the statutory retention period), the database in `db-data`.
 
 Reverse proxy: route everything to port 8080 and the console WebSocket path (`CONSOLE_WS_URL`, default `/console/ws`) to port 8081 with WebSocket upgrade (the proxy's address as seen by the containers – usually the Docker gateway – belongs in `TRUSTED_PROXIES`), e.g. nginx:
 

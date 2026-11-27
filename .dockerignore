@@ -1,0 +1,23 @@
+# Build context of .docker/Dockerfile: never send secrets, local
+# dependencies, logs or runtime data to the image.
+.git
+.github
+.env
+.env.*
+!.env.example
+vendor
+node_modules
+tests
+.phpunit.cache
+.phpunit.result.cache
+.idea
+.vscode
+*.log
+storage/logs/*
+storage/cache/*
+storage/invoices/*
+storage/uploads/*
+public/uploads/*
+.claude
+phpstan.neon.dist
+phpunit.xml.dist
