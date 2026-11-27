@@ -239,7 +239,7 @@ return [
     'IP-restricted' => 'IP-beschränkt',
     'Revoke this token?' => 'Dieses Token widerrufen?',
     'Revoke all API tokens of this user?' => 'Alle API-Tokens dieses Benutzers widerrufen?',
-    'Revoke all of user' => 'Alle des Benutzers widerrufen',
+    'All of user' => 'Alle des Benutzers',
     'No API tokens.' => 'Keine API-Tokens.',
     'REST API' => 'REST-API',
     'Enable the REST API' => 'REST-API aktivieren',

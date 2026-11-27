@@ -24,10 +24,10 @@
                 <td class="nowrap">{{ t.last_used_at ? t.last_used_at|dt : '–' }}{% if t.last_used_ip %}<div class="small muted mono">{{ t.last_used_ip }}</div>{% endif %}</td>
                 <td class="nowrap">{{ t.expires_at|dt }}</td>
                 <td>{% if t.revoked_at %}<span class="badge badge-neutral">{{ 'revoked'|t }}</span>{% elseif not active %}<span class="badge badge-neutral">{{ 'expired'|t }}</span>{% else %}<span class="badge badge-success">{{ 'active'|t }}</span>{% endif %}</td>
-                <td class="nowrap">
+                <td>
                     {% if active %}
-                    <form method="post" action="/admin/api-tokens/{{ t.id }}/revoke" class="d-inline" data-confirm="{{ 'Revoke this token?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-danger" type="submit">{{ 'Revoke'|t }}</button></form>
-                    <form method="post" action="/admin/api-tokens/user/{{ t.user_id }}/revoke" class="d-inline" data-confirm="{{ 'Revoke all API tokens of this user?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Revoke all of user'|t }}</button></form>
+                    <form method="post" action="/admin/api-tokens/{{ t.id }}/revoke" data-confirm="{{ 'Revoke this token?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-danger" type="submit">{{ 'Revoke'|t }}</button></form>
+                    <form method="post" action="/admin/api-tokens/user/{{ t.user_id }}/revoke" class="mt-1" data-confirm="{{ 'Revoke all API tokens of this user?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline nowrap" type="submit">{{ 'All of user'|t }}</button></form>
                     {% endif %}
                 </td>
             </tr>
