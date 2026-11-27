@@ -15,7 +15,7 @@ use Nebrix\Security\RateLimiter;
 use Nebrix\Settings\SettingsRepository;
 
 /**
- * Authenticates "Authorization: Bearer nbx_…" and applies the per-token
+ * Authenticates "Authorization: Bearer nbx_…" and applies the per-user
  * rate limit. Sets the request attributes "user" and "api_token".
  *
  * Failed attempts are counted per client IP; after 30 failures within five
@@ -55,7 +55,7 @@ final class AuthenticateApiToken implements Middleware
         [$token, $user] = $resolved;
 
         $isStaff = $this->gate->allows($user, Permission::ADMIN_ACCESS);
-        if (!$isStaff && !$this->settings->bool('api.customer_tokens')) {
+        if (!$isStaff && (!$this->settings->bool('api.customer_tokens') || !$this->settings->bool('auth.login_enabled'))) {
             throw new ApiException(403, 'api_access_disabled', 'API access is currently only available to staff.');
         }
         if ($this->settings->bool('auth.require_email_verification') && !$user->isEmailVerified()) {
@@ -65,8 +65,9 @@ final class AuthenticateApiToken implements Middleware
             throw ApiException::unavailable('The service is in maintenance mode. Please try again later.');
         }
 
+        // Per user (shared by all tokens of the account), so more tokens do not mean more requests.
         $limit = max(10, $this->settings->int('api.rate_limit'));
-        $rateKey = 'api-token:' . $token->id;
+        $rateKey = 'api-user:' . $user->id;
         $hits = $this->limiter->hit($rateKey, 60);
         if ($hits > $limit) {
             throw ApiException::rateLimited($this->limiter->availableIn($rateKey));

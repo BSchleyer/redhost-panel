@@ -103,5 +103,5 @@ return [
     // ---------------------------------------------------------------- REST API
     'api.enabled' => ['group' => 'api', 'type' => 'bool', 'default' => false, 'label' => 'Enable the REST API', 'help' => 'Token-authenticated JSON API under /api/v1 (documentation: /api/v1/openapi.json).'],
     'api.customer_tokens' => ['group' => 'api', 'type' => 'bool', 'default' => true, 'label' => 'Customers may create API tokens', 'help' => 'When disabled, only staff tokens work.'],
-    'api.rate_limit' => ['group' => 'api', 'type' => 'int', 'default' => 120, 'label' => 'Requests per minute and token', 'rules' => 'required|int|min:10|max:6000'],
+    'api.rate_limit' => ['group' => 'api', 'type' => 'int', 'default' => 120, 'label' => 'Requests per minute and user (all tokens together)', 'rules' => 'required|int|min:10|max:6000'],
 ];

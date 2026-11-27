@@ -120,7 +120,7 @@ final class OpenApi
 
             $operation = [
                 'summary' => $summary,
-                'description' => sprintf('Required scope: `%s`.', $scope) . (ApiScope::isAdmin($scope) ? sprintf(' Requires the staff permission `%s`.', ApiScope::permissionFor($scope)) : ''),
+                'description' => sprintf('Required scope: `%s`.', $scope) . (ApiScope::isAdmin($scope) ? sprintf(' Requires the staff permissions `%s`.', implode('`, `', ApiScope::permissionsFor($scope))) : ''),
                 'security' => [['bearerAuth' => []]],
                 'x-scope' => $scope,
                 'parameters' => $parameters,
@@ -208,7 +208,7 @@ final class OpenApi
         $service = ['type' => 'object', 'properties' => [
             'id' => $int, 'user_id' => $int, 'name' => $str, 'category' => $str, 'status' => ['type' => 'string', 'enum' => ['pending', 'provisioning', 'active', 'suspended', 'terminated', 'failed', 'cancelled']],
             'product_id' => $nullableInt, 'billing_cycle' => $str, 'recurring_amount' => $int, 'tax_rate_bp' => $int, 'currency' => $str, 'next_due_at' => $date,
-            'options' => ['type' => 'object'], 'has_credentials' => ['type' => 'boolean'], 'suspension_reason' => $nullableStr, 'created_at' => $date,
+            'options' => ['type' => 'object'], 'has_credentials' => ['type' => 'boolean'], 'created_at' => $date,
         ]];
         $order = ['type' => 'object', 'properties' => [
             'id' => $int, 'number' => $str, 'user_id' => $int, 'status' => $str, 'currency' => $str, 'subtotal' => $int, 'discount' => $int, 'tax' => $int, 'total' => $int,

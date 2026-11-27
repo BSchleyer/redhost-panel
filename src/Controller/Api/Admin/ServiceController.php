@@ -53,13 +53,15 @@ final class ServiceController extends ApiController
     public function suspend(Request $request, int $id): Response
     {
         $data = $this->validateInput($request, ['reason' => 'nullable|string|max:255', 'notify' => 'nullable|bool']);
+        // Like the admin interface, the customer is notified unless "notify": false is sent explicitly.
+        $notify = !array_key_exists('notify', $this->input($request)) || $data['notify'] === true;
 
-        return $this->lifecycle($request, $id, fn (Service $s, int $actor) => $this->manager->suspend($s, (string) ($data['reason'] ?: 'Suspended by staff'), $actor, $data['notify'] ?? true));
+        return $this->lifecycle($request, $id, 'suspend', fn (Service $s, int $actor) => $this->manager->suspend($s, (string) ($data['reason'] ?: 'Suspended by staff'), $actor, $notify));
     }
 
     public function unsuspend(Request $request, int $id): Response
     {
-        return $this->lifecycle($request, $id, fn (Service $s, int $actor) => $this->manager->unsuspend($s, $actor));
+        return $this->lifecycle($request, $id, 'unsuspend', fn (Service $s, int $actor) => $this->manager->unsuspend($s, $actor));
     }
 
     public function terminate(Request $request, int $id): Response
@@ -69,18 +71,18 @@ final class ServiceController extends ApiController
             throw new ApiException(422, 'confirmation_required', 'Send "confirm": "TERMINATE" to terminate the service. This deletes the remote resource.');
         }
 
-        return $this->lifecycle($request, $id, fn (Service $s, int $actor) => $this->manager->terminate($s, $actor, (string) ($data['reason'] ?: 'Terminated by staff')));
+        return $this->lifecycle($request, $id, 'terminate', fn (Service $s, int $actor) => $this->manager->terminate($s, $actor, (string) ($data['reason'] ?: 'Terminated by staff')));
     }
 
     public function retry(Request $request, int $id): Response
     {
-        return $this->lifecycle($request, $id, fn (Service $s, int $actor) => $this->manager->retryProvisioning($s, $actor));
+        return $this->lifecycle($request, $id, 'retry', fn (Service $s, int $actor) => $this->manager->retryProvisioning($s, $actor));
     }
 
     /**
      * @param callable(Service, int): void $operation
      */
-    private function lifecycle(Request $request, int $id, callable $operation): Response
+    private function lifecycle(Request $request, int $id, string $name, callable $operation): Response
     {
         $service = $this->find($id);
         try {
@@ -88,6 +90,8 @@ final class ServiceController extends ApiController
         } catch (ServiceStateException $exception) {
             throw ApiException::conflict($exception->getMessage());
         }
+        // ServiceManager logs the operation itself; this entry ties it to the token.
+        $this->apiAudit($request, 'service.' . $name . '_via_api', 'service', $id);
 
         return $this->data(self::withAdminFields($this->find($id)), 202);
     }
@@ -98,6 +102,7 @@ final class ServiceController extends ApiController
     private static function withAdminFields(Service $service): array
     {
         return Resource::service($service) + [
+            'suspension_reason' => $service->status === Service::STATUS_SUSPENDED && is_string($service->attributes['suspension_reason'] ?? null) ? $service->attributes['suspension_reason'] : null,
             'integration_id' => $service->integrationId,
             'external_id' => $service->externalId,
             'last_error' => is_string($service->attributes['last_error'] ?? null) ? $service->attributes['last_error'] : null,

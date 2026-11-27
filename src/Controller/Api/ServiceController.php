@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nebrix\Controller\Api;
 
 use Nebrix\Api\ApiException;
+use Nebrix\Api\ApiScope;
+use Nebrix\Api\Middleware\IdempotentRequest;
 use Nebrix\Api\Resource;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
@@ -56,6 +58,8 @@ final class ServiceController extends ApiController
         if (!$service->isActive() || !$this->provisioners->supportsService($service)) {
             return $this->data(['state' => $service->status, 'live' => false, 'connection' => []]);
         }
+        // Live data is fetched from the remote system on every call.
+        $this->throttle('api-live:' . $this->user($request)->id, 30, 60, 'Live data can be requested at most 30 times per minute.');
 
         try {
             $status = $this->provisioners->for($service->category)->status($service);
@@ -75,6 +79,7 @@ final class ServiceController extends ApiController
             return Response::json(['data' => []]);
         }
 
+        $this->throttle('api-live:' . $this->user($request)->id, 30, 60, 'Live data can be requested at most 30 times per minute.');
         try {
             $available = $this->runner->available($service);
         } catch (IntegrationException $exception) {
@@ -125,6 +130,12 @@ final class ServiceController extends ApiController
             throw new ApiException(502, 'upstream_error', 'The action could not be executed. Please try again later.');
         }
 
+        // Single sign-on opens a full control panel session: at least as
+        // sensitive as the access data, so it also needs that scope.
+        if ($definition->mode === ServiceAction::REDIRECT && !$this->token($request)->hasScope(ApiScope::SERVICES_CREDENTIALS)) {
+            throw new ApiException(403, 'insufficient_scope', sprintf('Single sign-on actions also need the scope "%s".', ApiScope::SERVICES_CREDENTIALS));
+        }
+
         $input = $this->input($request);
         // Actions the web interface confirms in a dialog need an explicit confirmation.
         if (($definition->confirm !== null || $definition->danger) && ($input['confirm'] ?? null) !== true) {
@@ -145,6 +156,12 @@ final class ServiceController extends ApiController
             $this->logger->warning('Customer service action failed (API)', ['service' => $id, 'action' => $action, 'message' => $exception->getMessage()]);
 
             throw new ApiException(502, 'upstream_error', 'The action could not be executed. Please try again later or contact support.');
+        }
+
+        $this->apiAudit($request, 'service.action', 'service', $id, ['action' => $action]);
+        if ($result['redirect'] !== null) {
+            // Login URLs are one-time credentials: never kept for idempotent replays.
+            $request->setAttribute(IdempotentRequest::DO_NOT_STORE, true);
         }
 
         return $this->data([

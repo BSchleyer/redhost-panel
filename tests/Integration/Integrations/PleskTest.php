@@ -161,4 +161,34 @@ final class PleskTest extends IntegrationTestCase
         self::assertCount(1, $this->plesk->customers);
         self::assertCount(1, $this->plesk->webspaces);
     }
+
+    public function testSingleSignOnThroughTheApiNeedsTheCredentialsScopeAndIsNeverStored(): void
+    {
+        $this->app->container()->get(\Nebrix\Settings\SettingsRepository::class)->set('api.enabled', true);
+        $user = $this->createUser();
+        $service = $this->hosting($user->id, 'sso-api.de');
+        $this->provision($service);
+        $this->db->update('nx_services', ['status' => 'active'], ['id' => $service->id]);
+        $tokens = $this->app->container()->get(\Nebrix\Api\ApiTokenService::class);
+        $call = function (string $secret, string $key): \Nebrix\Http\Response {
+            return $this->app->handle(\Nebrix\Http\Request::create('POST', '/api/v1/services/' . $this->lastServiceId . '/actions/login', [], [], [
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $secret, 'HTTP_IDEMPOTENCY_KEY' => $key, 'CONTENT_TYPE' => 'application/json',
+            ], '{}'));
+        };
+        $this->lastServiceId = $service->id;
+
+        $manageOnly = $tokens->create($user, 'Power', ['services:manage'], 30, [], null)['secret'];
+        $denied = $call($manageOnly, 'sso-key-0001');
+        self::assertSame(403, $denied->status());
+        self::assertSame('insufficient_scope', json_decode($denied->body(), true)['error']['code']);
+
+        $full = $tokens->create($user, 'SSO', ['services:manage', 'services:credentials'], 30, [], null)['secret'];
+        $allowed = $call($full, 'sso-key-0002');
+        self::assertSame(200, $allowed->status());
+        self::assertStringContainsString('rsession_init.php', (string) json_decode($allowed->body(), true)['data']['redirect_url']);
+        self::assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_api_idempotency'), 'One-time login URLs are not stored for replays.');
+        self::assertNotNull($this->db->fetchOne("SELECT id FROM nx_audit_log WHERE action = 'service.action' AND target_id = ?", [(string) $service->id]));
+    }
+
+    private int $lastServiceId = 0;
 }

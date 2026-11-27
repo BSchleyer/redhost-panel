@@ -28,11 +28,17 @@ return [
         'subject' => 'Reset your password',
         'html' => '<p>Hello {{ name }},</p><p>we received a request to reset your password (from IP address {{ ip }}). Use the button below to choose a new password:</p><p><a class="button" href="{{ reset_url }}">Reset password</a></p><p>The link is valid for {{ expires_minutes }} minutes and can be used once. If you did not request this, you can ignore this e-mail – your password stays unchanged.</p>',
     ],
+    'api_token_created' => [
+        'name' => 'API token created',
+        'variables' => ['name', 'token_name', 'scopes', 'expires', 'ip', 'tokens_url'],
+        'subject' => 'A new API token was created for your account',
+        'html' => '<p>Hello {{ name }},</p><p>a new API token "{{ token_name }}" was created for your {{ company_name }} account (IP address {{ ip }}). Permissions: {{ scopes }}. The token expires on {{ expires }}.</p><p>If you did not create this token, revoke it immediately, change your password and contact {{ support_email }}.</p><p><a class="button" href="{{ tokens_url }}">Manage API tokens</a></p>',
+    ],
     'password_changed' => [
         'name' => 'Password changed',
         'variables' => ['name', 'ip', 'time'],
         'subject' => 'Your password was changed',
-        'html' => '<p>Hello {{ name }},</p><p>the password of your {{ company_name }} account was changed on {{ time }} (IP address {{ ip }}). All other sessions were signed out.</p><p>If this was not you, reset your password immediately and contact {{ support_email }}.</p>',
+        'html' => '<p>Hello {{ name }},</p><p>the password of your {{ company_name }} account was changed on {{ time }} (IP address {{ ip }}). All other sessions were signed out and all API tokens were revoked.</p><p>If this was not you, reset your password immediately and contact {{ support_email }}.</p>',
     ],
     'order_confirmation' => [
         'name' => 'Order confirmation',

@@ -129,6 +129,12 @@ final class Validator
      */
     private static function applyRules(string $field, string $label, mixed $value, array $rules, array $data): array
     {
+        // Lists/objects (e.g. "a[]=1" or JSON arrays) are only valid for "array" fields;
+        // other rules would otherwise run string functions on them.
+        if (is_array($value) && !in_array('array', $rules, true)) {
+            return [$value, [sprintf('The %s is invalid.', $label)]];
+        }
+
         $errors = [];
         $isNumericType = (bool) array_intersect($rules, ['int', 'numeric', 'decimal']);
 
@@ -220,7 +226,7 @@ final class Validator
 
                 case 'in':
                     $options = explode(',', (string) $parameter);
-                    if (!in_array((string) (is_bool($value) ? (int) $value : $value), $options, true)) {
+                    if (!is_scalar($value) || !in_array((string) (is_bool($value) ? (int) $value : $value), $options, true)) {
                         $errors[] = sprintf('The selected %s is invalid.', $label);
                     }
                     break;

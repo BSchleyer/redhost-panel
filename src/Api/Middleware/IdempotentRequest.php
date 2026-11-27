@@ -23,7 +23,12 @@ use PDOException;
  */
 final class IdempotentRequest implements Middleware
 {
+    /** Request attribute a controller sets for responses that must not be kept (one-time login URLs). */
+    public const DO_NOT_STORE = '_idempotency_do_not_store';
+
     private const NOT_STORED = [401, 403, 409, 429];
+    /** A request still "running" after this many seconds is treated as abandoned (crash, timeout). */
+    private const ABANDONED_AFTER = 300;
 
     public function __construct(
         private readonly Connection $db,
@@ -43,26 +48,17 @@ final class IdempotentRequest implements Middleware
         }
 
         $keyHash = hash('sha256', $key);
-        $requestHash = hash('sha256', $request->method() . ' ' . $request->path() . "\n" . $request->body() . "\n" . json_encode($request->all()));
+        // serialize() cannot fail (unlike json_encode on invalid UTF-8), so every input part is covered.
+        $requestHash = hash('sha256', serialize([$request->method(), $request->path(), $request->body(), $request->all()]));
 
-        try {
-            $id = $this->db->insert('nx_api_idempotency', [
-                'token_id' => $token->id,
-                'key_hash' => $keyHash,
-                'request_hash' => $requestHash,
-                'created_at' => $this->clock->nowString(),
-            ]);
-        } catch (PDOException $exception) {
-            if (($exception->errorInfo[1] ?? null) !== 1062) {
-                throw $exception;
-            }
-
+        $id = $this->claim($token->id, $keyHash, $requestHash);
+        if ($id === null) {
             return $this->replay($token->id, $keyHash, $requestHash);
         }
 
         $response = $next($request);
         $status = $response->status();
-        if ($status < 500 && !in_array($status, self::NOT_STORED, true)) {
+        if ($status < 500 && !in_array($status, self::NOT_STORED, true) && $request->attribute(self::DO_NOT_STORE) !== true) {
             $this->db->update('nx_api_idempotency', ['status_code' => $status, 'response' => $response->body()], ['id' => $id]);
         } else {
             $this->db->run('DELETE FROM `nx_api_idempotency` WHERE `id` = ?', [$id]);
@@ -71,17 +67,45 @@ final class IdempotentRequest implements Middleware
         return $response;
     }
 
+    /**
+     * Inserts the record for the key; returns null when it already exists.
+     * A record of an abandoned request (no response after 5 minutes) is
+     * replaced so the client can retry.
+     */
+    private function claim(int $tokenId, string $keyHash, string $requestHash): ?int
+    {
+        $now = $this->clock->now();
+        $this->db->run(
+            'DELETE FROM `nx_api_idempotency` WHERE `token_id` = ? AND `key_hash` = ? AND `status_code` IS NULL AND `created_at` < ?',
+            [$tokenId, $keyHash, $now->modify('-' . self::ABANDONED_AFTER . ' seconds')->format('Y-m-d H:i:s')],
+        );
+        try {
+            return $this->db->insert('nx_api_idempotency', [
+                'token_id' => $tokenId,
+                'key_hash' => $keyHash,
+                'request_hash' => $requestHash,
+                'created_at' => $now->format('Y-m-d H:i:s'),
+            ]);
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[1] ?? null) !== 1062) {
+                throw $exception;
+            }
+
+            return null;
+        }
+    }
+
     private function replay(int $tokenId, string $keyHash, string $requestHash): Response
     {
         $row = $this->db->fetchOne('SELECT * FROM `nx_api_idempotency` WHERE `token_id` = ? AND `key_hash` = ?', [$tokenId, $keyHash]);
-        if ($row === null) {
+        if ($row === null || $row['status_code'] === null) {
+            if ($row !== null && !hash_equals((string) $row['request_hash'], $requestHash)) {
+                throw new ApiException(422, 'idempotency_key_reused', 'This Idempotency-Key was already used for a different request.');
+            }
             throw ApiException::conflict('The request with this Idempotency-Key is still being processed.');
         }
         if (!hash_equals((string) $row['request_hash'], $requestHash)) {
             throw new ApiException(422, 'idempotency_key_reused', 'This Idempotency-Key was already used for a different request.');
-        }
-        if ($row['status_code'] === null) {
-            throw ApiException::conflict('The request with this Idempotency-Key is still being processed.');
         }
 
         $response = new Response((string) $row['response'], (int) $row['status_code'], ['Content-Type' => 'application/json; charset=UTF-8']);

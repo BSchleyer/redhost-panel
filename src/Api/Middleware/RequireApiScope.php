@@ -58,12 +58,14 @@ final class RequireApiScope implements ParameterizedMiddleware
             if (!$token->hasScope($scope)) {
                 throw new ApiException(403, 'insufficient_scope', sprintf('The token lacks the scope "%s".', $scope));
             }
-            $permission = ApiScope::permissionFor($scope);
-            if ($permission === null) {
+            $permissions = ApiScope::permissionsFor($scope);
+            if ($permissions === []) {
                 continue;
             }
-            if (!$this->gate->allows($user, Permission::ADMIN_ACCESS) || !$this->gate->allows($user, $permission)) {
-                throw new ApiException(403, 'forbidden', 'Your account no longer has the permission this request needs.');
+            foreach ([Permission::ADMIN_ACCESS, ...$permissions] as $permission) {
+                if (!$this->gate->allows($user, $permission)) {
+                    throw new ApiException(403, 'forbidden', 'Your account no longer has the permission this request needs.');
+                }
             }
             if ($this->settings->bool('auth.staff_require_2fa') && !$user->hasTwoFactor()) {
                 throw new ApiException(403, 'two_factor_required', 'Two-factor authentication is required for staff accounts.');

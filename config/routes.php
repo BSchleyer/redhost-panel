@@ -32,31 +32,33 @@ return static function (Router $r): void {
         $r->get('', [Api\AccountController::class, 'index']);
         $r->get('/openapi.json', [Api\AccountController::class, 'openApi']);
 
-        $r->group(['middleware' => ['api.auth', 'api.idempotent']], static function (Router $r): void {
+        // POST routes list 'api.idempotent' after their scope, so a stored
+        // response is only replayed when the scope/permission check passes.
+        $r->group(['middleware' => ['api.auth']], static function (Router $r): void {
             $r->get('/me', [Api\AccountController::class, 'me'], ['middleware' => ['api.scope:account:read']]);
 
             $r->get('/products', [Api\StoreController::class, 'products'], ['middleware' => ['api.scope:products:read']]);
             $r->get('/products/{id:\d+}', [Api\StoreController::class, 'product'], ['middleware' => ['api.scope:products:read']]);
             $r->get('/orders', [Api\StoreController::class, 'orders'], ['middleware' => ['api.scope:orders:read']]);
             $r->get('/orders/{id:\d+}', [Api\StoreController::class, 'order'], ['middleware' => ['api.scope:orders:read']]);
-            $r->post('/orders', [Api\StoreController::class, 'placeOrder'], ['middleware' => ['api.scope:orders:create']]);
+            $r->post('/orders', [Api\StoreController::class, 'placeOrder'], ['middleware' => ['api.scope:orders:create', 'api.idempotent']]);
 
             $r->get('/services', [Api\ServiceController::class, 'index'], ['middleware' => ['api.scope:services:read']]);
             $r->get('/services/{id:\d+}', [Api\ServiceController::class, 'show'], ['middleware' => ['api.scope:services:read']]);
             $r->get('/services/{id:\d+}/status', [Api\ServiceController::class, 'status'], ['middleware' => ['api.scope:services:read']]);
             $r->get('/services/{id:\d+}/actions', [Api\ServiceController::class, 'actions'], ['middleware' => ['api.scope:services:read']]);
-            $r->post('/services/{id:\d+}/actions/{action:[a-z0-9_]{1,30}}', [Api\ServiceController::class, 'runAction'], ['middleware' => ['api.scope:services:manage']]);
+            $r->post('/services/{id:\d+}/actions/{action:[a-z0-9_]{1,30}}', [Api\ServiceController::class, 'runAction'], ['middleware' => ['api.scope:services:manage', 'api.idempotent']]);
             $r->get('/services/{id:\d+}/credentials', [Api\ServiceController::class, 'credentials'], ['middleware' => ['api.scope:services:credentials']]);
 
             $r->get('/invoices', [Api\InvoiceController::class, 'index'], ['middleware' => ['api.scope:invoices:read']]);
             $r->get('/invoices/{id:\d+}', [Api\InvoiceController::class, 'show'], ['middleware' => ['api.scope:invoices:read']]);
-            $r->post('/invoices/{id:\d+}/pay', [Api\InvoiceController::class, 'pay'], ['middleware' => ['api.scope:invoices:pay']]);
+            $r->post('/invoices/{id:\d+}/pay', [Api\InvoiceController::class, 'pay'], ['middleware' => ['api.scope:invoices:pay', 'api.idempotent']]);
 
             $r->get('/tickets', [Api\TicketController::class, 'index'], ['middleware' => ['api.scope:tickets:read']]);
             $r->get('/tickets/{id:\d+}', [Api\TicketController::class, 'show'], ['middleware' => ['api.scope:tickets:read']]);
-            $r->post('/tickets', [Api\TicketController::class, 'store'], ['middleware' => ['api.scope:tickets:write']]);
-            $r->post('/tickets/{id:\d+}/replies', [Api\TicketController::class, 'reply'], ['middleware' => ['api.scope:tickets:write']]);
-            $r->post('/tickets/{id:\d+}/close', [Api\TicketController::class, 'close'], ['middleware' => ['api.scope:tickets:write']]);
+            $r->post('/tickets', [Api\TicketController::class, 'store'], ['middleware' => ['api.scope:tickets:write', 'api.idempotent']]);
+            $r->post('/tickets/{id:\d+}/replies', [Api\TicketController::class, 'reply'], ['middleware' => ['api.scope:tickets:write', 'api.idempotent']]);
+            $r->post('/tickets/{id:\d+}/close', [Api\TicketController::class, 'close'], ['middleware' => ['api.scope:tickets:write', 'api.idempotent']]);
 
             $r->group(['prefix' => '/admin'], static function (Router $r): void {
                 $r->get('/customers', [Api\Admin\CatalogController::class, 'customers'], ['middleware' => ['api.scope:admin:customers:read']]);
@@ -69,14 +71,14 @@ return static function (Router $r): void {
 
                 $r->get('/services', [Api\Admin\ServiceController::class, 'index'], ['middleware' => ['api.scope:admin:services:read']]);
                 $r->get('/services/{id:\d+}', [Api\Admin\ServiceController::class, 'show'], ['middleware' => ['api.scope:admin:services:read']]);
-                $r->post('/services/{id:\d+}/suspend', [Api\Admin\ServiceController::class, 'suspend'], ['middleware' => ['api.scope:admin:services:write']]);
-                $r->post('/services/{id:\d+}/unsuspend', [Api\Admin\ServiceController::class, 'unsuspend'], ['middleware' => ['api.scope:admin:services:write']]);
-                $r->post('/services/{id:\d+}/terminate', [Api\Admin\ServiceController::class, 'terminate'], ['middleware' => ['api.scope:admin:services:write']]);
-                $r->post('/services/{id:\d+}/retry', [Api\Admin\ServiceController::class, 'retry'], ['middleware' => ['api.scope:admin:services:write']]);
+                $r->post('/services/{id:\d+}/suspend', [Api\Admin\ServiceController::class, 'suspend'], ['middleware' => ['api.scope:admin:services:write', 'api.idempotent']]);
+                $r->post('/services/{id:\d+}/unsuspend', [Api\Admin\ServiceController::class, 'unsuspend'], ['middleware' => ['api.scope:admin:services:write', 'api.idempotent']]);
+                $r->post('/services/{id:\d+}/terminate', [Api\Admin\ServiceController::class, 'terminate'], ['middleware' => ['api.scope:admin:services:write', 'api.idempotent']]);
+                $r->post('/services/{id:\d+}/retry', [Api\Admin\ServiceController::class, 'retry'], ['middleware' => ['api.scope:admin:services:write', 'api.idempotent']]);
 
                 $r->get('/tickets', [Api\Admin\TicketController::class, 'index'], ['middleware' => ['api.scope:admin:tickets:read']]);
                 $r->get('/tickets/{id:\d+}', [Api\Admin\TicketController::class, 'show'], ['middleware' => ['api.scope:admin:tickets:read']]);
-                $r->post('/tickets/{id:\d+}/replies', [Api\Admin\TicketController::class, 'reply'], ['middleware' => ['api.scope:admin:tickets:write']]);
+                $r->post('/tickets/{id:\d+}/replies', [Api\Admin\TicketController::class, 'reply'], ['middleware' => ['api.scope:admin:tickets:write', 'api.idempotent']]);
             });
         });
     });

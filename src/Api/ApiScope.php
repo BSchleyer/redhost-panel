@@ -59,26 +59,33 @@ final class ApiScope
     }
 
     /**
-     * @return array<string, array{0: string, 1: string}> scope => [description, required permission]
+     * Write scopes also need the view permission, like the admin routes
+     * (which sit inside the view permission groups).
+     *
+     * @return array<string, array{0: string, 1: list<string>}> scope => [description, required permissions (all)]
      */
     public static function admin(): array
     {
         return [
-            self::ADMIN_CUSTOMERS_READ => ['Admin: read customers', Permission::CUSTOMERS_VIEW],
-            self::ADMIN_PRODUCTS_READ => ['Admin: read products', Permission::PRODUCTS_VIEW],
-            self::ADMIN_ORDERS_READ => ['Admin: read orders', Permission::ORDERS_VIEW],
-            self::ADMIN_INVOICES_READ => ['Admin: read invoices', Permission::INVOICES_VIEW],
-            self::ADMIN_SERVICES_READ => ['Admin: read services', Permission::SERVICES_VIEW],
-            self::ADMIN_SERVICES_WRITE => ['Admin: suspend, unsuspend, terminate and re-provision services', Permission::SERVICES_MANAGE],
-            self::ADMIN_TICKETS_READ => ['Admin: read support tickets', Permission::TICKETS_VIEW],
-            self::ADMIN_TICKETS_WRITE => ['Admin: reply to support tickets', Permission::TICKETS_REPLY],
+            self::ADMIN_CUSTOMERS_READ => ['Admin: read customers', [Permission::CUSTOMERS_VIEW]],
+            self::ADMIN_PRODUCTS_READ => ['Admin: read products', [Permission::PRODUCTS_VIEW]],
+            self::ADMIN_ORDERS_READ => ['Admin: read orders', [Permission::ORDERS_VIEW]],
+            self::ADMIN_INVOICES_READ => ['Admin: read invoices', [Permission::INVOICES_VIEW]],
+            self::ADMIN_SERVICES_READ => ['Admin: read services', [Permission::SERVICES_VIEW]],
+            self::ADMIN_SERVICES_WRITE => ['Admin: suspend, unsuspend, terminate and re-provision services', [Permission::SERVICES_VIEW, Permission::SERVICES_MANAGE]],
+            self::ADMIN_TICKETS_READ => ['Admin: read support tickets', [Permission::TICKETS_VIEW]],
+            self::ADMIN_TICKETS_WRITE => ['Admin: reply to support tickets', [Permission::TICKETS_VIEW, Permission::TICKETS_REPLY]],
         ];
     }
 
-    /** The permission an admin scope requires, null for customer scopes. */
-    public static function permissionFor(string $scope): ?string
+    /**
+     * The permissions an admin scope requires (all of them); empty for customer scopes.
+     *
+     * @return list<string>
+     */
+    public static function permissionsFor(string $scope): array
     {
-        return self::admin()[$scope][1] ?? null;
+        return self::admin()[$scope][1] ?? [];
     }
 
     public static function isAdmin(string $scope): bool
@@ -105,8 +112,8 @@ final class ApiScope
     {
         $scopes = self::customer();
         if ($gate->allows($user, Permission::ADMIN_ACCESS)) {
-            foreach (self::admin() as $scope => [$description, $permission]) {
-                if ($gate->allows($user, $permission)) {
+            foreach (self::admin() as $scope => [$description, $permissions]) {
+                if (array_filter($permissions, static fn (string $p): bool => !$gate->allows($user, $p)) === []) {
                     $scopes[$scope] = $description;
                 }
             }

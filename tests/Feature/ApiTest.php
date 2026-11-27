@@ -383,8 +383,16 @@ final class ApiTest extends FeatureTestCase
         $suspended = $this->api('POST', '/api/v1/admin/services/' . $serviceId . '/suspend', $token, ['reason' => 'Abuse report', 'notify' => false]);
         self::assertSame(202, $suspended->status());
         self::assertSame('suspended', $this->body($suspended)['data']['status']);
+        self::assertSame('Abuse report', $this->body($suspended)['data']['suspension_reason']);
+        self::assertFalse($this->mailQueued('service_suspended'), 'notify: false suppresses the e-mail.');
+        $customerView = $this->body($this->api('GET', '/api/v1/services/' . $serviceId, $this->token($customer, [ApiScope::SERVICES_READ])))['data'];
+        self::assertArrayNotHasKey('suspension_reason', $customerView, 'Internal suspension notes are not shown to customers.');
+        $second = $this->service($customer, 'Second TS');
+        $this->api('POST', '/api/v1/admin/services/' . $second . '/suspend', $token);
+        self::assertTrue($this->mailQueued('service_suspended'), 'Without "notify" the customer is e-mailed, as in the admin interface.');
+        self::assertNotNull($this->db->fetchOne("SELECT id FROM nx_audit_log WHERE action = 'service.suspend_via_api'"));
         self::assertSame(409, $this->api('POST', '/api/v1/admin/services/' . $serviceId . '/suspend', $token)->status());
-        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'service.suspend'"));
+        self::assertSame(2, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_jobs WHERE type = 'service.suspend'"));
 
         $ticket = $this->app->container()->get(\Nebrix\Support\TicketRepository::class)->create($customer->id, 'Help', 'Need help with my server.', null, 'normal');
         $reply = $this->api('POST', '/api/v1/admin/tickets/' . $ticket . '/replies', $token, ['message' => 'We are on it.']);
@@ -512,6 +520,116 @@ final class ApiTest extends FeatureTestCase
         $this->app->container()->get(\Nebrix\Customer\CustomerService::class)->closeAndAnonymize($customer, $admin->id, null);
 
         self::assertSame(0, $this->app->container()->get(ApiTokenService::class)->countActive($customer->id));
+        self::assertSame(401, $this->api('GET', '/api/v1/me', $secret)->status());
+        $row = $this->db->fetchOne('SELECT * FROM nx_api_tokens WHERE user_id = ?', [$customer->id]);
+        self::assertNotNull($row);
+        self::assertSame(['closed account', null, null], [$row['name'], $row['created_ip'], $row['last_used_ip']], 'Personal data of closed accounts is removed.');
+    }
+
+    public function testWriteScopesAlsoNeedTheViewPermission(): void
+    {
+        $support = $this->createUser(Role::SUPPORT);
+        $this->db->run("DELETE FROM nx_role_permissions WHERE role_id = ? AND permission IN ('services.view', 'tickets.view')", [$support->roleId]);
+        $this->app->container()->get(\Nebrix\Authorization\Gate::class)->flush();
+
+        foreach ([ApiScope::ADMIN_SERVICES_WRITE, ApiScope::ADMIN_TICKETS_WRITE] as $scope) {
+            try {
+                $this->token($support, [$scope]);
+                self::fail('Write scope without view permission: ' . $scope);
+            } catch (\InvalidArgumentException) {
+            }
+        }
+    }
+
+    public function testIdempotentReplaysRespectScopeChecksAndAbandonedKeys(): void
+    {
+        $customer = $this->createUser();
+        $support = $this->createUser(Role::SUPPORT);
+        $token = $this->token($support, [ApiScope::ADMIN_TICKETS_WRITE]);
+        $ticket = $this->app->container()->get(\Nebrix\Support\TicketRepository::class)->create($customer->id, 'Help', 'Need help with my server.', null, 'normal');
+
+        self::assertSame(201, $this->api('POST', '/api/v1/admin/tickets/' . $ticket . '/replies', $token, ['message' => 'On it.'], ['Idempotency-Key' => 'reply-0001'])->status());
+        $this->db->run("DELETE FROM nx_role_permissions WHERE role_id = ? AND permission = 'tickets.view'", [$support->roleId]);
+        $this->app->container()->get(\Nebrix\Authorization\Gate::class)->flush();
+        $replay = $this->api('POST', '/api/v1/admin/tickets/' . $ticket . '/replies', $token, ['message' => 'On it.'], ['Idempotency-Key' => 'reply-0001']);
+        self::assertSame(403, $replay->status(), 'A stored response is not replayed after the permission was removed.');
+
+        // A request that never finished (no response stored) frees its key after 5 minutes.
+        $tickets = $this->token($customer, [ApiScope::TICKETS_WRITE]);
+        $tokenId = (int) $this->db->fetchValue('SELECT id FROM nx_api_tokens WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$customer->id]);
+        $this->db->insert('nx_api_idempotency', ['token_id' => $tokenId, 'key_hash' => hash('sha256', 'ticket-0001'), 'request_hash' => str_repeat('0', 64), 'created_at' => '2026-01-01 00:00:00']);
+        $retried = $this->api('POST', '/api/v1/tickets', $tickets, ['subject' => 'Retry', 'message' => 'Created after a crash.'], ['Idempotency-Key' => 'ticket-0001']);
+        self::assertSame(201, $retried->status());
+    }
+
+    public function testAccountRecoveryRevokesTokensAndCreationIsNotified(): void
+    {
+        $customer = $this->createUser();
+        $first = $this->token($customer, [ApiScope::ACCOUNT_READ]);
+        self::assertTrue($this->mailQueued('api_token_created'));
+
+        // Password change (or reset) revokes all tokens.
+        $this->actingAs($customer);
+        $this->post('/account/password', ['current_password' => 'Valid-Password-123', 'password' => 'Another-Strong-Pass-77', 'password_confirmation' => 'Another-Strong-Pass-77']);
+        self::assertSame(401, $this->api('GET', '/api/v1/me', $first)->status());
+
+        // Staff "sign out everywhere" and 2FA reset revoke them as well.
+        $customer = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($customer->id);
+        self::assertNotNull($customer);
+        $admin = $this->createUser(Role::ADMIN);
+        $customers = $this->app->container()->get(\Nebrix\Customer\CustomerService::class);
+        $second = $this->token($customer, [ApiScope::ACCOUNT_READ]);
+        $customers->revokeSessions($customer, $admin->id, null);
+        self::assertSame(401, $this->api('GET', '/api/v1/me', $second)->status());
+        $third = $this->token($customer, [ApiScope::ACCOUNT_READ]);
+        $customers->resetTwoFactor($customer, $admin->id, null);
+        self::assertSame(401, $this->api('GET', '/api/v1/me', $third)->status());
+    }
+
+    public function testRateLimitIsSharedByAllTokensOfAUser(): void
+    {
+        $this->settings->set('api.rate_limit', 10);
+        $customer = $this->createUser();
+        $a = $this->token($customer, [ApiScope::ACCOUNT_READ]);
+        $b = $this->token($customer, [ApiScope::ACCOUNT_READ]);
+        for ($i = 0; $i < 5; $i++) {
+            $this->api('GET', '/api/v1/me', $a);
+            $this->api('GET', '/api/v1/me', $b);
+        }
+        self::assertSame(429, $this->api('GET', '/api/v1/me', $a)->status());
+        self::assertSame(200, $this->api('GET', '/api/v1/me', $this->token($this->createUser(), [ApiScope::ACCOUNT_READ]))->status());
+    }
+
+    public function testDisabledCustomerLoginsAlsoBlockCustomerTokens(): void
+    {
+        $token = $this->token($this->createUser(), [ApiScope::ACCOUNT_READ]);
+        $this->settings->set('auth.login_enabled', false);
+        self::assertSame('api_access_disabled', $this->errorCode($this->api('GET', '/api/v1/me', $token)));
+    }
+
+    public function testMalformedInputIsAValidationErrorNotAServerError(): void
+    {
+        $token = $this->token($this->createUser(), [ApiScope::TICKETS_WRITE]);
+        foreach ([['subject' => ['x'], 'message' => 'Long enough message.'], ['subject' => 'Help me', 'message' => 'Long enough message.', 'priority' => ['high']]] as $body) {
+            $response = $this->api('POST', '/api/v1/tickets', $token, $body);
+            self::assertSame(422, $response->status(), $response->body());
+            self::assertSame('validation_failed', $this->errorCode($response));
+        }
+    }
+
+    public function testOnlySuperAdministratorsRevokeSuperAdministratorTokens(): void
+    {
+        $owner = $this->createUser(Role::SUPER_ADMIN);
+        $secret = $this->token($owner, [ApiScope::ACCOUNT_READ]);
+        $tokenId = (int) $this->db->fetchValue('SELECT id FROM nx_api_tokens WHERE user_id = ?', [$owner->id]);
+
+        $this->actingAs($this->createUser(Role::ADMIN));
+        self::assertSame(403, $this->post('/admin/api-tokens/' . $tokenId . '/revoke')->status());
+        self::assertSame(403, $this->post('/admin/api-tokens/user/' . $owner->id . '/revoke')->status());
+        self::assertSame(200, $this->api('GET', '/api/v1/me', $secret)->status());
+
+        $this->actingAs($this->createUser(Role::SUPER_ADMIN));
+        $this->post('/admin/api-tokens/' . $tokenId . '/revoke');
         self::assertSame(401, $this->api('GET', '/api/v1/me', $secret)->status());
     }
 }

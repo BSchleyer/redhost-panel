@@ -34,6 +34,7 @@ class CustomerService
         private readonly Connection $db,
         private readonly Clock $clock,
         private readonly Config $config,
+        private readonly \Nebrix\Api\ApiTokenService $apiTokens,
     ) {
     }
 
@@ -99,13 +100,15 @@ class CustomerService
     {
         $this->twoFactor->disable($user);
         $this->sessions->destroyForUser($user->id);
+        $this->apiTokens->revokeAllForUser($user->id, $actorId, $ip);
         $this->audit->log($actorId, 'account.two_factor_reset', 'user', $user->id, [], $ip);
     }
 
     public function revokeSessions(User $user, int $actorId, ?string $ip): int
     {
         $count = $this->sessions->destroyForUser($user->id);
-        $this->audit->log($actorId, 'account.sessions_revoked', 'user', $user->id, ['count' => $count], $ip);
+        $tokens = $this->apiTokens->revokeAllForUser($user->id, $actorId, $ip);
+        $this->audit->log($actorId, 'account.sessions_revoked', 'user', $user->id, ['count' => $count, 'api_tokens' => $tokens], $ip);
 
         return $count;
     }
@@ -152,7 +155,8 @@ class CustomerService
                 'two_factor_recovery_codes' => null,
             ]);
             $this->db->run('DELETE FROM `nx_user_tokens` WHERE `user_id` = ?', [$user->id]);
-            $this->db->run('UPDATE `nx_api_tokens` SET `revoked_at` = ? WHERE `user_id` = ? AND `revoked_at` IS NULL', [$this->clock->nowString(), $user->id]);
+            $this->db->run('UPDATE `nx_api_tokens` SET `revoked_at` = COALESCE(`revoked_at`, ?) WHERE `user_id` = ?', [$this->clock->nowString(), $user->id]);
+            $this->db->run("UPDATE `nx_api_tokens` SET `name` = 'closed account', `allowed_ips` = NULL, `created_ip` = NULL, `last_used_ip` = NULL WHERE `user_id` = ?", [$user->id]);
             $this->db->run('UPDATE `nx_login_history` SET `identifier` = NULL, `ip` = NULL, `user_agent` = NULL WHERE `user_id` = ?', [$user->id]);
             $this->sessions->destroyForUser($user->id);
         });

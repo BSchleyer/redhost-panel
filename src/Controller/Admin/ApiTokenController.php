@@ -6,6 +6,7 @@ namespace Nebrix\Controller\Admin;
 
 use Nebrix\Api\ApiTokenService;
 use Nebrix\Http\Controller;
+use Nebrix\Repository\UserRepository;
 use Nebrix\Http\HttpException;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
@@ -16,8 +17,10 @@ use Nebrix\Http\Response;
  */
 final class ApiTokenController extends Controller
 {
-    public function __construct(private readonly ApiTokenService $tokens)
-    {
+    public function __construct(
+        private readonly ApiTokenService $tokens,
+        private readonly UserRepository $users,
+    ) {
     }
 
     public function index(Request $request): Response
@@ -44,6 +47,7 @@ final class ApiTokenController extends Controller
     public function revoke(Request $request, int $id): Response
     {
         $token = $this->tokens->find($id) ?? throw HttpException::notFound();
+        $this->guardOwner($request, $token->userId);
         $this->tokens->revoke($token, $this->user($request)->id, $request->clientIp());
         $this->flash($request, 'success', 'The API token has been revoked.');
 
@@ -52,9 +56,19 @@ final class ApiTokenController extends Controller
 
     public function revokeForUser(Request $request, int $userId): Response
     {
+        $this->guardOwner($request, $userId);
         $count = $this->tokens->revokeAllForUser($userId, $this->user($request)->id, $request->clientIp());
         $this->flash($request, 'success', sprintf('%d API token(s) revoked.', $count));
 
         return $this->redirect('/admin/api-tokens');
+    }
+
+    /** Only super administrators manage super administrators (same rule as for staff accounts). */
+    private function guardOwner(Request $request, int $ownerId): void
+    {
+        $owner = $this->users->find($ownerId);
+        if ($owner !== null && $owner->isSuperAdmin() && !$this->user($request)->isSuperAdmin()) {
+            throw HttpException::forbidden('Only super administrators can revoke the tokens of a super administrator.');
+        }
     }
 }

@@ -9,8 +9,10 @@ use Nebrix\Audit\AuditLogger;
 use Nebrix\Auth\User;
 use Nebrix\Authorization\Gate;
 use Nebrix\Core\Clock;
+use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
 use Nebrix\Http\IpRange;
+use Nebrix\Mail\Mailer;
 use Nebrix\Repository\UserRepository;
 
 /**
@@ -34,6 +36,8 @@ class ApiTokenService
         private readonly Gate $gate,
         private readonly AuditLogger $audit,
         private readonly UserRepository $users,
+        private readonly Mailer $mailer,
+        private readonly Config $config,
     ) {
     }
 
@@ -73,7 +77,7 @@ class ApiTokenService
             }
         }
 
-        return $this->db->transaction(function () use ($user, $name, $scopes, $days, $allowedIps, $ip): array {
+        $created = $this->db->transaction(function () use ($user, $name, $scopes, $days, $allowedIps, $ip): array {
             // Lock the user row so that concurrent requests cannot exceed the limit.
             $this->db->fetchValue('SELECT `id` FROM `nx_users` WHERE `id` = ? FOR UPDATE', [$user->id]);
             if ($this->countActive($user->id) >= self::MAX_ACTIVE_PER_USER) {
@@ -98,6 +102,18 @@ class ApiTokenService
 
             return ['token' => $this->find($id) ?? throw new \RuntimeException('Token not stored.'), 'secret' => $secret];
         });
+
+        // The owner learns about every new token (a hijacked session could otherwise mint one unnoticed).
+        $this->mailer->queue($user->email, $user->displayName(), 'api_token_created', [
+            'name' => $user->displayName(),
+            'token_name' => $name,
+            'scopes' => implode(', ', $scopes),
+            'expires' => $created['token']->expiresAt . ' UTC',
+            'ip' => (string) $ip,
+            'tokens_url' => rtrim($this->config->string('app.url'), '/') . '/account/api-tokens',
+        ]);
+
+        return $created;
     }
 
     /**

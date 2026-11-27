@@ -58,6 +58,7 @@ class AuthService
         private readonly Connection $db,
         private readonly Clock $clock,
         private readonly Config $config,
+        private readonly \Nebrix\Api\ApiTokenService $apiTokens,
     ) {
     }
 
@@ -446,6 +447,8 @@ class AuthService
         ]);
         $this->tokens->invalidate($user->id, TokenService::PASSWORD_RESET);
         $this->sessions->destroyForUser($user->id, $keepSessionId);
+        // A password change or reset is how users recover a compromised account: tokens go too.
+        $this->apiTokens->revokeAllForUser($user->id, $user->id, $request->clientIp());
 
         $this->mailer->queue($user->email, $user->displayName(), 'password_changed', [
             'name' => $user->displayName(),

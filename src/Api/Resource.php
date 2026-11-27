@@ -200,7 +200,6 @@ final class Resource
             'next_due_at' => self::date($service->nextDueAt),
             'options' => self::publicOptions(is_array($options) ? $options : [], $service->category),
             'has_credentials' => $service->hasCredentials,
-            'suspension_reason' => $service->status === Service::STATUS_SUSPENDED ? self::nullableString($service->attributes['suspension_reason'] ?? null) : null,
             'created_at' => self::date($service->attributes['created_at'] ?? null),
         ];
     }

@@ -227,7 +227,7 @@ final class CustomerController extends Controller
     {
         $this->authorize($request, Permission::CUSTOMERS_MANAGE);
         $this->customers->resetTwoFactor($this->findCustomer($id), $this->user($request)->id, $request->clientIp());
-        $this->flash($request, 'success', 'Two-factor authentication has been disabled for this customer.');
+        $this->flash($request, 'success', 'Two-factor authentication has been disabled for this customer; sessions and API tokens have been revoked.');
 
         return $this->redirect('/admin/customers/' . $id);
     }
@@ -236,7 +236,7 @@ final class CustomerController extends Controller
     {
         $this->authorize($request, Permission::CUSTOMERS_MANAGE);
         $count = $this->customers->revokeSessions($this->findCustomer($id), $this->user($request)->id, $request->clientIp());
-        $this->flash($request, 'success', sprintf('%d session(s) signed out.', $count));
+        $this->flash($request, 'success', sprintf('%d session(s) signed out; all API tokens have been revoked.', $count));
 
         return $this->redirect('/admin/customers/' . $id);
     }
