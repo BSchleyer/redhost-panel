@@ -24,7 +24,7 @@ This file is the single source of truth for modernization progress. It is update
 | H | Pterodactyl, Nextcloud, TeamSpeak 3 | [x] |
 | I | PayPal & Stripe | [x] |
 | J | Orders & automated provisioning | [x] |
-| K | Customer dashboard | [ ] |
+| K | Customer dashboard | [x] |
 | L | Tests, documentation, final security review | [ ] |
 
 ## Detailed plan
@@ -85,10 +85,10 @@ This file is the single source of truth for modernization progress. It is update
 - [x] Renewals, expiry, suspension, optional termination
 
 ### Phase K – Customer panel
-- [ ] Dashboard, profile, security (password, 2FA, sessions)
-- [ ] Services list + per-type management
-- [ ] Orders, invoices, transactions, renewals, store
-- [ ] Support tickets
+- [x] Dashboard, profile, security (password, 2FA, sessions)
+- [x] Services list + per-type management
+- [x] Orders, invoices, transactions, renewals, store
+- [x] Support tickets
 
 ### Phase L – QA & docs
 - [ ] PHPUnit (unit, integration with MariaDB, HTTP feature tests)
@@ -109,7 +109,8 @@ This file is the single source of truth for modernization progress. It is update
 - Fixed a flaky test (EncrypterTest tamper case, ~1/64 false pass).
 - Completed Phase I: invoice service (gapless numbers, billing snapshots, renewal/credit invoices, markPaid side effects via idempotent jobs), PaymentService (idempotency, amount/currency validation, append-only events), Stripe Checkout + verified webhooks + refunds (official SDK), PayPal Orders v2 + capture + verified webhooks + refunds, account credit gateway, customer invoice payment flow, admin transactions/refunds/webhook events, provider connection tests. 158 tests green.
 - Completed Phase J: order placement (server-side pricing, group discounts, stock reservation, free orders), fulfilment/provisioning/suspend/unsuspend/terminate jobs, worker with release/backoff/failure hooks, scheduler (renewal invoices, overdue suspension, opt-in termination, stale order cancellation, health checks, cleanup), admin orders/invoices/services incl. manual payments and manual activation, customer store/services/orders. Fixed: provisioning retry now re-evaluates the node while nothing exists remotely. 166 tests green.
-- **Next step:** Phase K – customer dashboard, support tickets (customer + admin), translations.
+- Completed Phase K: customer dashboard (services, renewals, open invoices, credit, tickets, admin notice), support tickets for customers and staff (assignment, priority, e-mail on reply, rate limits, isolation), per-user locale with German catalog. 172 tests green.
+- **Next step:** Phase L – legacy importer, CI workflow, documentation set, final security review.
 
 ## Known issues / blockers
 - Real credentials for PayPal, Stripe, Proxmox, Pterodactyl, Nextcloud and TeamSpeak are not available in the development environment. All integrations are tested against mocked HTTP/socket responses only; see `INTEGRATIONS.md` for what has and has not been verified against live systems.

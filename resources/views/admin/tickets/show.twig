@@ -1,0 +1,35 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ ticket.subject }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ ticket.subject }} <span class="badge {{ ticket.status|status_class }}">{{ ticket.status|humanize|t }}</span></h1>
+    <p class="muted">#{{ ticket.id }} · <a href="/admin/customers/{{ ticket.user_id }}">{{ ticket.email }}</a>{% if ticket.service_id %} · <a href="/admin/services/{{ ticket.service_id }}">{{ ticket.service_name }}</a>{% endif %} · <a href="/admin/tickets">&larr; {{ 'Tickets'|t }}</a></p></div></div>
+<div class="grid grid-3">
+    <div>
+        {% for m in messages %}
+            <div class="message{{ m.is_staff ? ' is-staff' : '' }}">
+                <div class="message-meta">{{ (m.first_name ~ ' ' ~ m.last_name)|trim|default(m.email) }}{% if m.is_staff %} <span class="badge badge-info">{{ 'staff'|t }}</span>{% endif %} · {{ m.created_at|dt }}</div>
+                <div class="message-body">{{ m.message }}</div>
+            </div>
+        {% endfor %}
+        {% if can('tickets.reply') %}
+        <form method="post" action="/admin/tickets/{{ ticket.id }}/reply" novalidate>
+            {{ csrf_field() }}
+            <div class="card"><div class="card-body">{{ f.textarea('message', 'Reply to customer', '', {rows: 6}) }}</div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send reply'|t }}</button></div></div>
+        </form>
+        {% endif %}
+    </div>
+    <div>
+        {% if can('tickets.manage') %}
+        <form method="post" action="/admin/tickets/{{ ticket.id }}" novalidate>
+            {{ csrf_field() }}
+            <div class="card"><div class="card-header"><h2>{{ 'Ticket'|t }}</h2></div><div class="card-body">
+                {{ f.select('status', 'Status', {open: 'Open', customer_reply: 'Customer reply', answered: 'Answered', closed: 'Closed'}, ticket.status) }}
+                {{ f.select('priority', 'Priority', {low: 'Low', normal: 'Normal', high: 'High'}, ticket.priority) }}
+                {{ f.select('assigned_to', 'Assigned to', staff, ticket.assigned_to, {placeholder: '– nobody –'}) }}
+            </div><div class="card-footer"><button class="btn btn-outline" type="submit">{{ 'Update'|t }}</button></div></div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

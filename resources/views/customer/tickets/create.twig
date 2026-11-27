@@ -1,0 +1,17 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'New ticket'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'New support ticket'|t }}</h1><p class="muted"><a href="/tickets">&larr; {{ 'Support tickets'|t }}</a></p></div></div>
+<form method="post" action="/tickets" novalidate>
+    {{ csrf_field() }}
+    <div class="card"><div class="card-body">
+        {{ f.input('subject', 'Subject', '', 'text', {required: true}) }}
+        <div class="form-grid">
+            {{ f.select('service_id', 'Related service', services, preselect, {placeholder: '– none –'}) }}
+            {{ f.select('priority', 'Priority', {low: 'Low', normal: 'Normal', high: 'High'}, 'normal') }}
+        </div>
+        {{ f.textarea('message', 'Message', '', {rows: 8, help: 'Never send passwords in tickets. Our staff will never ask for them.'}) }}
+    </div><div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Submit'|t }}</button></div></div>
+</form>
+{% endblock %}

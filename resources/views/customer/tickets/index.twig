@@ -1,0 +1,13 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Support tickets'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Support tickets'|t }}</h1></div><a class="btn btn-primary" href="/tickets/create">{{ 'New ticket'|t }}</a></div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>#</th><th>{{ 'Subject'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Last update'|t }}</th></tr></thead>
+    <tbody>
+    {% for t in tickets %}
+        <tr><td class="mono">{{ t.id }}</td><td><a href="/tickets/{{ t.id }}">{{ t.subject }}</a></td><td><span class="badge {{ t.status|status_class }}">{{ t.status|humanize|t }}</span></td><td>{{ t.updated_at|dt }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty">{{ 'You have not opened any tickets yet.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ ticket.subject }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ ticket.subject }} <span class="badge {{ ticket.status|status_class }}">{{ ticket.status|humanize|t }}</span></h1><p class="muted">#{{ ticket.id }}{% if ticket.service_name %} · {{ ticket.service_name }}{% endif %} · <a href="/tickets">&larr; {{ 'Support tickets'|t }}</a></p></div>
+    {% if ticket.status != 'closed' %}<form method="post" action="/tickets/{{ ticket.id }}/close" data-confirm="{{ 'Close this ticket?'|t }}">{{ csrf_field() }}<button class="btn btn-outline" type="submit">{{ 'Close ticket'|t }}</button></form>{% endif %}
+</div>
+{% for m in messages %}
+    <div class="message{{ m.is_staff ? ' is-staff' : '' }}">
+        <div class="message-meta">{{ m.is_staff ? brand.name ~ ' ' ~ ('Support'|t) : (m.first_name ~ ' ' ~ m.last_name)|trim|default('You'|t) }} · {{ m.created_at|dt }}</div>
+        <div class="message-body">{{ m.message }}</div>
+    </div>
+{% endfor %}
+<form method="post" action="/tickets/{{ ticket.id }}/reply" novalidate>
+    {{ csrf_field() }}
+    <div class="card"><div class="card-body">{{ f.textarea('message', ticket.status == 'closed' ? 'Reply (reopens the ticket)' : 'Reply', '', {rows: 5}) }}</div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Send reply'|t }}</button></div></div>
+</form>
+{% endblock %}

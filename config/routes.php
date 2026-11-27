@@ -65,6 +65,13 @@ return static function (Router $r): void {
         $r->post('/services/{id:\d+}/action', [Customer\ServiceController::class, 'action']);
         $r->get('/orders', [Customer\ServiceController::class, 'orders']);
 
+        $r->get('/tickets', [Customer\TicketController::class, 'index']);
+        $r->get('/tickets/create', [Customer\TicketController::class, 'create']);
+        $r->post('/tickets', [Customer\TicketController::class, 'store']);
+        $r->get('/tickets/{id:\d+}', [Customer\TicketController::class, 'show']);
+        $r->post('/tickets/{id:\d+}/reply', [Customer\TicketController::class, 'reply']);
+        $r->post('/tickets/{id:\d+}/close', [Customer\TicketController::class, 'close']);
+
         $r->get('/invoices', [Customer\InvoiceController::class, 'index']);
         $r->post('/invoices/top-up', [Customer\InvoiceController::class, 'topUp']);
         $r->get('/invoices/{id:\d+}', [Customer\InvoiceController::class, 'show']);
@@ -157,6 +164,14 @@ return static function (Router $r): void {
             $r->get('/roles/{id:\d+}', [Admin\RoleController::class, 'edit']);
             $r->post('/roles/{id:\d+}', [Admin\RoleController::class, 'update']);
             $r->post('/roles/{id:\d+}/delete', [Admin\RoleController::class, 'delete']);
+        });
+
+        // Support
+        $r->group(['middleware' => ['permission:tickets.view']], static function (Router $r): void {
+            $r->get('/tickets', [Admin\TicketController::class, 'index']);
+            $r->get('/tickets/{id:\d+}', [Admin\TicketController::class, 'show']);
+            $r->post('/tickets/{id:\d+}/reply', [Admin\TicketController::class, 'reply']);
+            $r->post('/tickets/{id:\d+}', [Admin\TicketController::class, 'update']);
         });
 
         // Orders, invoices, services

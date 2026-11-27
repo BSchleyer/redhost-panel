@@ -264,3 +264,5 @@ form.inline { display: inline; }
 .mb-0 { margin-bottom: 0; }
 .gap { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .mail-preview { width: 100%; min-height: 520px; border: 0; background: #f4f5fa; border-radius: 0 0 var(--radius) var(--radius); }
+.grid-3 > div:first-child:not(.card) { grid-column: span 2; }
+@media (max-width: 1100px) { .grid-3 > div:first-child:not(.card) { grid-column: auto; } }

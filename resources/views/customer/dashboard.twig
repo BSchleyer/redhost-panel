@@ -1,5 +1,40 @@
 {% extends 'layouts/customer.twig' %}
 {% block title %}{{ 'Dashboard'|t }}{% endblock %}
 {% block content %}
-<div class="page-header"><div><h1>{{ 'Welcome, :name'|t({name: auth_user.displayName}) }}</h1></div></div>
+<div class="page-header"><div><h1>{{ 'Welcome, :name'|t({name: auth_user.displayName}) }}</h1><p class="muted">{{ 'Here is an overview of your account.'|t }}</p></div><a class="btn btn-primary" href="/store">{{ 'Order new service'|t }}</a></div>
+{% if notice %}<div class="alert alert-info message-body">{{ notice }}</div>{% endif %}
+{% if unpaid|length > 0 %}<div class="alert alert-warning">{{ 'You have :n unpaid invoice(s) totalling :total.'|t({n: unpaid|length, total: unpaid_total|money(currency)}) }} <a href="/invoices">{{ 'View invoices'|t }}</a></div>{% endif %}
+<div class="grid grid-4">
+    <a class="card stat" href="/services"><div class="stat-label">{{ 'Active services'|t }}</div><div class="stat-value">{{ active_count }}</div><div class="stat-hint">{{ service_count }} {{ 'in total'|t }}</div></a>
+    <a class="card stat" href="/invoices"><div class="stat-label">{{ 'Open invoices'|t }}</div><div class="stat-value">{{ unpaid|length }}</div><div class="stat-hint">{{ unpaid_total|money(currency) }}</div></a>
+    <a class="card stat" href="/invoices"><div class="stat-label">{{ 'Account credit'|t }}</div><div class="stat-value">{{ auth_user.creditBalance|money(currency) }}</div><div class="stat-hint">{{ 'usable for invoices'|t }}</div></a>
+    {% if setting('system.tickets_enabled') %}<a class="card stat" href="/tickets"><div class="stat-label">{{ 'Open tickets'|t }}</div><div class="stat-value">{{ open_tickets }}</div><div class="stat-hint">{{ 'support requests'|t }}</div></a>{% endif %}
+</div>
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Your services'|t }}</h2><a class="small" href="/services">{{ 'All'|t }}</a></div>
+        <div class="table-wrap"><table class="table">
+            <tbody>
+            {% for s in services %}
+                <tr><td><a href="/services/{{ s.id }}"><strong>{{ s.name }}</strong></a><div class="small muted">{{ s.category|humanize|t }}</div></td><td><span class="badge {{ s.status|status_class }}">{{ s.status|t }}</span></td><td class="small">{{ s.nextDueAt|d }}</td></tr>
+            {% else %}<tr><td class="empty">{{ 'You have no services yet.'|t }} <a href="/store">{{ 'Order your first service'|t }}</a></td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Upcoming renewals'|t }}</h2></div>
+        <div class="table-wrap"><table class="table">
+            <tbody>
+            {% for s in upcoming %}
+                <tr><td>{{ s.name }}</td><td>{{ s.nextDueAt|d }}</td><td class="text-right">{{ s.recurringAmount|money(s.currency) }} <span class="small muted">{{ 'net'|t }}</span></td></tr>
+            {% else %}<tr><td class="empty">{{ 'No upcoming renewals.'|t }}</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        {% if unpaid|length > 0 %}
+        <div class="card-footer">
+            {% for i in unpaid %}<div class="gap"><a href="/invoices/{{ i.id }}" class="mono">{{ i.number }}</a> {{ i.total|money(i.currency) }} · {{ 'due'|t }} {{ i.due_at|d }} <a class="btn btn-sm btn-primary" href="/invoices/{{ i.id }}">{{ 'Pay now'|t }}</a></div>{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Support tickets'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Support tickets'|t }}</h1></div></div>
+<div class="tabs">
+    {% for s, label in {active: 'Needs attention', open: 'Open', customer_reply: 'Customer reply', answered: 'Answered', closed: 'Closed', '': 'All'} %}
+        <a href="/admin/tickets?status={{ s }}{{ mine ? '&mine=1' : '' }}" class="{{ filters.status == s ? 'is-active' : '' }}">{{ label|t }}</a>
+    {% endfor %}
+    <a href="/admin/tickets?status={{ filters.status }}&mine={{ mine ? '' : '1' }}" class="{{ mine ? 'is-active' : '' }}">{{ 'Assigned to me'|t }}</a>
+</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>#</th><th>{{ 'Subject'|t }}</th><th>{{ 'Customer'|t }}</th><th>{{ 'Priority'|t }}</th><th>{{ 'Status'|t }}</th><th>{{ 'Assigned'|t }}</th><th>{{ 'Updated'|t }}</th></tr></thead>
+    <tbody>
+    {% for t in result.items %}
+        <tr><td class="mono">{{ t.id }}</td><td><a href="/admin/tickets/{{ t.id }}">{{ t.subject }}</a></td><td>{{ t.email }}</td><td><span class="badge {{ t.priority == 'high' ? 'badge-danger' : 'badge-neutral' }}">{{ t.priority|t }}</span></td><td><span class="badge {{ t.status|status_class }}">{{ t.status|humanize|t }}</span></td><td class="small">{{ t.assignee_email|default('–') }}</td><td class="nowrap">{{ t.updated_at|dt }}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">{{ 'No tickets.'|t }}</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'partials/pagination.twig' with {total: result.total, per_page: 25} %}
+</div>
+{% endblock %}

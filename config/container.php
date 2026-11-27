@@ -91,6 +91,7 @@ return static function (Container $c, Config $config, string $basePath): void {
         [
             Middleware\StartSession::class,
             Middleware\LoadAuthenticatedUser::class,
+            Middleware\SetLocale::class,
             Middleware\MaintenanceMode::class,
             Middleware\VerifyCsrfToken::class,
         ],
