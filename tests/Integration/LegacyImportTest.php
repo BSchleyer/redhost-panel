@@ -41,7 +41,7 @@ final class LegacyImportTest extends DatabaseTestCase
 
         $report = $importer->importUsers($source);
         self::assertSame(3, $report['imported']);
-        self::assertCount(2, $report['conflicts']);
+        self::assertCount(3, $report['conflicts']);
 
         $user = $this->db->fetchOne('SELECT u.*, r.slug FROM nx_users u JOIN nx_roles r ON r.id = u.role_id WHERE legacy_id = 1');
         self::assertNotNull($user);
@@ -53,6 +53,7 @@ final class LegacyImportTest extends DatabaseTestCase
         self::assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_credit_ledger WHERE user_id = ?', [$user['id']]));
 
         self::assertSame('admin', $this->db->fetchValue('SELECT r.slug FROM nx_users u JOIN nx_roles r ON r.id = u.role_id WHERE legacy_id = 2'), 'Legacy admins never become super administrators.');
+        self::assertSame('suspended', $this->db->fetchValue('SELECT status FROM nx_users WHERE legacy_id = 2'), 'Legacy staff must be reviewed before they can sign in.');
         self::assertSame('suspended', $this->db->fetchValue('SELECT status FROM nx_users WHERE legacy_id = 3'));
 
         // Second run imports nothing new and does not book the balance twice.

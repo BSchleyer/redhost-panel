@@ -20,7 +20,10 @@ use Throwable;
  * - Idempotent: users are matched by legacy_id; existing imports are skipped.
  * - Legacy bcrypt hashes keep working and are upgraded to Argon2id at the
  *   next successful login.
- * - Legacy administrators become "admin" (never super administrator).
+ * - Legacy administrators become "admin" (never super administrator) and
+ *   legacy staff accounts are imported suspended: the legacy database
+ *   credentials were exposed (AUDIT C-01), so a super administrator must
+ *   review and reactivate each staff account.
  * - The prepaid balance is booked through the credit ledger.
  * Services are not imported automatically because they must be mapped to
  * the new integrations; see UPGRADE_GUIDE.md.
@@ -87,6 +90,11 @@ class LegacyImporter
                 'banned' => User::STATUS_SUSPENDED,
                 default => User::STATUS_ACTIVE,
             };
+            $legacyRole = (string) ($row['role'] ?? 'customer');
+            if ($legacyRole !== 'customer' && isset($roleIds[$legacyRole])) {
+                $status = User::STATUS_SUSPENDED;
+                $report['conflicts'][] = sprintf('legacy #%d: staff account (%s) imported suspended – review and reactivate it in Admin → Staff', $legacyId, $legacyRole);
+            }
             $street = trim(trim((string) ($row['street'] ?? '')) . ' ' . trim((string) ($row['number'] ?? '')));
             $balance = $this->balance($row['amount'] ?? '0');
 
@@ -103,7 +111,7 @@ class LegacyImporter
                         'username' => $username,
                         'password_hash' => $hash,
                         'status' => $status,
-                        'email_verified_at' => $status === User::STATUS_ACTIVE ? ($created ?? gmdate('Y-m-d H:i:s')) : null,
+                        'email_verified_at' => $status !== User::STATUS_PENDING ? ($created ?? gmdate('Y-m-d H:i:s')) : null,
                         'first_name' => $this->text($row['firstname'] ?? null, 100),
                         'last_name' => $this->text($row['lastname'] ?? null, 100),
                         'address_line1' => $this->text($street, 255),
