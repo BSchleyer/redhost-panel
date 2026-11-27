@@ -1,0 +1,12 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'IP pools'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'IP pools'|t }}</h1><p class="muted">{{ 'IPv4 networks for statically addressed servers. Assign a pool to a VPS or LXC product; without a pool the servers use DHCP.'|t }}</p></div>{% if can('integrations.manage') %}<a class="btn btn-primary" href="/admin/ip-pools/create">{{ 'Add IP pool'|t }}</a>{% endif %}</div>
+<div class="card"><div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Network'|t }}</th><th>{{ 'Gateway'|t }}</th><th>{{ 'Integration'|t }}</th><th>{{ 'Free'|t }}</th><th>{{ 'Assigned'|t }}</th><th>{{ 'Reserved'|t }}</th></tr></thead>
+    <tbody>{% for p in pools %}
+        <tr><td><a href="/admin/ip-pools/{{ p.id }}"><strong>{{ p.name }}</strong></a></td><td class="mono">{{ p.network }}</td><td class="mono">{{ p.gateway }}</td><td>{{ p.integration_name|default('–') }}</td>
+            <td><span class="badge {{ p.free_count|default(0) > 0 ? 'badge-success' : 'badge-danger' }}">{{ p.free_count|default(0) }}</span></td><td>{{ p.assigned_count|default(0) }}</td><td>{{ p.reserved_count|default(0) }}</td></tr>
+    {% else %}<tr><td colspan="7" class="empty">{{ 'No IP pools yet.'|t }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

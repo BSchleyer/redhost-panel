@@ -49,6 +49,23 @@ class Connection
         return $this->pdo;
     }
 
+    /**
+     * For long-running processes: drops a connection that the server closed
+     * (idle timeout) so that the next query reconnects.
+     */
+    public function ensureAlive(): void
+    {
+        if ($this->pdo === null || $this->transactionDepth > 0) {
+            return;
+        }
+        try {
+            $this->pdo->query('SELECT 1');
+        } catch (\Throwable) {
+            // "server has gone away" (possibly raised as a converted warning): reconnect lazily.
+            $this->pdo = null;
+        }
+    }
+
     public function isConnected(): bool
     {
         return $this->pdo !== null;

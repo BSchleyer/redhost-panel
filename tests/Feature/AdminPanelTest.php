@@ -64,6 +64,9 @@ final class AdminPanelTest extends FeatureTestCase
             '/admin/products/create?category=minecraft', '/admin/products/create?category=nextcloud', '/admin/staff',
             '/admin/staff/create', '/admin/staff/' . $admin->id . '/edit', '/admin/roles', '/admin/roles/' . $roleId,
             '/admin/audit-log', '/admin/login-history', '/admin/jobs', '/admin/jobs?status=failed',
+            '/admin/products/create?category=dedicated', '/admin/products/create?category=lxc', '/admin/ip-pools', '/admin/ip-pools/create',
+            '/admin/ip-pools/' . $this->app->container()->get(\Nebrix\Network\IpPoolService::class)->createPool('Render', '192.0.2.0/29', '192.0.2.1', null, null),
+            '/admin/integrations/create?type=hetzner_robot',
         ];
 
         foreach ($pages as $page) {

@@ -13,6 +13,7 @@ use Nebrix\Http\Controller;
 use Nebrix\Http\HttpException;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
+use Nebrix\Network\IpPoolService;
 use Nebrix\Repository\CustomerGroupRepository;
 use Nebrix\Repository\ProductRepository;
 use Nebrix\Security\ValidationException;
@@ -26,6 +27,7 @@ final class ProductController extends Controller
         private readonly CustomerGroupRepository $groups,
         private readonly SettingsRepository $settings,
         private readonly Connection $db,
+        private readonly IpPoolService $ipPools,
     ) {
     }
 
@@ -103,7 +105,7 @@ final class ProductController extends Controller
      */
     private function form(Request $request, ?array $product, string $category, array $config): Response
     {
-        $definition = ProductCategory::get($category);
+        $definition = $this->withDynamicOptions(ProductCategory::get($category));
         $integrations = [];
         if ($definition['integration'] !== null) {
             foreach ($this->db->fetchAll('SELECT `id`, `name`, `is_enabled` FROM `nx_integrations` WHERE `type` = ? ORDER BY `name`', [$definition['integration']]) as $row) {
@@ -187,6 +189,13 @@ final class ProductController extends Controller
             }
             throw new ValidationException($errors, Validator::safeInput($request->all()));
         }
+        // Select fields only accept offered values (static or loaded from the database).
+        foreach ($this->withDynamicOptions($definition)['config'] as $key => $field) {
+            $value = $config[$key] ?? null;
+            if (isset($field['options']) && $value !== null && $value !== '' && !array_key_exists((string) $value, $field['options'])) {
+                throw new ValidationException(['config_' . $key => ['Choose one of the offered options.']], Validator::safeInput($request->all()));
+            }
+        }
 
         $currency = (string) $data['currency'];
 
@@ -217,5 +226,22 @@ final class ProductController extends Controller
     private function find(int $id): array
     {
         return $this->products->find($id) ?? throw HttpException::notFound();
+    }
+
+    /**
+     * Fills select options that come from the database (e.g. IP pools).
+     *
+     * @param array{label: string, integration: string|null, config: array<string, array<string, mixed>>, options: array<string, array<string, mixed>>} $definition
+     * @return array{label: string, integration: string|null, config: array<string, array<string, mixed>>, options: array<string, array<string, mixed>>}
+     */
+    private function withDynamicOptions(array $definition): array
+    {
+        foreach ($definition['config'] as $key => $field) {
+            if (($field['options_source'] ?? null) === 'ip_pools') {
+                $definition['config'][$key]['options'] = $this->ipPools->options();
+            }
+        }
+
+        return $definition;
     }
 }

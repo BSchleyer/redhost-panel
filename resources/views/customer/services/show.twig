@@ -34,6 +34,7 @@
             {% elseif service.status == 'active' %}
                 <p class="muted">{{ 'No remote actions are available for this service.'|t }}</p>
             {% endif %}
+            {% if console %}<p class="mt-2"><a class="btn btn-outline" href="/services/{{ service.id }}/console">{{ 'Open console'|t }}</a></p>{% endif %}
             {% if has_credentials %}
                 <p class="mt-2"><a class="btn btn-primary" href="/services/{{ service.id }}/credentials">{{ 'Show access data'|t }}</a></p>
             {% endif %}

@@ -3,7 +3,8 @@
 {% block title %}{{ service.name }}{% endblock %}
 {% block content %}
 <div class="page-header"><div><h1>{{ service.name }} <span class="badge {{ service.status|status_class }}">{{ service.status|t }}</span></h1><p class="muted">#{{ service.id }} · {{ service.category|humanize }} · <a href="/admin/services">&larr; {{ 'Services'|t }}</a></p></div>
-    {% if can('services.manage') and service.hasCredentials %}<a class="btn btn-outline" href="/admin/services/{{ service.id }}/credentials">{{ 'Access data'|t }}</a>{% endif %}
+    <div class="gap">{% if can('services.manage') and console %}<a class="btn btn-outline" href="/admin/services/{{ service.id }}/console">{{ 'Console'|t }}</a>{% endif %}
+    {% if can('services.manage') and service.hasCredentials %}<a class="btn btn-outline" href="/admin/services/{{ service.id }}/credentials">{{ 'Access data'|t }}</a>{% endif %}</div>
 </div>
 {% if service.attributes.last_error %}<div class="alert alert-danger"><strong>{{ 'Last error'|t }}:</strong> {{ service.attributes.last_error }}</div>{% endif %}
 <div class="grid grid-2">

@@ -44,6 +44,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # WebSocket relay for server consoles. Route CONSOLE_WS_URL (default
+  # <APP_URL>/console/ws) from the TLS reverse proxy to this port.
+  console:
+    image: nebrix-panel:latest
+    env_file: .env
+    environment:
+      DB_HOST: db
+      LOG_PATH: php://stderr
+    command: ["php", "bin/nebrix", "console:proxy", "--listen=0.0.0.0:8081"]
+    ports:
+      - "127.0.0.1:${CONSOLE_PORT:-8081}:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   db:
     image: mariadb:11.4
     environment:

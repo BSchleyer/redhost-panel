@@ -22,7 +22,7 @@
             {% if can('transactions.view') %}<a href="/admin/payments/webhooks" class="{{ active('/admin/payments/webhooks') }}">{{ 'Payment events'|t }}</a>{% endif %}
 
             <div class="nav-section">{{ 'Infrastructure'|t }}</div>
-            {% if can('integrations.view') %}<a href="/admin/integrations" class="{{ active('/admin/integrations') }}">{{ 'Integrations'|t }}</a>{% endif %}
+            {% if can('integrations.view') %}<a href="/admin/integrations" class="{{ active('/admin/integrations') }}">{{ 'Integrations'|t }}</a><a href="/admin/ip-pools" class="{{ active('/admin/ip-pools') }}">{{ 'IP pools'|t }}</a>{% endif %}
             {% if can('jobs.view') %}<a href="/admin/jobs" class="{{ active('/admin/jobs') }}">{{ 'Background jobs'|t }}</a>{% endif %}
 
             <div class="nav-section">{{ 'Configuration'|t }}</div>

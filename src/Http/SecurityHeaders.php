@@ -14,21 +14,53 @@ namespace Nebrix\Http;
  */
 final class SecurityHeaders
 {
+    /**
+     * The default Content Security Policy, optionally extended with extra
+     * sources for single pages (e.g. the console WebSocket or a CAPTCHA
+     * provider). Never adds 'unsafe-inline' or 'unsafe-eval'.
+     *
+     * @param array<string, list<string>> $extra directive => additional sources
+     */
+    public static function contentSecurityPolicy(array $extra = []): string
+    {
+        $directives = [
+            'default-src' => ["'self'"],
+            'script-src' => ["'self'"],
+            'style-src' => ["'self'"],
+            'img-src' => ["'self'", 'data:'],
+            'font-src' => ["'self'"],
+            'connect-src' => ["'self'"],
+            'frame-src' => [],
+            'object-src' => ["'none'"],
+            'base-uri' => ["'self'"],
+            'form-action' => ["'self'", 'https://www.paypal.com', 'https://www.sandbox.paypal.com', 'https://checkout.stripe.com'],
+            'frame-ancestors' => ["'none'"],
+        ];
+        foreach ($extra as $directive => $sources) {
+            if (!array_key_exists($directive, $directives)) {
+                continue;
+            }
+            foreach ($sources as $source) {
+                if (preg_match('#^(https|wss|ws)://[A-Za-z0-9.-]+(:\d{1,5})?$#', $source) === 1 && !in_array($source, $directives[$directive], true)) {
+                    $directives[$directive][] = $source;
+                }
+            }
+        }
+
+        $parts = [];
+        foreach ($directives as $directive => $sources) {
+            if ($sources !== []) {
+                $parts[] = $directive . ' ' . implode(' ', $sources);
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
     public static function apply(Response $response, Request $request, bool $hsts): Response
     {
         $defaults = [
-            'Content-Security-Policy' => implode('; ', [
-                "default-src 'self'",
-                "script-src 'self'",
-                "style-src 'self'",
-                "img-src 'self' data:",
-                "font-src 'self'",
-                "connect-src 'self'",
-                "object-src 'none'",
-                "base-uri 'self'",
-                "form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com https://checkout.stripe.com",
-                "frame-ancestors 'none'",
-            ]),
+            'Content-Security-Policy' => self::contentSecurityPolicy(),
             'X-Frame-Options' => 'DENY',
             'X-Content-Type-Options' => 'nosniff',
             'Referrer-Policy' => 'strict-origin-when-cross-origin',

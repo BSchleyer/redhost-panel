@@ -52,6 +52,8 @@ final class ProductCategory
                     'bridge' => ['label' => 'Network bridge', 'rules' => 'required|string|max:32|regex:/^[A-Za-z0-9._-]+$/', 'default' => 'vmbr0'],
                     'rate_mbps' => ['label' => 'Network rate limit (MB/s, 0 = unlimited)', 'rules' => 'required|int|min:0|max:100000', 'default' => 0],
                     'vmid_start' => ['label' => 'First VM ID for new servers', 'rules' => 'required|int|min:100|max:999999999', 'default' => 10000],
+                    'ip_pool_id' => ['label' => 'IP pool for static IPv4 addresses', 'rules' => 'nullable|int|min:1', 'type' => 'select', 'options_source' => 'ip_pools', 'help' => 'Empty = DHCP on the bridge.'],
+                    'reinstall_templates' => ['label' => 'Additional templates for reinstall (one per line: VM ID|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. 9001|Ubuntu 24.04 – the product template is always offered.'],
                 ],
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],
@@ -72,6 +74,8 @@ final class ProductCategory
                     'rate_mbps' => ['label' => 'Network rate limit (MB/s, 0 = unlimited)', 'rules' => 'required|int|min:0|max:100000', 'default' => 0],
                     'unprivileged' => ['label' => 'Unprivileged container (recommended)', 'rules' => 'bool', 'default' => true, 'type' => 'bool'],
                     'vmid_start' => ['label' => 'First container ID for new servers', 'rules' => 'required|int|min:100|max:999999999', 'default' => 20000],
+                    'ip_pool_id' => ['label' => 'IP pool for static IPv4 addresses', 'rules' => 'nullable|int|min:1', 'type' => 'select', 'options_source' => 'ip_pools', 'help' => 'Empty = DHCP on the bridge.'],
+                    'reinstall_templates' => ['label' => 'Additional OS templates for reinstall (one per line: template|Label)', 'rules' => 'nullable|string|max:2000', 'type' => 'text', 'help' => 'e.g. local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst|Ubuntu 24.04'],
                 ],
                 'options' => [
                     'hostname' => ['label' => 'Hostname', 'rules' => self::HOSTNAME_RULE, 'help' => 'Lowercase letters, digits and dashes.'],

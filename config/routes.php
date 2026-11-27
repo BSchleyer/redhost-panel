@@ -63,6 +63,8 @@ return static function (Router $r): void {
         $r->get('/services/{id:\d+}', [Customer\ServiceController::class, 'show']);
         $r->get('/services/{id:\d+}/credentials', [Customer\ServiceController::class, 'credentials']);
         $r->post('/services/{id:\d+}/action', [Customer\ServiceController::class, 'action']);
+        $r->get('/services/{id:\d+}/console', [Customer\ServiceController::class, 'console']);
+        $r->post('/services/{id:\d+}/console/session', [Customer\ServiceController::class, 'consoleSession']);
         $r->get('/orders', [Customer\ServiceController::class, 'orders']);
 
         $r->get('/tickets', [Customer\TicketController::class, 'index']);
@@ -191,6 +193,8 @@ return static function (Router $r): void {
             $r->get('/services/{id:\d+}', [Admin\ServiceController::class, 'show']);
             $r->get('/services/{id:\d+}/credentials', [Admin\ServiceController::class, 'credentials']);
             $r->post('/services/{id:\d+}/remote', [Admin\ServiceController::class, 'remote']);
+            $r->get('/services/{id:\d+}/console', [Admin\ServiceController::class, 'console']);
+            $r->post('/services/{id:\d+}/console/session', [Admin\ServiceController::class, 'consoleSession']);
             $r->post('/services/{id:\d+}/action', [Admin\ServiceController::class, 'action']);
         });
 
@@ -211,6 +215,12 @@ return static function (Router $r): void {
             $r->post('/integrations/{id:\d+}/test', [Admin\IntegrationController::class, 'test']);
             $r->post('/integrations/{id:\d+}/delete', [Admin\IntegrationController::class, 'delete']);
             $r->get('/integrations/{id:\d+}/resources', [Admin\IntegrationController::class, 'resources']);
+            $r->get('/ip-pools', [Admin\IpPoolController::class, 'index']);
+            $r->get('/ip-pools/create', [Admin\IpPoolController::class, 'create']);
+            $r->post('/ip-pools', [Admin\IpPoolController::class, 'store']);
+            $r->get('/ip-pools/{id:\d+}', [Admin\IpPoolController::class, 'show']);
+            $r->post('/ip-pools/{id:\d+}/addresses/{address:\d+}', [Admin\IpPoolController::class, 'updateAddress']);
+            $r->post('/ip-pools/{id:\d+}/delete', [Admin\IpPoolController::class, 'delete']);
         });
 
         $r->get('/audit-log', [Admin\LogController::class, 'auditLog'], ['middleware' => ['permission:audit.view']]);

@@ -53,7 +53,7 @@
                 {% if field.type|default('') == 'bool' %}
                     {{ f.checkbox(name, field.label, value) }}
                 {% elseif field.type|default('') == 'select' %}
-                    {{ f.select(name, field.label, field.options, value, field.help is defined ? {help: field.help} : {}) }}
+                    {{ f.select(name, field.label, field.options|default({}), value, (field.help is defined ? {help: field.help} : {})|merge(field.options_source is defined ? {placeholder: '– none –'} : {})) }}
                 {% elseif field.type|default('') == 'text' %}
                     {{ f.textarea(name, field.label, value, field.help is defined ? {help: field.help} : {}) }}
                 {% elseif field.type|default('') == 'json' %}

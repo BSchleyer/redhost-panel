@@ -49,6 +49,14 @@ return [
         'retention_days' => Env::int('LOG_RETENTION_DAYS', 30),
     ],
 
+    'console' => [
+        // Public WebSocket URL of the console proxy (bin/nebrix console:proxy behind the reverse proxy).
+        'ws_url' => Env::get('CONSOLE_WS_URL', (str_starts_with($appUrl, 'https://') ? 'wss://' . substr($appUrl, 8) : 'ws://' . substr($appUrl, 7)) . '/console/ws'),
+        'listen' => Env::get('CONSOLE_LISTEN', '0.0.0.0:8081'),
+        'max_connections' => Env::int('CONSOLE_MAX_CONNECTIONS', 100),
+        'max_lifetime' => Env::int('CONSOLE_MAX_LIFETIME', 14400),
+    ],
+
     'integrations' => [
         // Allow plain-HTTP integration endpoints (lab setups only).
         'allow_http' => Env::bool('INTEGRATIONS_ALLOW_HTTP', false),

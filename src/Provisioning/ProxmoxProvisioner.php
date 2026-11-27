@@ -9,6 +9,7 @@ use Nebrix\Catalog\ProductCategory;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
+use Nebrix\Network\IpPoolService;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 
@@ -23,12 +24,18 @@ use Nebrix\Service\ServiceRepository;
  * marker "nebrix-service-<id>" written at creation time; any other guest on
  * the VMID is treated as a conflict (the hostname is customer-chosen and
  * therefore not proof of ownership).
+ *
+ * Addressing: with an IP pool on the product the guest gets a static IPv4
+ * address (allocated once per service, released after termination);
+ * otherwise DHCP. Reinstalling destroys the guest (step "destroy") and
+ * re-creates it with the same VMID, address and a new root password.
  */
-final class ProxmoxProvisioner implements Provisioner
+final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
         private readonly ServiceRepository $services,
+        private readonly IpPoolService $ipPools,
     ) {
     }
 
@@ -69,6 +76,15 @@ final class ProxmoxProvisioner implements Provisioner
             $this->services->mergeRemote($service->id, $remote);
         }
 
+        // Static address from the product's IP pool (idempotent per service).
+        $poolId = (int) $service->config('ip_pool_id', 0);
+        if ($poolId > 0 && !isset($remote['ipv4'])) {
+            $lease = $this->ipPools->allocate($poolId, $service->id);
+            $addressing = ['ipv4' => $lease['address'] . '/' . $lease['prefix'], 'gateway' => $lease['gateway'], 'dns' => implode(' ', $lease['dns'])];
+            $this->services->mergeRemote($service->id, $addressing);
+            $remote = $addressing + $remote;
+        }
+
         // Nothing exists remotely yet (e.g. retry after a failed create call):
         // re-evaluate the node so that a corrected product configuration applies.
         if (($remote['step'] ?? 'create') === 'create' && !isset($remote['upid']) && $client->findGuest((int) $remote['vmid']) === null) {
@@ -94,6 +110,15 @@ final class ProxmoxProvisioner implements Provisioner
         while (true) {
             $step = (string) ($remote['step'] ?? 'create');
 
+            if ($step === 'destroy') {
+                // Reinstall: remove the old guest first (throws RetryLater while running).
+                $this->destroyGuest($client, $service, $remote, $node, $vmid, $type);
+                $this->services->mergeRemote($service->id, ['step' => 'create', 'destroy_upid' => null]);
+                $remote['step'] = 'create';
+                unset($remote['destroy_upid']);
+                continue;
+            }
+
             if ($step === 'create') {
                 $existing = $client->findGuest($vmid);
                 if ($existing !== null) {
@@ -111,8 +136,8 @@ final class ProxmoxProvisioner implements Provisioner
                 }
 
                 $upid = $type === ProxmoxClient::TYPE_LXC
-                    ? $client->createContainer($node, $this->containerParameters($service, $vmid, (string) $credentials['password']))
-                    : $client->cloneVm($node, (int) $service->config('template_vmid'), [
+                    ? $client->createContainer($node, $this->containerParameters($service, $vmid, (string) $credentials['password'], $remote))
+                    : $client->cloneVm($node, (int) ($remote['template'] ?? $service->config('template_vmid')), [
                         'newid' => $vmid,
                         'name' => $this->hostname($service),
                         'full' => 1,
@@ -125,7 +150,7 @@ final class ProxmoxProvisioner implements Provisioner
             }
 
             if ($step === 'configure') {
-                $client->updateVmConfig($node, $vmid, $this->vmParameters($service, (string) ($credentials['password'] ?? '')));
+                $client->updateVmConfig($node, $vmid, $this->vmParameters($service, (string) ($credentials['password'] ?? ''), $remote));
                 $client->resizeDisk($node, ProxmoxClient::TYPE_QEMU, $vmid, 'scsi0', (int) $service->config('disk_gb'));
                 $remote = $this->advance($service->id, $remote);
                 continue;
@@ -202,22 +227,24 @@ final class ProxmoxProvisioner implements Provisioner
     }
 
     /**
+     * @param array<string, mixed> $remote
      * @return array<string, scalar>
      */
-    private function containerParameters(Service $service, int $vmid, string $password): array
+    private function containerParameters(Service $service, int $vmid, string $password, array $remote): array
     {
         $rate = (int) $service->config('rate_mbps', 0);
         $unprivileged = (bool) $service->config('unprivileged', true);
+        $ipv4 = isset($remote['ipv4']) ? sprintf('ip=%s,gw=%s', (string) $remote['ipv4'], (string) ($remote['gateway'] ?? '')) : 'ip=dhcp';
 
         $parameters = [
             'vmid' => $vmid,
             'hostname' => $this->hostname($service),
-            'ostemplate' => (string) $service->config('ostemplate'),
+            'ostemplate' => (string) ($remote['template'] ?? $service->config('ostemplate')),
             'cores' => (int) $service->config('cores', 1),
             'memory' => (int) $service->config('memory_mb', 1024),
             'swap' => (int) $service->config('swap_mb', 512),
             'rootfs' => sprintf('%s:%d', (string) $service->config('storage'), (int) $service->config('disk_gb', 10)),
-            'net0' => sprintf('name=eth0,bridge=%s,ip=dhcp,ip6=auto%s', (string) $service->config('bridge', 'vmbr0'), $rate > 0 ? ',rate=' . $rate : ''),
+            'net0' => sprintf('name=eth0,bridge=%s,%s,ip6=auto%s', (string) $service->config('bridge', 'vmbr0'), $ipv4, $rate > 0 ? ',rate=' . $rate : ''),
             'password' => $password,
             'unprivileged' => $unprivileged ? 1 : 0,
             'onboot' => 1,
@@ -230,26 +257,34 @@ final class ProxmoxProvisioner implements Provisioner
         if ($unprivileged) {
             $parameters['features'] = 'nesting=1';
         }
+        if (($remote['dns'] ?? '') !== '') {
+            $parameters['nameserver'] = (string) $remote['dns'];
+        }
 
         return $parameters;
     }
 
     /**
+     * @param array<string, mixed> $remote
      * @return array<string, scalar>
      */
-    private function vmParameters(Service $service, string $password): array
+    private function vmParameters(Service $service, string $password, array $remote): array
     {
         $rate = (int) $service->config('rate_mbps', 0);
-
-        return [
+        $parameters = [
             'cores' => (int) $service->config('cores', 2),
             'memory' => (int) $service->config('memory_mb', 2048),
             'ciuser' => 'root',
             'cipassword' => $password,
-            'ipconfig0' => 'ip=dhcp,ip6=auto',
+            'ipconfig0' => isset($remote['ipv4']) ? sprintf('ip=%s,gw=%s,ip6=auto', (string) $remote['ipv4'], (string) ($remote['gateway'] ?? '')) : 'ip=dhcp,ip6=auto',
             'net0' => sprintf('virtio,bridge=%s%s', (string) $service->config('bridge', 'vmbr0'), $rate > 0 ? ',rate=' . $rate : ''),
             'onboot' => 1,
         ];
+        if (($remote['dns'] ?? '') !== '') {
+            $parameters['nameserver'] = (string) $remote['dns'];
+        }
+
+        return $parameters;
     }
 
     public function suspend(Service $service): void
@@ -277,21 +312,30 @@ final class ProxmoxProvisioner implements Provisioner
     public function terminate(Service $service): void
     {
         if (!isset($service->remote['vmid'])) {
+            $this->ipPools->release($service->id);
+
             return; // never created
         }
 
         [$node, $vmid, $type] = $this->guest($service);
-        $client = $this->client($service);
+        $this->destroyGuest($this->client($service), $service, $service->remote, $node, $vmid, $type);
+        $this->services->mergeRemote($service->id, ['destroy_upid' => null]);
+        $this->ipPools->release($service->id);
+    }
 
-        if (isset($service->remote['destroy_upid'])) {
-            $task = $client->taskStatus($node, (string) $service->remote['destroy_upid']);
+    /**
+     * Stops and deletes the service's guest. Returns when the guest no longer
+     * exists; throws RetryLater while Proxmox works on it. Never deletes a
+     * guest that does not carry the service's marker.
+     *
+     * @param array<string, mixed> $remote
+     */
+    private function destroyGuest(ProxmoxClient $client, Service $service, array $remote, string $node, int $vmid, string $type): void
+    {
+        if (isset($remote['destroy_upid'])) {
+            $task = $client->taskStatus($node, (string) $remote['destroy_upid']);
             if ($task['status'] !== 'stopped') {
                 throw new RetryLaterException('Waiting for Proxmox to delete the guest.', 10);
-            }
-            if ($client->findGuest($vmid) === null) {
-                $this->services->mergeRemote($service->id, ['destroy_upid' => null]);
-
-                return;
             }
             $this->services->mergeRemote($service->id, ['destroy_upid' => null]);
         }
@@ -333,30 +377,112 @@ final class ProxmoxProvisioner implements Provisioner
             'disk_total' => (int) ($status['maxdisk'] ?? 0),
             'net_in' => (int) ($status['netin'] ?? 0),
             'net_out' => (int) ($status['netout'] ?? 0),
-            'connection' => ['Hostname' => $this->hostname($service), 'Node' => $node, 'ID' => (string) $vmid],
+            'connection' => array_filter([
+                'Hostname' => $this->hostname($service),
+                'IPv4' => isset($service->remote['ipv4']) ? strtok((string) $service->remote['ipv4'], '/') : '',
+                'Node' => $node,
+                'ID' => (string) $vmid,
+            ], static fn (string|false $value): bool => $value !== '' && $value !== false),
         ];
     }
 
     public function actions(Service $service): array
     {
-        return [
+        $actions = [
             'start' => ServiceAction::simple('Start'),
             'shutdown' => ServiceAction::simple('Shut down', 'Shut the server down?'),
             'reboot' => ServiceAction::simple('Reboot', 'Reboot the server?'),
             'stop' => ServiceAction::simple('Force stop', 'Force-stop the server? Unsaved data may be lost.', true),
         ];
+        if ($this->type($service) === ProxmoxClient::TYPE_QEMU) {
+            $actions['reset_password'] = ServiceAction::simple('Reset root password', 'Set a new root password? The current password stops working.');
+        }
+        $templates = $this->reinstallTemplates($service);
+        $actions['reinstall'] = new ServiceAction('Reinstall', [
+            'template' => ['label' => 'Operating system', 'rules' => 'required|string|max:255', 'type' => 'select', 'options' => $templates, 'default' => (string) array_key_first($templates)],
+        ], 'Reinstall the server? ALL data on the server will be deleted.', ServiceAction::REINSTALL, true);
+
+        return $actions;
     }
 
     public function perform(Service $service, string $action, array $input = []): string
     {
+        [$node, $vmid, $type] = $this->guest($service);
+        $client = $this->client($service);
+
+        if ($action === 'reset_password' && $type === ProxmoxClient::TYPE_QEMU) {
+            $password = self::generatePassword();
+            try {
+                // Immediate change through the QEMU guest agent …
+                $client->setUserPassword($node, $vmid, 'root', $password);
+                $message = 'A new root password has been set. You can view it under access data.';
+            } catch (IntegrationException) {
+                // … or through cloud-init, applied at the next boot.
+                $client->updateVmConfig($node, $vmid, ['cipassword' => $password]);
+                $message = 'The new root password takes effect after the next restart of the server. You can view it under access data.';
+            }
+            $this->services->setCredentials($service->id, ['password' => $password] + $this->services->credentials($service));
+
+            return $message;
+        }
+
         if (!in_array($action, ['start', 'shutdown', 'reboot', 'stop'], true)) {
             throw new IntegrationException('Unsupported action.');
         }
-
-        [$node, $vmid, $type] = $this->guest($service);
-        $this->client($service)->power($node, $type, $vmid, $action);
+        $client->power($node, $type, $vmid, $action);
 
         return 'The action has been sent to the server.';
+    }
+
+    public function openConsole(Service $service): array
+    {
+        [$node, $vmid, $type] = $this->guest($service);
+        $client = $this->client($service);
+        $proxy = $client->vncProxy($node, $type, $vmid);
+
+        // Proxmox uses the VNC ticket as the VNC password.
+        return $client->vncWebSocketTarget($node, $type, $vmid, $proxy['port'], $proxy['ticket']) + ['password' => $proxy['ticket']];
+    }
+
+    public function prepareReinstall(Service $service, array $input): void
+    {
+        if (!isset($service->remote['node'], $service->remote['vmid'])) {
+            throw new ServiceStateException('The server has not been created yet.');
+        }
+        $templates = $this->reinstallTemplates($service);
+        $template = (string) ($input['template'] ?? '');
+        if (!array_key_exists($template, $templates)) {
+            throw new ServiceStateException('Choose one of the offered operating systems.');
+        }
+
+        // New root password; the provisioning run destroys and re-creates the guest.
+        $this->services->setCredentials($service->id, []);
+        $this->services->mergeRemote($service->id, ['step' => 'destroy', 'upid' => null, 'destroy_upid' => null, 'template' => $template]);
+    }
+
+    /**
+     * Templates offered for reinstalling: the product's template first, then
+     * the lines "value|Label" of the product setting "reinstall_templates".
+     *
+     * @return array<string, string> template => label
+     */
+    private function reinstallTemplates(Service $service): array
+    {
+        $isVm = $this->type($service) === ProxmoxClient::TYPE_QEMU;
+        $pattern = $isVm ? '/^\d{3,9}$/' : '/^[A-Za-z0-9._-]+:vztmpl\/[A-Za-z0-9._+-]+$/';
+        $default = (string) ($isVm ? $service->config('template_vmid', '') : $service->config('ostemplate', ''));
+        $templates = [];
+        if (preg_match($pattern, $default) === 1) {
+            $templates[$default] = 'Default image';
+        }
+        foreach (preg_split('/\R/', (string) $service->config('reinstall_templates', '')) ?: [] as $line) {
+            [$value, $label] = array_pad(array_map('trim', explode('|', $line, 2)), 2, '');
+            if (preg_match($pattern, $value) === 1) {
+                $templates[$value] = $label !== '' ? mb_substr($label, 0, 60) : $value;
+            }
+        }
+
+        return $templates;
     }
 
     /**
@@ -380,10 +506,5 @@ final class ProxmoxProvisioner implements Provisioner
         }
 
         return $password;
-    }
-
-    public function prepareReinstall(Service $service, array $input): void
-    {
-        throw new IntegrationException('Reinstalling is not supported for this service type.');
     }
 }

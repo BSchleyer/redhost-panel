@@ -106,6 +106,33 @@ class ApiClient
     }
 
     /**
+     * Connection data for a WebSocket on the integration's host (used by the
+     * console proxy). The address is validated and pinned like any request.
+     *
+     * @return array{scheme: string, host: string, ip: string, port: int, path: string, headers: array<string, string>, verify_tls: bool}
+     *
+     * @throws IntegrationException
+     */
+    public function webSocketTarget(string $path): array
+    {
+        try {
+            $target = $this->guard->validateUrl($this->baseUrl);
+        } catch (UnsafeUrlException $exception) {
+            throw new IntegrationException('Integration URL rejected: ' . $exception->getMessage());
+        }
+
+        return [
+            'scheme' => $target['scheme'] === 'https' ? 'wss' : 'ws',
+            'host' => $target['host'],
+            'ip' => $target['ip'],
+            'port' => $target['port'],
+            'path' => $target['path'] . '/' . ltrim($path, '/'),
+            'headers' => $this->defaultHeaders,
+            'verify_tls' => $this->verifyTls,
+        ];
+    }
+
+    /**
      * Extracts a short, human-readable error from common API error shapes.
      */
     private function errorDetail(mixed $json, string $body): string

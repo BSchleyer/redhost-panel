@@ -1,0 +1,15 @@
+{# Graphical console (noVNC). Parameters: service, session_url, back_url. #}
+<div class="page-header"><div><h1>{{ 'Console'|t }} – {{ service.name }}</h1><p class="muted"><a href="{{ back_url }}">&larr; {{ 'Back to the service'|t }}</a></p></div></div>
+<div class="card">
+    <div class="card-body">
+        <div class="gap console-toolbar">
+            <button class="btn btn-primary" type="button" id="console-connect" data-session-url="{{ session_url }}" data-csrf="{{ csrf_token() }}">{{ 'Connect'|t }}</button>
+            <button class="btn btn-outline" type="button" id="console-cad" disabled>{{ 'Send Ctrl+Alt+Del'|t }}</button>
+            <button class="btn btn-outline" type="button" id="console-disconnect" disabled>{{ 'Disconnect'|t }}</button>
+            <span id="console-status" class="muted small" data-connected="{{ 'Connected'|t }}" data-disconnected="{{ 'Disconnected'|t }}" data-connecting="{{ 'Connecting …'|t }}" data-failed="{{ 'The console could not be opened. Please try again.'|t }}">{{ 'Not connected'|t }}</span>
+        </div>
+        <div id="console-screen" class="console-screen mt-1"></div>
+        <p class="small muted mt-1">{{ 'The console session is encrypted and ends when you close this page. Keyboard input is sent to the server.'|t }}</p>
+    </div>
+</div>
+<script type="module" src="{{ asset('js/console.js') }}"></script>

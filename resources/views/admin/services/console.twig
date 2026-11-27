@@ -1,0 +1,5 @@
+{% extends 'layouts/admin.twig' %}
+{% block title %}{{ 'Console'|t }}{% endblock %}
+{% block content %}
+{% include 'partials/console.twig' with {service: service, session_url: '/admin/services/' ~ service.id ~ '/console/session', back_url: '/admin/services/' ~ service.id} only %}
+{% endblock %}

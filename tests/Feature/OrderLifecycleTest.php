@@ -68,6 +68,7 @@ final class OrderLifecycleTest extends FeatureTestCase
 
                 return new Psr7Response(200, [], json_encode(['data' => ['status' => $done ? 'stopped' : 'running', 'exitstatus' => $done ? 'OK' : null]], JSON_THROW_ON_ERROR));
             })
+            ->on('POST', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/vncproxy', ['data' => ['port' => '5900', 'ticket' => 'PVEVNC:TICKET']])
             ->on('GET', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/config', fn ($r, array $m): Psr7Response => new Psr7Response(200, [], json_encode(['data' => ['description' => $this->guests[(int) $m['vmid']]['description'] ?? '']], JSON_THROW_ON_ERROR)))
             ->on('GET', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/status/current', fn ($r, array $m): Psr7Response => new Psr7Response(200, [], json_encode(['data' => ['status' => $this->guests[(int) $m['vmid']]['status'] ?? 'stopped', 'cpu' => 0.05, 'mem' => 100, 'maxmem' => 1000]], JSON_THROW_ON_ERROR)))
             ->on('POST', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/status/(?<action>\w+)', function ($r, array $m): Psr7Response {
@@ -317,6 +318,43 @@ final class OrderLifecycleTest extends FeatureTestCase
         $this->clock()->freeze(new DateTimeImmutable('2026-07-10 12:00:00'));
         $scheduler->suspendOverdue();
         self::assertSame('active', $this->db->fetchValue('SELECT status FROM nx_services WHERE id = ?', [$serviceId]));
+    }
+
+    public function testCustomerConsoleAndActionsWithInput(): void
+    {
+        $serviceId = $this->app->container()->get(ServiceRepository::class)->create([
+            'user_id' => $this->customer->id, 'integration_id' => $this->integrationId, 'category' => 'lxc', 'name' => 'web', 'status' => 'active',
+            'billing_cycle' => 'monthly', 'currency' => 'EUR',
+            'config' => ['ostemplate' => 'local:vztmpl/debian-12.tar.zst', 'reinstall_templates' => 'local:vztmpl/alpine.tar.zst|Alpine'],
+        ]);
+        $this->db->run("UPDATE nx_services SET remote = '{\"node\":\"pve1\",\"vmid\":20900,\"type\":\"lxc\",\"step\":\"done\"}', external_id = 'pve:pve1:20900' WHERE id = ?", [$serviceId]);
+        $this->guests[20900] = ['name' => 'web', 'status' => 'running', 'description' => 'nebrix-service-' . $serviceId];
+        $this->actingAs($this->customer);
+
+        $page = $this->get('/services/' . $serviceId);
+        self::assertStringContainsString('/services/' . $serviceId . '/console', $page->body());
+        self::assertStringContainsString('name="template"', $page->body(), 'Actions with input render their fields.');
+
+        $console = $this->get('/services/' . $serviceId . '/console');
+        self::assertSame(200, $console->status());
+        self::assertStringContainsString('connect-src \'self\' ws://localhost', (string) $console->header('Content-Security-Policy'));
+        self::assertSame(419, $this->post('/services/' . $serviceId . '/console/session', [], false)->status());
+        $session = json_decode($this->post('/services/' . $serviceId . '/console/session')->body(), true);
+        self::assertSame('PVEVNC:TICKET', $session['password']);
+        self::assertMatchesRegularExpression('#^ws://localhost(:\d+)?/console/ws\?token=[a-f0-9]{64}$#', $session['url']);
+        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_audit_log WHERE action = 'service.console_opened'"));
+
+        // Reinstall only with an offered template.
+        $this->post('/services/' . $serviceId . '/action', ['action' => 'reinstall', 'template' => 'local:vztmpl/evil.tar.zst']);
+        self::assertSame('active', $this->db->fetchValue('SELECT status FROM nx_services WHERE id = ?', [$serviceId]));
+        $this->post('/services/' . $serviceId . '/action', ['action' => 'reinstall', 'template' => 'local:vztmpl/alpine.tar.zst']);
+        self::assertSame('provisioning', $this->db->fetchValue('SELECT status FROM nx_services WHERE id = ?', [$serviceId]));
+        self::assertSame('destroy', json_decode((string) $this->db->fetchValue('SELECT remote FROM nx_services WHERE id = ?', [$serviceId]), true)['step']);
+
+        // Other customers cannot open the console.
+        $this->actingAs($this->createUser());
+        self::assertSame(404, $this->get('/services/' . $serviceId . '/console')->status());
+        self::assertSame(404, $this->post('/services/' . $serviceId . '/console/session')->status());
     }
 
     public function testInvalidOrderOptionsAreRejected(): void

@@ -6,15 +6,18 @@ namespace Nebrix\Controller\Customer;
 
 use Nebrix\Billing\InvoiceRepository;
 use Nebrix\Billing\OrderRepository;
+use Nebrix\Core\Config;
 use Nebrix\Http\Controller;
 use Nebrix\Http\HttpException;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
+use Nebrix\Http\SecurityHeaders;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Provisioning\ProvisionerRegistry;
 use Nebrix\Provisioning\ServiceAction;
 use Nebrix\Provisioning\ServiceActionRunner;
 use Nebrix\Provisioning\ServiceStateException;
+use Nebrix\RemoteConsole\ConsoleSessions;
 use Nebrix\Repository\CustomerGroupRepository;
 use Nebrix\Security\RateLimiter;
 use Nebrix\Service\Service;
@@ -37,6 +40,8 @@ final class ServiceController extends Controller
         private readonly RateLimiter $limiter,
         private readonly LoggerInterface $logger,
         private readonly ServiceActionRunner $runner,
+        private readonly ConsoleSessions $consoles,
+        private readonly Config $config,
     ) {
     }
 
@@ -71,6 +76,7 @@ final class ServiceController extends Controller
             'actions' => $actions,
             'renewal' => $this->invoices->openRenewalFor($id),
             'has_credentials' => $service->hasCredentials && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true),
+            'console' => $this->mayManage($request) && $this->consoles->supports($service),
         ]);
     }
 
@@ -124,6 +130,49 @@ final class ServiceController extends Controller
         }
 
         return $this->redirect('/services/' . $id);
+    }
+
+    public function console(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        if (!$this->mayManage($request) || !$this->consoles->supports($service)) {
+            throw HttpException::notFound();
+        }
+
+        $response = $this->render($request, 'customer/services/console.twig', ['service' => $service]);
+        $response->setHeader('Content-Security-Policy', SecurityHeaders::contentSecurityPolicy(['connect-src' => [$this->consoleOrigin()]]));
+
+        return $response;
+    }
+
+    /** Issues a single-use console session (JSON for the console page). */
+    public function consoleSession(Request $request, int $id): Response
+    {
+        $service = $this->find($request, $id);
+        if (!$this->mayManage($request) || !$this->consoles->supports($service)) {
+            return Response::json(['error' => 'not_available'], 404);
+        }
+        if (!$this->limiter->attempt('console:' . $this->user($request)->id, 10, 300)) {
+            return Response::json(['error' => 'too_many_requests'], 429);
+        }
+
+        try {
+            $session = $this->consoles->open($service, $this->user($request), $request->clientIp());
+        } catch (IntegrationException|ServiceStateException $exception) {
+            $this->logger->warning('Console could not be opened', ['service' => $id, 'message' => $exception->getMessage()]);
+
+            return Response::json(['error' => 'unavailable'], 502);
+        }
+        $this->audit($request, 'service.console_opened', 'service', $id);
+
+        return Response::json(['url' => $session['url'], 'password' => $session['password']]);
+    }
+
+    private function consoleOrigin(): string
+    {
+        $url = parse_url($this->config->string('console.ws_url'));
+
+        return sprintf('%s://%s%s', $url['scheme'] ?? 'wss', $url['host'] ?? 'localhost', isset($url['port']) ? ':' . $url['port'] : '');
     }
 
     public function orders(Request $request): Response

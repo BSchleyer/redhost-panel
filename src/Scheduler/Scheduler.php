@@ -15,6 +15,7 @@ use Nebrix\Integration\IntegrationManager;
 use Nebrix\Payment\PaymentService;
 use Nebrix\Provisioning\ServiceManager;
 use Nebrix\Queue\JobQueue;
+use Nebrix\RemoteConsole\ConsoleSessions;
 use Nebrix\Security\RateLimiter;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
@@ -48,6 +49,7 @@ class Scheduler
         private readonly IntegrationLogger $integrationLogs,
         private readonly LoggerInterface $logger,
         private readonly PaymentService $payments,
+        private readonly ConsoleSessions $consoleSessions,
     ) {
     }
 
@@ -236,7 +238,8 @@ class Scheduler
             + $this->tokens->prune()
             + $this->loginHistory->prune($this->settings->int('system.login_history_retention_days') ?: 180)
             + $this->integrationLogs->prune($this->settings->int('system.integration_log_retention_days') ?: 30)
-            + $this->jobs->pruneCompleted(30);
+            + $this->jobs->pruneCompleted(30)
+            + $this->consoleSessions->prune();
 
         return sprintf('%d expired record(s) removed', $removed);
     }

@@ -6,16 +6,19 @@ namespace Nebrix\Controller\Admin;
 
 use Nebrix\Authorization\Permission;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Core\Config;
 use Nebrix\Database\Connection;
 use Nebrix\Http\Controller;
 use Nebrix\Http\HttpException;
 use Nebrix\Http\Request;
 use Nebrix\Http\Response;
+use Nebrix\Http\SecurityHeaders;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Provisioning\ProvisionerRegistry;
 use Nebrix\Provisioning\ServiceActionRunner;
 use Nebrix\Provisioning\ServiceManager;
 use Nebrix\Provisioning\ServiceStateException;
+use Nebrix\RemoteConsole\ConsoleSessions;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
 use RuntimeException;
@@ -28,6 +31,8 @@ final class ServiceController extends Controller
         private readonly ProvisionerRegistry $provisioners,
         private readonly Connection $db,
         private readonly ServiceActionRunner $runner,
+        private readonly ConsoleSessions $consoles,
+        private readonly Config $config,
     ) {
     }
 
@@ -82,7 +87,38 @@ final class ServiceController extends Controller
             'live_error' => $liveError,
             'automated' => $this->provisioners->supportsService($service),
             'remote_actions' => $remoteActions,
+            'console' => $this->consoles->supports($service),
         ]);
+    }
+
+    public function console(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        $service = $this->find($id);
+        if (!$this->consoles->supports($service)) {
+            throw HttpException::notFound();
+        }
+
+        $url = parse_url($this->config->string('console.ws_url'));
+        $origin = sprintf('%s://%s%s', $url['scheme'] ?? 'wss', $url['host'] ?? 'localhost', isset($url['port']) ? ':' . $url['port'] : '');
+        $response = $this->render($request, 'admin/services/console.twig', ['service' => $service]);
+        $response->setHeader('Content-Security-Policy', SecurityHeaders::contentSecurityPolicy(['connect-src' => [$origin]]));
+
+        return $response;
+    }
+
+    public function consoleSession(Request $request, int $id): Response
+    {
+        $this->authorize($request, Permission::SERVICES_MANAGE);
+        $service = $this->find($id);
+        try {
+            $session = $this->consoles->open($service, $this->user($request), $request->clientIp());
+        } catch (IntegrationException|ServiceStateException $exception) {
+            return Response::json(['error' => mb_substr($exception->getMessage(), 0, 200)], 502);
+        }
+        $this->audit($request, 'service.console_opened_by_staff', 'service', $id);
+
+        return Response::json(['url' => $session['url'], 'password' => $session['password']]);
     }
 
     /** Provisioner actions (power, reinstall, …) executed by staff. */

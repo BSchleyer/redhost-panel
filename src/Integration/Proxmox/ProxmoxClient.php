@@ -140,6 +140,46 @@ class ProxmoxClient
     }
 
     /**
+     * Sets a user password inside a running VM through the QEMU guest agent.
+     */
+    public function setUserPassword(string $node, int $vmid, string $username, #[\SensitiveParameter] string $password): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_-]{0,31}$/', $username) !== 1) {
+            throw new IntegrationException('Invalid user name.');
+        }
+        $this->api->request('POST', $this->guestPath($node, self::TYPE_QEMU, $vmid) . '/agent/set-user-password', [
+            'form_params' => ['username' => $username, 'password' => $password],
+            'action' => 'qemu.agent.set_password',
+        ]);
+    }
+
+    /**
+     * Opens a VNC proxy for the guest's console.
+     *
+     * @return array{port: int, ticket: string}
+     */
+    public function vncProxy(string $node, string $type, int $vmid): array
+    {
+        $data = $this->data($this->api->request('POST', $this->guestPath($node, $type, $vmid) . '/vncproxy', ['form_params' => ['websocket' => 1], 'action' => $type . '.vncproxy']));
+        if (!is_array($data) || !isset($data['port'], $data['ticket']) || !is_numeric($data['port'])) {
+            throw new IntegrationException('Proxmox did not return a console ticket.');
+        }
+
+        return ['port' => (int) $data['port'], 'ticket' => (string) $data['ticket']];
+    }
+
+    /**
+     * Upstream WebSocket target for the console proxy (API token header,
+     * pinned address and TLS settings of the integration).
+     *
+     * @return array{scheme: string, host: string, ip: string, port: int, path: string, headers: array<string, string>, verify_tls: bool}
+     */
+    public function vncWebSocketTarget(string $node, string $type, int $vmid, int $port, string $ticket): array
+    {
+        return $this->api->webSocketTarget($this->guestPath($node, $type, $vmid) . '/vncwebsocket?' . http_build_query(['port' => $port, 'vncticket' => $ticket], '', '&', PHP_QUERY_RFC3986));
+    }
+
+    /**
      * @param array<string, scalar> $params
      * @return string task UPID
      */

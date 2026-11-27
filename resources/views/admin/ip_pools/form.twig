@@ -1,0 +1,22 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Add IP pool'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Add IP pool'|t }}</h1><p class="muted"><a href="/admin/ip-pools">&larr; {{ 'IP pools'|t }}</a></p></div></div>
+<form method="post" action="/admin/ip-pools" novalidate class="card">
+    {{ csrf_field() }}
+    <div class="card-body">
+        <div class="form-grid">
+            {{ f.input('name', 'Name', '', 'text', {required: true}) }}
+            {{ f.select('integration_id', 'Proxmox integration (optional)', integrations, '', {placeholder: '– any –'}) }}
+            {{ f.input('network', 'Network (CIDR)', '', 'text', {required: true, placeholder: '203.0.113.0/24', help: 'IPv4, /16 to /32. Network, broadcast and gateway addresses are never assigned.'}) }}
+            {{ f.input('gateway', 'Gateway', '', 'text', {required: true}) }}
+            {{ f.input('first', 'First assignable address (optional)') }}
+            {{ f.input('last', 'Last assignable address (optional)') }}
+            {{ f.input('dns', 'DNS resolvers (comma-separated)', '', 'text', {placeholder: '1.1.1.1, 9.9.9.9'}) }}
+            {{ f.input('note', 'Note') }}
+        </div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Create pool'|t }}</button></div>
+</form>
+{% endblock %}

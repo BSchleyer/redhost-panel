@@ -18,4 +18,5 @@ return [
     'queue:work' => Command\QueueWorkCommand::class,
     'schedule:run' => Command\ScheduleRunCommand::class,
     'legacy:import' => Command\LegacyImportCommand::class,
+    'console:proxy' => Command\ConsoleProxyCommand::class,
 ];
