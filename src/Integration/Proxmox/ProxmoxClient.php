@@ -264,6 +264,84 @@ class ProxmoxClient
         ];
     }
 
+    /**
+     * Starts a backup (vzdump, snapshot mode) of a guest on a backup storage.
+     * The notes identify the owning service.
+     *
+     * @return string task UPID
+     */
+    public function createBackup(string $node, int $vmid, string $storage, string $notes): string
+    {
+        return $this->upid($this->api->request('POST', $this->nodePath($node) . '/vzdump', [
+            'form_params' => ['vmid' => $this->vmid($vmid), 'storage' => $this->storage($storage), 'mode' => 'snapshot', 'compress' => 'zstd', 'notes-template' => $notes],
+            'action' => 'vzdump.create',
+        ]));
+    }
+
+    /**
+     * Backups of one guest on a storage.
+     *
+     * @return list<array{volid: string, ctime: int, size: int, notes: string}>
+     */
+    public function backups(string $node, string $storage, int $vmid): array
+    {
+        $data = $this->data($this->api->request('GET', $this->nodePath($node) . '/storage/' . $this->storage($storage) . '/content', [
+            'query' => ['content' => 'backup', 'vmid' => $this->vmid($vmid)],
+            'action' => 'storage.backups',
+        ]));
+        $backups = [];
+        foreach (is_array($data) ? $data : [] as $entry) {
+            if (!is_array($entry) || (int) ($entry['vmid'] ?? 0) !== $vmid || !is_string($entry['volid'] ?? null) || !self::isBackupVolume($entry['volid'], $storage)) {
+                continue;
+            }
+            $backups[] = ['volid' => $entry['volid'], 'ctime' => (int) ($entry['ctime'] ?? 0), 'size' => (int) ($entry['size'] ?? 0), 'notes' => (string) ($entry['notes'] ?? '')];
+        }
+
+        return $backups;
+    }
+
+    public function deleteBackup(string $node, string $storage, string $volid): void
+    {
+        if (!self::isBackupVolume($volid, $storage)) {
+            throw new IntegrationException('Invalid backup volume.');
+        }
+        $this->api->request('DELETE', $this->nodePath($node) . '/storage/' . $this->storage($storage) . '/content/' . rawurlencode($volid), ['action' => 'storage.backup_delete']);
+    }
+
+    /**
+     * Restores a backup over the existing guest (same VMID, force).
+     *
+     * @return string task UPID
+     */
+    public function restoreBackup(string $node, string $type, int $vmid, string $volid, string $storage, string $targetStorage): string
+    {
+        if (!self::isBackupVolume($volid, $storage)) {
+            throw new IntegrationException('Invalid backup volume.');
+        }
+        if (!in_array($type, [self::TYPE_QEMU, self::TYPE_LXC], true)) {
+            throw new IntegrationException('Invalid guest type.');
+        }
+        $params = $type === self::TYPE_LXC
+            ? ['vmid' => $this->vmid($vmid), 'ostemplate' => $volid, 'restore' => 1, 'force' => 1, 'storage' => $this->storage($targetStorage)]
+            : ['vmid' => $this->vmid($vmid), 'archive' => $volid, 'force' => 1, 'storage' => $this->storage($targetStorage)];
+
+        return $this->upid($this->api->request('POST', $this->nodePath($node) . '/' . $type, ['form_params' => $params, 'action' => $type . '.restore']));
+    }
+
+    public static function isBackupVolume(string $volid, string $storage): bool
+    {
+        return str_starts_with($volid, $storage . ':backup/') && preg_match('#^[A-Za-z0-9._-]+:backup/[A-Za-z0-9._/:+-]{1,200}$#', $volid) === 1 && !str_contains($volid, '..');
+    }
+
+    private function storage(string $storage): string
+    {
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/', $storage) !== 1) {
+            throw new IntegrationException('Invalid storage name.');
+        }
+
+        return $storage;
+    }
+
     private function nodePath(string $node): string
     {
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/', $node) !== 1) {

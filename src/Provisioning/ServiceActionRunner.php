@@ -52,7 +52,7 @@ class ServiceActionRunner
         if ($action->mode === ServiceAction::REINSTALL) {
             $this->manager->reinstall($service, $values, $actorId);
 
-            return ['message' => 'The reinstallation has been started. New access data will be available when it is finished.', 'redirect' => null];
+            return ['message' => $action->queuedMessage ?? 'The reinstallation has been started. New access data will be available when it is finished.', 'redirect' => null];
         }
 
         $audit = ['action' => $key] + array_map(static fn (mixed $v): string => mb_substr((string) $v, 0, 100), $values);

@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Nebrix\Provisioning;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Nebrix\Auth\User;
 use Nebrix\Catalog\ProductCategory;
+use Nebrix\Database\Connection;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\Proxmox\ProxmoxClient;
 use Nebrix\Network\IpPoolService;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
+use Psr\Log\LoggerInterface;
 
 /**
  * Provisions KVM virtual machines (clone of a cloud-init template) and LXC
@@ -29,6 +33,14 @@ use Nebrix\Service\ServiceRepository;
  * address (allocated once per service, released after termination);
  * otherwise DHCP. Reinstalling destroys the guest (step "destroy") and
  * re-creates it with the same VMID, address and a new root password.
+ *
+ * Backups (product settings "backup_storage" and "max_backups"): vzdump in
+ * snapshot mode with the note "nebrix-service-<id>". Customers only ever see,
+ * restore or delete backups of their own guest that carry this note and were
+ * made after the service was created, so a reused VMID never exposes another
+ * customer's data. A restore runs through the provisioning queue (steps
+ * "restore" and "restore_start") and keeps the guest's VMID and address.
+ * Terminating the service deletes its backups.
  */
 final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
 {
@@ -36,6 +48,8 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         private readonly IntegrationManager $integrations,
         private readonly ServiceRepository $services,
         private readonly IpPoolService $ipPools,
+        private readonly Connection $db,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -110,6 +124,17 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         while (true) {
             $step = (string) ($remote['step'] ?? 'create');
 
+            if ($step === 'restore') {
+                $this->restoreGuest($client, $service, $remote, $node, $vmid, $type);
+            }
+
+            if ($step === 'restore_start') {
+                $upid = $client->power($node, $type, $vmid, 'start');
+                $this->services->mergeRemote($service->id, ['upid' => $upid]);
+
+                throw new RetryLaterException('Waiting for the restored server to start.', 5);
+            }
+
             if ($step === 'destroy') {
                 // Reinstall: remove the old guest first (throws RetryLater while running).
                 $this->destroyGuest($client, $service, $remote, $node, $vmid, $type);
@@ -166,10 +191,53 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             // step === 'done'
             return new ProvisionResult(
                 sprintf('pve:%s:%d', $node, $vmid),
-                ['node' => $node, 'vmid' => $vmid, 'type' => $type, 'step' => 'done'],
+                ['node' => $node, 'vmid' => $vmid, 'type' => $type, 'step' => 'done', 'restore_volid' => null],
                 $credentials,
             );
         }
+    }
+
+    /**
+     * Restore step: waits for a running backup, verifies that the backup
+     * still belongs to the service, stops the guest and restores the backup
+     * over it (same VMID). Ends by throwing RetryLater with the restore task
+     * persisted as "upid"; the state machine then starts the guest.
+     *
+     * @param array<string, mixed> $remote
+     */
+    private function restoreGuest(ProxmoxClient $client, Service $service, array $remote, string $node, int $vmid, string $type): never
+    {
+        $storage = $this->backupStorage($service) ?? throw new IntegrationException('Backups are not enabled for this product.');
+        $volid = (string) ($remote['restore_volid'] ?? '');
+
+        // A backup of the guest may still be running (the guest is locked then).
+        if (isset($remote['backup_upid'])) {
+            if ($client->taskStatus($node, (string) $remote['backup_upid'])['status'] !== 'stopped') {
+                throw new RetryLaterException('Waiting for the running backup to finish before restoring.', 15);
+            }
+            $this->services->mergeRemote($service->id, ['backup_upid' => null]);
+        }
+
+        if (!isset($this->ownBackups($client, $service, $node, $vmid)[$volid])) {
+            // Nothing has been changed yet: a retry by the staff re-activates the service unchanged.
+            $this->services->mergeRemote($service->id, ['step' => 'done', 'restore_volid' => null]);
+
+            throw new IntegrationException('The selected backup does not exist (anymore); nothing was restored.');
+        }
+        $existing = $client->findGuest($vmid);
+        if ($existing !== null && !$this->isOwnGuest($client, $service, $existing, $node, $type)) {
+            throw new IntegrationException(sprintf('VM ID %d belongs to another guest ("%s"); the backup was not restored.', $vmid, (string) ($existing['name'] ?? '?')));
+        }
+        if ($existing !== null && ($client->status($node, $type, $vmid)['status'] ?? '') === 'running') {
+            $client->power($node, $type, $vmid, 'stop');
+
+            throw new RetryLaterException('Waiting for the server to stop before restoring.', 10);
+        }
+
+        $upid = $client->restoreBackup($node, $type, $vmid, $volid, $storage, (string) $service->config('storage'));
+        $this->services->mergeRemote($service->id, ['upid' => $upid]);
+
+        throw new RetryLaterException('Waiting for Proxmox to restore the backup.', 15);
     }
 
     /**
@@ -181,6 +249,7 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         $order = ($remote['type'] ?? '') === ProxmoxClient::TYPE_LXC
             ? ['create' => 'done']
             : ['create' => 'configure', 'configure' => 'start', 'start' => 'done'];
+        $order += ['restore' => 'restore_start', 'restore_start' => 'done'];
 
         $remote['step'] = $order[(string) ($remote['step'] ?? 'create')] ?? 'done';
         unset($remote['upid']);
@@ -331,9 +400,30 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         }
 
         [$node, $vmid, $type] = $this->guest($service);
-        $this->destroyGuest($this->client($service), $service, $service->remote, $node, $vmid, $type);
+        $client = $this->client($service);
+        $this->destroyGuest($client, $service, $service->remote, $node, $vmid, $type);
         $this->services->mergeRemote($service->id, ['destroy_upid' => null]);
+        $this->deleteAllBackups($client, $service, $node, $vmid);
         $this->ipPools->release($service->id);
+    }
+
+    /**
+     * The contract has ended: the customer's backups are deleted as well.
+     * A failure does not block the termination; it is logged for the staff.
+     */
+    private function deleteAllBackups(ProxmoxClient $client, Service $service, string $node, int $vmid): void
+    {
+        $storage = $this->backupStorage($service);
+        if ($storage === null) {
+            return;
+        }
+        try {
+            foreach (array_keys($this->ownBackups($client, $service, $node, $vmid)) as $volid) {
+                $client->deleteBackup($node, $storage, $volid);
+            }
+        } catch (IntegrationException $exception) {
+            $this->logger->error('Backups of a terminated service could not be deleted; delete them manually.', ['service' => $service->id, 'storage' => $storage, 'message' => $exception->getMessage()]);
+        }
     }
 
     /**
@@ -415,7 +505,108 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             'template' => ['label' => 'Operating system', 'rules' => 'required|string|max:255', 'type' => 'select', 'options' => $templates, 'default' => (string) array_key_first($templates)],
         ], 'Reinstall the server? ALL data on the server will be deleted.', ServiceAction::REINSTALL, true);
 
+        return $actions + $this->backupActions($service);
+    }
+
+    /**
+     * @return array<string, ServiceAction>
+     */
+    private function backupActions(Service $service): array
+    {
+        $max = (int) $service->config('max_backups', 0);
+        if ($this->backupStorage($service) === null || $max < 1 || !isset($service->remote['node'], $service->remote['vmid'])) {
+            return [];
+        }
+        [$node, $vmid] = $this->guest($service);
+        $backups = $this->ownBackups($this->client($service), $service, $node, $vmid);
+        $options = [];
+        foreach ($backups as $volid => $backup) {
+            $options[$volid] = gmdate('Y-m-d H:i', $backup['ctime']) . ' UTC (' . self::formatSize($backup['size']) . ')';
+        }
+
+        // Always offered: at the limit, the customer gets an explanatory message.
+        $actions = ['backup_create' => ServiceAction::simple('Create backup', 'Create a backup of the server now? The server keeps running.')];
+        if ($options !== []) {
+            $field = ['backup' => ['label' => 'Backup', 'rules' => 'required|string|max:255', 'type' => 'select', 'options' => $options, 'default' => (string) array_key_first($options)]];
+            $actions['backup_restore'] = new ServiceAction('Restore backup', $field, 'Restore this backup? All changes since the backup are lost. The root password is the one that was valid at the time of the backup.', ServiceAction::REINSTALL, true, 'The backup is being restored. The server restarts when the restore is finished.');
+            $actions['backup_delete'] = new ServiceAction('Delete backup', $field, 'Delete this backup permanently?', ServiceAction::SYNC, true);
+        }
+
         return $actions;
+    }
+
+    private function backupStorage(Service $service): ?string
+    {
+        $storage = trim((string) $service->config('backup_storage', ''));
+
+        return preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/', $storage) === 1 ? $storage : null;
+    }
+
+    /**
+     * Backups that belong to this service: guest VMID, note
+     * "nebrix-service-<id>" and made after the service was created. Newest
+     * first.
+     *
+     * @return array<string, array{volid: string, ctime: int, size: int, notes: string}> volid => backup
+     */
+    private function ownBackups(ProxmoxClient $client, Service $service, string $node, int $vmid): array
+    {
+        $storage = $this->backupStorage($service);
+        if ($storage === null) {
+            return [];
+        }
+        $createdAt = (string) ($service->attributes['created_at'] ?? '');
+        $since = $createdAt !== '' ? (new DateTimeImmutable($createdAt, new DateTimeZone('UTC')))->getTimestamp() : 0;
+        $marker = 'nebrix-service-' . $service->id;
+
+        $own = [];
+        foreach ($client->backups($node, $storage, $vmid) as $backup) {
+            if (trim($backup['notes']) === $marker && $backup['ctime'] >= $since) {
+                $own[$backup['volid']] = $backup;
+            }
+        }
+        uasort($own, static fn (array $a, array $b): int => $b['ctime'] <=> $a['ctime']);
+
+        return $own;
+    }
+
+    public static function formatSize(int $bytes): string
+    {
+        return $bytes >= 1073741824 ? number_format($bytes / 1073741824, 1) . ' GB' : number_format(max(0, $bytes) / 1048576, 0) . ' MB';
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     */
+    private function performBackupAction(Service $service, ProxmoxClient $client, string $action, array $input, string $node, int $vmid): string
+    {
+        $storage = $this->backupStorage($service) ?? throw new ServiceStateException('Backups are not enabled for this server.');
+
+        if ($action === 'backup_delete') {
+            $volid = (string) ($input['backup'] ?? '');
+            if (!isset($this->ownBackups($client, $service, $node, $vmid)[$volid])) {
+                throw new ServiceStateException('The selected backup does not exist (anymore).');
+            }
+            $client->deleteBackup($node, $storage, $volid);
+
+            return 'The backup has been deleted.';
+        }
+
+        // backup_create: serialised per service, so that concurrent requests
+        // cannot exceed the number of backups of the product.
+        return $this->db->withLock('nebrix-backup-' . $service->id, 5, function () use ($service, $client, $storage, $node, $vmid): string {
+            $remote = ($this->services->find($service->id) ?? $service)->remote;
+            if (isset($remote['backup_upid']) && $client->taskStatus($node, (string) $remote['backup_upid'])['status'] !== 'stopped') {
+                throw new ServiceStateException('A backup is already running. Please wait until it is finished.');
+            }
+            if (count($this->ownBackups($client, $service, $node, $vmid)) >= (int) $service->config('max_backups', 0)) {
+                throw new ServiceStateException('The maximum number of backups has been reached. Delete an old backup first.');
+            }
+            $upid = $client->createBackup($node, $vmid, $storage, 'nebrix-service-' . $service->id);
+            $this->services->mergeRemote($service->id, ['backup_upid' => $upid]);
+
+            return 'The backup has been started. It appears in the list when it is finished.';
+        });
     }
 
     public function perform(Service $service, string $action, array $input = []): string
@@ -446,6 +637,9 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             return $message;
         }
 
+        if (in_array($action, ['backup_create', 'backup_delete'], true)) {
+            return $this->performBackupAction($service, $client, $action, $input, $node, $vmid);
+        }
         if (!in_array($action, ['start', 'shutdown', 'reboot', 'stop'], true)) {
             throw new IntegrationException('Unsupported action.');
         }
@@ -469,6 +663,20 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
         if (!isset($service->remote['node'], $service->remote['vmid'])) {
             throw new ServiceStateException('The server has not been created yet.');
         }
+
+        // Restore: the backup was offered from the service's own backups
+        // (select whitelist); the provisioning job checks it again.
+        if (isset($input['backup'])) {
+            $storage = $this->backupStorage($service) ?? throw new ServiceStateException('Backups are not enabled for this server.');
+            $volid = (string) $input['backup'];
+            if (!ProxmoxClient::isBackupVolume($volid, $storage)) {
+                throw new ServiceStateException('Choose one of the offered backups.');
+            }
+            $this->services->mergeRemote($service->id, ['step' => 'restore', 'upid' => null, 'destroy_upid' => null, 'restore_volid' => $volid]);
+
+            return;
+        }
+
         $templates = $this->reinstallTemplates($service);
         $template = (string) ($input['template'] ?? '');
         if (!array_key_exists($template, $templates)) {

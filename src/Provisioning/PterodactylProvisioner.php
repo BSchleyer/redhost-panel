@@ -17,6 +17,11 @@ use Nebrix\Service\ServiceRepository;
  * Game servers on Pterodactyl. One panel user per customer
  * (external_id nebrix-user-<id>), one server per service
  * (external_id nebrix-service-<id>).
+ *
+ * With the Client API configured, customers can create, restore, download
+ * and delete backups of their server (product setting "backups" = limit,
+ * also enforced by Pterodactyl). Only backups of the service's own server
+ * are offered; deleting the server in Pterodactyl deletes its backups.
  */
 final class PterodactylProvisioner implements Provisioner
 {
@@ -213,24 +218,114 @@ final class PterodactylProvisioner implements Provisioner
     public function actions(Service $service): array
     {
         [, $client] = $this->client($service);
+        if (!$client->hasClientApi()) {
+            return [];
+        }
 
-        return $client->hasClientApi() ? [
+        return [
             'start' => ServiceAction::simple('Start'),
             'restart' => ServiceAction::simple('Restart'),
             'stop' => ServiceAction::simple('Stop', 'Stop the server?'),
             'kill' => ServiceAction::simple('Kill', 'Kill the server process? Unsaved data is lost.', true),
-        ] : [];
+        ] + $this->backupActions($service, $client);
+    }
+
+    /**
+     * @return array<string, ServiceAction>
+     */
+    private function backupActions(Service $service, PterodactylClient $client): array
+    {
+        $limit = (int) $service->config('backups', 0);
+        $identifier = (string) $service->remote('identifier', '');
+        if ($limit < 1 || $identifier === '') {
+            return [];
+        }
+        $backups = $client->backups($identifier);
+        $finished = [];
+        foreach ($backups as $backup) {
+            if ($backup['completed'] && $backup['successful']) {
+                $created = strtotime($backup['created_at']);
+                $finished[$backup['uuid']] = sprintf('%s – %s (%s)', $backup['name'] !== '' ? $backup['name'] : 'Backup', $created !== false ? gmdate('Y-m-d H:i', $created) . ' UTC' : '?', ProxmoxProvisioner::formatSize($backup['bytes']));
+            }
+        }
+
+        // Always offered: at the limit, the customer gets an explanatory message.
+        $actions = ['backup_create' => ServiceAction::simple('Create backup', 'Create a backup of the server now?')];
+        if ($finished !== []) {
+            $field = ['backup' => ['label' => 'Backup', 'rules' => 'required|string|max:36', 'type' => 'select', 'options' => $finished, 'default' => (string) array_key_first($finished)]];
+            $actions['backup_restore'] = new ServiceAction('Restore backup', $field, 'Restore this backup? All current files of the server are deleted and replaced by the backup.', ServiceAction::SYNC, true);
+            $actions['backup_download'] = new ServiceAction('Download backup', $field, null, ServiceAction::REDIRECT);
+            $actions['backup_delete'] = new ServiceAction('Delete backup', $field, 'Delete this backup permanently?', ServiceAction::SYNC, true);
+        }
+
+        return $actions;
     }
 
     public function perform(Service $service, string $action, array $input = []): string
     {
         [, $client] = $this->client($service);
+        $identifier = (string) $service->remote('identifier', '');
+
+        if (str_starts_with($action, 'backup_')) {
+            return $this->performBackupAction($service, $client, $identifier, $action, $input);
+        }
         if (!in_array($action, ['start', 'restart', 'stop', 'kill'], true)) {
             throw new IntegrationException('Unsupported action.');
         }
-        $client->power((string) $service->remote('identifier', ''), $action);
+        $client->power($identifier, $action);
 
         return 'The power signal has been sent.';
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     */
+    private function performBackupAction(Service $service, PterodactylClient $client, string $identifier, string $action, array $input): string
+    {
+        $limit = (int) $service->config('backups', 0);
+        if ($limit < 1 || $identifier === '') {
+            throw new ServiceStateException('Backups are not available for this server.');
+        }
+        $backups = $client->backups($identifier);
+
+        if ($action === 'backup_create') {
+            if (count($backups) >= $limit) {
+                throw new ServiceStateException('The maximum number of backups has been reached. Delete an old backup first.');
+            }
+            $client->createBackup($identifier, 'Backup ' . gmdate('Y-m-d H:i'));
+
+            return 'The backup has been started. It appears in the list when it is finished.';
+        }
+
+        // The backup must be a finished backup of this server.
+        $uuid = (string) ($input['backup'] ?? '');
+        $selected = null;
+        foreach ($backups as $backup) {
+            if ($backup['uuid'] === $uuid && $backup['completed'] && $backup['successful']) {
+                $selected = $backup;
+            }
+        }
+        if ($selected === null) {
+            throw new ServiceStateException('The selected backup does not exist (anymore).');
+        }
+
+        return match ($action) {
+            'backup_restore' => (function () use ($client, $identifier, $uuid): string {
+                $client->restoreBackup($identifier, $uuid);
+
+                return 'The backup is being restored. The server is available again when the restore is finished.';
+            })(),
+            'backup_download' => $client->backupDownloadUrl($identifier, $uuid),
+            'backup_delete' => (function () use ($client, $identifier, $uuid, $selected): string {
+                if ($selected['locked']) {
+                    throw new ServiceStateException('This backup is locked and cannot be deleted.');
+                }
+                $client->deleteBackup($identifier, $uuid);
+
+                return 'The backup has been deleted.';
+            })(),
+            default => throw new IntegrationException('Unsupported action.'),
+        };
     }
 
     public function prepareReinstall(Service $service, array $input): void

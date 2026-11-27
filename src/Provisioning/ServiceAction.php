@@ -37,6 +37,8 @@ final class ServiceAction
         public readonly ?string $confirm = null,
         public readonly string $mode = self::SYNC,
         public readonly bool $danger = false,
+        /** Confirmation for queued actions (mode REINSTALL); a generic reinstall message otherwise. */
+        public readonly ?string $queuedMessage = null,
     ) {
     }
 

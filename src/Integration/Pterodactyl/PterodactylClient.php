@@ -11,7 +11,7 @@ use Nebrix\Integration\IntegrationException;
 /**
  * Pterodactyl Application API (/api/application) and, when a root-admin
  * client key is configured, the Client API (/api/client) for live
- * resources and power signals.
+ * resources, power signals and backups.
  *
  * External IDs (users: "nebrix-user-<id>", servers: "nebrix-service-<id>")
  * make provisioning idempotent: before creating anything the client looks
@@ -192,6 +192,81 @@ class PterodactylClient
         }
 
         $this->client->request('POST', '/api/client/servers/' . $this->identifier($identifier) . '/power', ['json' => ['signal' => $signal], 'action' => 'client.power.' . $signal]);
+    }
+
+    /**
+     * Backups of a server (Client API).
+     *
+     * @return list<array{uuid: string, name: string, bytes: int, created_at: string, completed: bool, successful: bool, locked: bool}>
+     */
+    public function backups(string $identifier): array
+    {
+        $json = $this->clientApi()->request('GET', '/api/client/servers/' . $this->identifier($identifier) . '/backups', ['query' => ['per_page' => 100], 'action' => 'client.backups.list'])['json'];
+        $backups = [];
+        foreach (is_array($json) ? ($json['data'] ?? []) : [] as $item) {
+            $attributes = is_array($item) ? ($item['attributes'] ?? null) : null;
+            if (!is_array($attributes) || !is_string($attributes['uuid'] ?? null) || !self::isUuid($attributes['uuid'])) {
+                continue;
+            }
+            $backups[] = [
+                'uuid' => $attributes['uuid'],
+                'name' => mb_substr((string) ($attributes['name'] ?? ''), 0, 191),
+                'bytes' => (int) ($attributes['bytes'] ?? 0),
+                'created_at' => (string) ($attributes['created_at'] ?? ''),
+                'completed' => ($attributes['completed_at'] ?? null) !== null,
+                'successful' => (bool) ($attributes['is_successful'] ?? false),
+                'locked' => (bool) ($attributes['is_locked'] ?? false),
+            ];
+        }
+
+        return $backups;
+    }
+
+    public function createBackup(string $identifier, string $name): void
+    {
+        $this->clientApi()->request('POST', '/api/client/servers/' . $this->identifier($identifier) . '/backups', ['json' => ['name' => mb_substr($name, 0, 191)], 'action' => 'client.backups.create']);
+    }
+
+    public function deleteBackup(string $identifier, string $uuid): void
+    {
+        $this->clientApi()->request('DELETE', '/api/client/servers/' . $this->identifier($identifier) . '/backups/' . $this->uuid($uuid), ['action' => 'client.backups.delete']);
+    }
+
+    /** Restores a backup; existing files are deleted first (truncate). */
+    public function restoreBackup(string $identifier, string $uuid): void
+    {
+        $this->clientApi()->request('POST', '/api/client/servers/' . $this->identifier($identifier) . '/backups/' . $this->uuid($uuid) . '/restore', ['json' => ['truncate' => true], 'action' => 'client.backups.restore']);
+    }
+
+    /** Short-lived signed download URL issued by the node (Wings). */
+    public function backupDownloadUrl(string $identifier, string $uuid): string
+    {
+        $json = $this->clientApi()->request('GET', '/api/client/servers/' . $this->identifier($identifier) . '/backups/' . $this->uuid($uuid) . '/download', ['action' => 'client.backups.download'])['json'];
+        $url = (string) $this->attributes($json)['url'];
+        if (preg_match('#^https?://[^\s/?\#]+#i', $url) !== 1) {
+            throw new IntegrationException('Pterodactyl did not return a valid download URL.');
+        }
+
+        return $url;
+    }
+
+    private function clientApi(): ApiClient
+    {
+        return $this->client ?? throw new IntegrationException('The client API key is not configured.');
+    }
+
+    private static function isUuid(string $uuid): bool
+    {
+        return preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/', $uuid) === 1;
+    }
+
+    private function uuid(string $uuid): string
+    {
+        if (!self::isUuid($uuid)) {
+            throw new IntegrationException('Invalid backup ID.');
+        }
+
+        return $uuid;
     }
 
     /**
