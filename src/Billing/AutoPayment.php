@@ -48,9 +48,13 @@ class AutoPayment
             return 0;
         }
 
+        // Never for services that are cancelled or have ended: an open claim
+        // for such a service is settled by the customer or the staff explicitly.
         $sql = "SELECT i.* FROM `nx_invoices` i JOIN `nx_users` u ON u.`id` = i.`user_id`
+                LEFT JOIN `nx_services` s ON s.`id` = i.`service_id`
                 WHERE i.`type` = 'renewal' AND i.`status` = 'unpaid' AND i.`total` > 0
-                  AND u.`auto_pay_credit` = 1 AND u.`status` = 'active' AND u.`credit_balance` >= i.`total` AND i.`due_at` <= ?";
+                  AND u.`auto_pay_credit` = 1 AND u.`status` = 'active' AND u.`credit_balance` >= i.`total` AND i.`due_at` <= ?
+                  AND (i.`service_id` IS NULL OR (s.`status` IN ('active', 'suspended') AND s.`cancel_at` IS NULL))";
         $params = [$this->clock->now()->modify('+1 day')->format('Y-m-d H:i:s')];
         if ($invoiceId !== null) {
             $sql .= ' AND i.`id` = ?';

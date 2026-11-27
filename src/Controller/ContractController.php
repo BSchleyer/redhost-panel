@@ -82,7 +82,8 @@ final class ContractController extends Controller
         $user = $request->attribute('user');
         $user = $user instanceof User ? $user : null;
 
-        if (!$this->limiter->attempt('contract-declaration:' . $request->clientIp(), 10, 3600)) {
+        // Per client network (an IPv6 /64 counts as one client).
+        if (!$this->limiter->attempt('contract-declaration:' . self::clientNetwork($request->clientIp()), 10, 3600)) {
             throw HttpException::tooManyRequests();
         }
         $data = $this->validate($request, [
@@ -120,6 +121,11 @@ final class ContractController extends Controller
         }
         if ($user === null) {
             $this->captcha->verify($request);
+            // The receipt is e-mailed to the address entered: limit how often
+            // a guest can make the panel write to the same address.
+            if (!$this->limiter->attempt('contract-declaration-to:' . hash('sha256', mb_strtolower(trim((string) $data['email']))), 3, 86400)) {
+                throw HttpException::tooManyRequests();
+            }
         }
 
         $declaration = $this->cancellations->submit([
@@ -147,12 +153,24 @@ final class ContractController extends Controller
     {
         $list = [];
         foreach ($this->services->forUser($user->id) as $service) {
-            if (in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED, Service::STATUS_PENDING, Service::STATUS_PROVISIONING], true)) {
+            // Services that are already cancelled are not offered again.
+            if (in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED, Service::STATUS_PENDING, Service::STATUS_PROVISIONING], true) && ($service->attributes['cancel_at'] ?? null) === null) {
                 $list[$service->id] = sprintf('%s (#%d)', $service->name, $service->id);
             }
         }
 
         return $list;
+    }
+
+    /** The client's address; for IPv6 its /64 network. */
+    private static function clientNetwork(?string $ip): string
+    {
+        $packed = $ip !== null ? @inet_pton($ip) : false;
+        if ($packed === false || strlen($packed) !== 16) {
+            return (string) $ip;
+        }
+
+        return bin2hex(substr($packed, 0, 8)) . '::/64';
     }
 
     private function today(): string

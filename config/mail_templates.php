@@ -92,7 +92,7 @@ return [
         'name' => 'Cancellation confirmed',
         'variables' => ['name', 'reference', 'service_name', 'effective_date', 'service_url'],
         'subject' => 'Your cancellation of "{{ service_name }}" takes effect on {{ effective_date }}',
-        'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> ends on <strong>{{ effective_date }}</strong> (reference {{ reference }}). No further invoices will be issued for it. Please save your data before that date – the service and its data are deleted when it ends.</p><p>Until then you can take back the cancellation in your customer area.</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
+        'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> ends on <strong>{{ effective_date }}</strong> (reference {{ reference }}). No renewal invoices are issued for the time after this date; invoices for the time before it remain payable. Please save your data before that date – the service and its data are deleted when it ends.</p><p>If you want to keep the service, take back the cancellation in your customer area or contact our support before that date.</p><p><a class="button" href="{{ service_url }}">Open service</a></p>',
     ],
     'cancellation_rejected' => [
         'name' => 'Cancellation / withdrawal not accepted',

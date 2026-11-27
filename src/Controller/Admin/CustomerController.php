@@ -84,6 +84,7 @@ final class CustomerController extends Controller
 
         return $this->render($request, 'admin/customers/show.twig', [
             'customer' => $customer,
+            'vat_status' => $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->vatIdStatus($customer),
             'group' => $customer->customerGroupId !== null ? $this->groups->find($customer->customerGroupId) : null,
             'services' => $this->db->fetchAll('SELECT s.*, p.`name` AS product_name FROM `nx_services` s LEFT JOIN `nx_products` p ON p.`id` = s.`product_id` WHERE s.`user_id` = ? ORDER BY s.`id` DESC', [$id]),
             'orders' => $this->db->fetchAll('SELECT * FROM `nx_orders` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 20', [$id]),
@@ -148,7 +149,7 @@ final class CustomerController extends Controller
         if (($data['vat_id'] ?? null) !== ($customer->attributes['vat_id'] ?? null) || ($data['country'] ?? null) !== ($customer->attributes['country'] ?? null)) {
             $refreshed = $this->users->find($id);
             if ($refreshed !== null) {
-                $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($refreshed);
+                $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($refreshed, ($data['vat_id'] ?? null) !== ($customer->attributes['vat_id'] ?? null));
             }
         }
 

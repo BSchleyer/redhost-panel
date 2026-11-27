@@ -246,7 +246,7 @@ Slots. Customers choose a server name.
 
 ## EU VIES (VAT ID check)
 
-VAT IDs are verified with the public REST interface of the European Commission (`https://ec.europa.eu/taxation_customs/vies/rest-api/ms/<country>/vat/<number>`, no credentials). Only country code and number are sent. Results: valid (reverse charge possible), invalid, or unknown when VIES or the member state's service is unavailable (VAT is charged meanwhile; the daily task re-checks). The service is subject to the EU's availability and fair-use rules.
+VAT IDs are verified with the public REST interface of the European Commission (`https://ec.europa.eu/taxation_customs/vies/rest-api/ms/<country>/vat/<number>`, no credentials). Only country code and number are sent. Results: valid, invalid, or unknown when VIES or the member state's service is unavailable (a newly entered VAT ID stays unchecked and VAT is charged; an earlier result for an unchanged VAT ID is kept; the scheduler retries). Reverse charge also needs the customer's company name to match the holder name VIES reports; several member states (e.g. Germany, Spain) do not disclose names – then the VAT ID alone counts. The service is subject to the EU's availability and fair-use rules.
 
 ## E-invoices (XRechnung)
 

@@ -126,7 +126,7 @@ final class TaxTest extends FeatureTestCase
         $vies = $this->app->container()->get(VatIdValidator::class);
         $customer = $this->createUser(Role::CUSTOMER, ['country' => 'AT']);
         $this->actingAs($customer);
-        $profile = ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'auto_pay_credit' => '1', 'address_line1' => 'Ring 1', 'postcode' => '1010', 'city' => 'Wien'];
+        $profile = ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'auto_pay_credit' => '1', 'address_line1' => 'Ring 1', 'postcode' => '1010', 'city' => 'Wien', 'company' => 'Example Trading'];
 
         // Business customers must give their full address (e-invoices).
         $this->post('/account/profile', ['first_name' => 'Anna', 'last_name' => 'Huber', 'language' => 'en', 'country' => 'AT', 'vat_id' => 'ATU12345678']);
@@ -156,5 +156,53 @@ final class TaxTest extends FeatureTestCase
         self::assertSame(['EL', '123456789'], VatIdValidator::parse('EL123456789'));
         self::assertNull(VatIdValidator::parse('CHE-123.456.789'));
         self::assertNull(VatIdValidator::parse('XX123'));
+    }
+
+    public function testReverseChargeNeedsTheRegisteredCompanyName(): void
+    {
+        $taxes = $this->app->container()->get(TaxService::class);
+        $users = $this->app->container()->get(UserRepository::class);
+
+        // A private customer with a real company's VAT ID gets no reverse charge.
+        $impostor = $this->createUser(Role::CUSTOMER, ['country' => 'AT', 'vat_id' => 'ATU12345678', 'company' => 'Huber Consulting']);
+        $taxes->verifyUser($impostor);
+        $impostor = $users->find($impostor->id) ?? throw new \RuntimeException();
+        self::assertSame('name_mismatch', $taxes->vatIdStatus($impostor));
+        self::assertSame(TaxDecision::STANDARD, $taxes->decide($impostor)->category);
+
+        $noCompany = $this->createUser(Role::CUSTOMER, ['country' => 'AT', 'vat_id' => 'ATU12345678']);
+        $taxes->verifyUser($noCompany);
+        self::assertSame('company_missing', $taxes->vatIdStatus($users->find($noCompany->id) ?? throw new \RuntimeException()));
+
+        // Staff see the status and the registered name.
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $page = $this->get('/admin/customers/' . $impostor->id)->body();
+        self::assertStringContainsString('registered to a different name', $page);
+        self::assertStringContainsString('Example Trading GmbH', $page);
+
+        self::assertTrue(TaxService::namesMatch('Example Trading', 'EXAMPLE TRADING GMBH'));
+        self::assertTrue(TaxService::namesMatch('Müller & Söhne GmbH', 'MUELLER UND SOEHNE GESELLSCHAFT MIT BESCHRÄNKTER HAFTUNG'));
+        self::assertFalse(TaxService::namesMatch('Huber Consulting', 'Example Trading GmbH'));
+    }
+
+    public function testVerifiedVatIdSurvivesAViesOutage(): void
+    {
+        /** @var FakeVatIdValidator $vies */
+        $vies = $this->app->container()->get(VatIdValidator::class);
+        $taxes = $this->app->container()->get(TaxService::class);
+        $customer = $this->customer('AT', 'ATU12345678');
+        self::assertSame('verified', $taxes->vatIdStatus($customer));
+
+        // The scheduled re-check during an outage keeps the earlier result …
+        $this->db->update('nx_users', ['vat_id_checked_at' => '2026-01-01 00:00:00'], ['id' => $customer->id]);
+        $vies->down = true;
+        self::assertSame(0, $taxes->recheckStale());
+        self::assertSame(1, (int) $this->db->fetchValue('SELECT vat_id_valid FROM nx_users WHERE id = ?', [$customer->id]));
+        self::assertSame(TaxDecision::REVERSE_CHARGE, $taxes->decide($this->app->container()->get(UserRepository::class)->find($customer->id) ?? throw new \RuntimeException())->category);
+
+        // … while a newly entered VAT ID stays unchecked until VIES answers.
+        $this->db->update('nx_users', ['vat_id' => 'FR12345678901'], ['id' => $customer->id]);
+        $taxes->verifyUser($this->app->container()->get(UserRepository::class)->find($customer->id) ?? throw new \RuntimeException(), true);
+        self::assertNull($this->db->fetchValue('SELECT vat_id_valid FROM nx_users WHERE id = ?', [$customer->id]));
     }
 }

@@ -103,6 +103,9 @@ final class CancellationController extends Controller
                     if ($owner !== null && $service->userId !== $owner) {
                         throw new RuntimeException('The service belongs to another customer.');
                     }
+                    if ($data['effective_date'] !== null && (string) $data['effective_date'] < $this->container->get(\Nebrix\Core\Clock::class)->now()->format('Y-m-d')) {
+                        throw new RuntimeException('The end date cannot be in the past.');
+                    }
                     $effective = $data['effective_date'] !== null
                         ? new DateTimeImmutable($data['effective_date'] . ' 00:00:00', new DateTimeZone('UTC'))
                         : $this->cancellations->effectiveDate($service, $declaration['requested_date'] !== null ? (string) $declaration['requested_date'] : null);

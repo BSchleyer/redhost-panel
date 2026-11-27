@@ -62,8 +62,12 @@ class PaymentReminders
 
         $sent = 0;
         foreach ($this->db->fetchAll(
-            "SELECT * FROM `nx_invoices` WHERE `status` = 'unpaid' AND `type` IN ('order', 'renewal') AND `total` > 0
-               AND `due_at` <= ? AND `reminders_sent` < ? ORDER BY `id` LIMIT 1000",
+            // No automatic reminders for services that are cancelled or have ended.
+            "SELECT i.* FROM `nx_invoices` i LEFT JOIN `nx_services` s ON s.`id` = i.`service_id`
+              WHERE i.`status` = 'unpaid' AND i.`type` IN ('order', 'renewal') AND i.`total` > 0
+               AND i.`due_at` <= ? AND i.`reminders_sent` < ?
+               AND (i.`service_id` IS NULL OR i.`type` = 'order' OR (s.`status` IN ('active', 'suspended') AND s.`cancel_at` IS NULL))
+              ORDER BY i.`id` LIMIT 1000",
             [$earliest, count($offsets)],
         ) as $invoice) {
             $due = new \DateTimeImmutable((string) $invoice['due_at'], new \DateTimeZone('UTC'));

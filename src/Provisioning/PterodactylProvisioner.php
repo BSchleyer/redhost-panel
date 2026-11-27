@@ -12,6 +12,7 @@ use Nebrix\Integration\IntegrationManager;
 use Nebrix\Integration\Pterodactyl\PterodactylClient;
 use Nebrix\Service\Service;
 use Nebrix\Service\ServiceRepository;
+use Psr\Log\LoggerInterface;
 
 /**
  * Game servers on Pterodactyl. One panel user per customer
@@ -29,6 +30,7 @@ final class PterodactylProvisioner implements Provisioner
         private readonly IntegrationManager $integrations,
         private readonly ServiceRepository $services,
         private readonly Connection $db,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -240,7 +242,14 @@ final class PterodactylProvisioner implements Provisioner
         if ($limit < 1 || $identifier === '') {
             return [];
         }
-        $backups = $client->backups($identifier);
+        try {
+            $backups = $client->backups($identifier);
+        } catch (IntegrationException $exception) {
+            // Backups being unavailable must not hide the power actions.
+            $this->logger->warning('Backups could not be listed', ['service' => $service->id, 'message' => $exception->getMessage()]);
+
+            return [];
+        }
         $finished = [];
         foreach ($backups as $backup) {
             if ($backup['completed'] && $backup['successful']) {

@@ -72,8 +72,8 @@ With a CAPTCHA provider the widget script of the provider is loaded on the regis
 | Suspend unpaid services … days after due date | 1 |
 | Terminate suspended services after … days | 0 (never automatically) |
 | Supported currencies | EUR |
-| Number prefix for cancellation and correction documents (`billing.credit_note_prefix`) | `RK-` |
-| Pay renewal invoices automatically from account credit (`billing.auto_pay_credit`) | on – customers can switch it off in their profile; needs the payment method "account credit" |
+| Number prefix for cancellation and correction documents (`billing.credit_note_prefix`) | `RK-` – must not be empty or equal to the invoice prefix (both share one number column) |
+| Pay renewal invoices automatically from account credit (`billing.auto_pay_credit`) | on – applies to customers whose profile option is on: new customers start with it on, customers who existed before the update with it off; never for cancelled or ended services. Needs the payment method "account credit" |
 | Payment reminders, days relative to the due date (`billing.reminder_offsets`) | `-3,1` (3 days before and 1 day after); empty = no reminders |
 
 The tax rate of a product is its domestic rate; which rate (or 0 %) an invoice really carries is decided by the tax settings below.
@@ -88,7 +88,7 @@ The tax rate of a product is its domestic rate; which rate (or 0 %) an invoice r
 | Standard rate overrides (`tax.rate_overrides`) | empty – one line per country, e.g. `EE=2400` (basis points). The built-in rates were current in November 2026; correct any later change here. |
 | No VAT outside the EU (`tax.non_eu_exempt`) + invoice note | off – when on, customers in third countries are invoiced without VAT (category O). Check registration duties in the customer's country. |
 
-VAT IDs are checked against the EU VIES service when a customer saves the profile (or staff edits it) and re-checked daily (`tax.recheck_vat_ids`, at the latest every 30 days and while VIES was unavailable). Renewal invoices use the customer's current status. All tax decisions are a technical implementation – have them confirmed by a tax advisor before going live.
+VAT IDs are checked against the EU VIES service when a customer saves the profile (or staff edits it) and re-checked by the scheduler (`tax.recheck_vat_ids`, hourly in small batches with a pause between requests; each VAT ID every 30 days). Reverse charge additionally needs a company name that matches the holder name VIES reports (where the member state discloses it). While VIES is unavailable, an earlier result for the same VAT ID is kept. Renewal invoices use the customer's current status. All tax decisions are a technical implementation – have them confirmed by a tax advisor before going live.
 
 ### Invoice details (Settings → General)
 | Setting | Purpose |
@@ -139,13 +139,13 @@ See [API.md](API.md#rest-api-v1) for tokens, scopes and endpoints.
 |---|---|---|
 | `queue.release_stale` | 5 min | Returns jobs whose worker died to the queue. |
 | `billing.renewal_invoices` | 15 min | Creates renewal invoices for services due within the configured notice period. |
-| `billing.auto_pay_credit` | 15 min | Pays renewal invoices due within one day from account credit (customers who did not opt out). |
-| `billing.payment_reminders` | 60 min | Sends payment reminders according to `billing.reminder_offsets` (each offset at most once per invoice). |
+| `billing.auto_pay_credit` | 15 min | Pays renewal invoices due within one day from account credit (customers with the option on; not for cancelled or ended services). |
+| `billing.payment_reminders` | 60 min | Sends payment reminders according to `billing.reminder_offsets` (each offset at most once per invoice; not for cancelled or ended services). |
 | `billing.suspend_overdue` | 15 min | Suspends active services whose renewal invoice is unpaid after the grace period. |
 | `billing.terminate_suspended` | 60 min | Terminates long-suspended services – only if "terminate after" is > 0. |
-| `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached. |
+| `services.cancellations` | 60 min | Terminates services whose cancellation date has been reached and whose declaration is still scheduled. |
 | `billing.cancel_stale_orders` | 60 min | Cancels unpaid orders/invoices of new orders after 14 days and releases stock. |
-| `tax.recheck_vat_ids` | daily | Re-checks VAT IDs that are older than 30 days or could not be checked. |
+| `tax.recheck_vat_ids` | 60 min | Re-checks up to 20 VAT IDs that are older than 30 days or were never checked successfully. |
 | `integrations.health` | 30 min | Runs the connection test of every enabled integration. |
 | `maintenance.cleanup` | daily | Deletes expired sessions, tokens, rate-limit entries, old login history and integration logs according to the retention settings. |
 

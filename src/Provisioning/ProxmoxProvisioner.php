@@ -518,7 +518,14 @@ final class ProxmoxProvisioner implements Provisioner, ConsoleProvider
             return [];
         }
         [$node, $vmid] = $this->guest($service);
-        $backups = $this->ownBackups($this->client($service), $service, $node, $vmid);
+        try {
+            $backups = $this->ownBackups($this->client($service), $service, $node, $vmid);
+        } catch (IntegrationException $exception) {
+            // The backup storage being unavailable must not hide the other actions.
+            $this->logger->warning('Backups could not be listed', ['service' => $service->id, 'message' => $exception->getMessage()]);
+
+            return [];
+        }
         $options = [];
         foreach ($backups as $volid => $backup) {
             $options[$volid] = gmdate('Y-m-d H:i', $backup['ctime']) . ' UTC (' . self::formatSize($backup['size']) . ')';

@@ -62,7 +62,7 @@ return [
     ],
     'cancellation_confirmed' => [
         'subject' => 'Ihre Kündigung von „{{ service_name }}“ wird zum {{ effective_date }} wirksam',
-        'html' => '<p>Hallo {{ name }},</p><p>Ihr Dienst <strong>{{ service_name }}</strong> endet am <strong>{{ effective_date }}</strong> (Referenz {{ reference }}). Es werden keine weiteren Rechnungen dafür gestellt. Bitte sichern Sie Ihre Daten vorher – mit dem Vertragsende werden der Dienst und seine Daten gelöscht.</p><p>Bis dahin können Sie die Kündigung in Ihrem Kundenbereich zurücknehmen.</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
+        'html' => '<p>Hallo {{ name }},</p><p>Ihr Dienst <strong>{{ service_name }}</strong> endet am <strong>{{ effective_date }}</strong> (Referenz {{ reference }}). Für die Zeit nach diesem Datum werden keine Verlängerungsrechnungen mehr gestellt; Rechnungen für die Zeit davor bleiben zahlbar. Bitte sichern Sie Ihre Daten vorher – mit dem Vertragsende werden der Dienst und seine Daten gelöscht.</p><p>Wenn Sie den Dienst behalten möchten, nehmen Sie die Kündigung vor diesem Datum in Ihrem Kundenbereich zurück oder wenden Sie sich an unseren Support.</p><p><a class="button" href="{{ service_url }}">Dienst öffnen</a></p>',
     ],
     'cancellation_rejected' => [
         'subject' => 'Ihre Erklärung {{ reference }}',

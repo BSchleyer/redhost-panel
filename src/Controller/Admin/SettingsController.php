@@ -92,6 +92,14 @@ final class SettingsController extends Controller
             throw HttpException::badRequest();
         }
 
+        // Invoices and correction documents share the unique number column.
+        if ($group === 'billing') {
+            $credit = mb_strtoupper(trim($request->string('billing__credit_note_prefix')));
+            if ($credit === '' || $credit === mb_strtoupper(trim($request->string('billing__invoice_prefix')))) {
+                throw \Nebrix\Security\ValidationException::withMessages(['billing__credit_note_prefix' => 'Use a prefix for correction documents that differs from the invoice prefix.']);
+            }
+        }
+
         $changed = $this->settings->saveGroup($group, $request->all(), $this->user($request)->id);
         if ($changed !== []) {
             // Secret values are never written to the audit log, only which keys changed.

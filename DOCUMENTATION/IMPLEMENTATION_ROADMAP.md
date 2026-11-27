@@ -143,6 +143,7 @@ This file is the single source of truth for modernization progress. It is update
 - EU VAT: reverse charge with VIES verification, OSS, small-business switch, third countries – `631fef3`.
 - PDF invoices (dompdf), XRechnung 3.0 CII, archive with SHA-256, cancellation/correction documents – `dfaf26e`. XML validated against the CII XSD; the official Schematron validation could not be run in this environment.
 - Customer backups for Proxmox and Pterodactyl – `dbf04c3`.
+- Fourth independent security review (1 high, 4 medium, 7 low; no IDOR/injection); all findings fixed with regression tests (see SECURITY.md). 304 tests (2365 assertions) green on PHP 8.4.28 and 8.3.6, PHPStan level 6 clean.
 - **Next step:** tax advisor review of the tax settings and invoice texts, KoSIT validation of sample XRechnung files, live verification of integrations and payment providers on staging.
 
 ## Remaining work

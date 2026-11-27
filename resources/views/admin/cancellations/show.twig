@@ -39,8 +39,9 @@
             <form method="post" action="/admin/cancellations/{{ declaration.id }}" novalidate>
                 {{ csrf_field() }}
                 {{ f.textarea('note', 'Note (sent to the customer when rejecting)', '', {rows: 3}) }}
-                <button class="btn btn-outline" type="submit" name="action" value="complete">{{ 'Mark as handled'|t }}</button>
+                {% if declaration.status == 'received' %}<button class="btn btn-outline" type="submit" name="action" value="complete">{{ 'Mark as handled'|t }}</button>{% endif %}
                 <button class="btn btn-danger" type="submit" name="action" value="reject">{{ 'Reject'|t }}</button>
+                {% if declaration.status == 'scheduled' %}<p class="help mt-1">{{ 'Rejecting removes the scheduled end date; the service continues and is renewed as before.'|t }}</p>{% endif %}
             </form>
             <p class="help mt-1">{{ 'Withdrawals: terminate the service and refund the payment (Transactions), then mark the declaration as handled.'|t }}</p>
         </div>

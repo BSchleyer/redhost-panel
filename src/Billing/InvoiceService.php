@@ -44,7 +44,6 @@ class InvoiceService
         private readonly Config $config,
         private readonly \Nebrix\Billing\Tax\TaxService $taxes,
         private readonly \Nebrix\Repository\ProductRepository $products,
-        private readonly \Nebrix\Billing\Documents\InvoiceDocuments $documents,
     ) {
     }
 
@@ -81,7 +80,7 @@ class InvoiceService
             'name' => $user->displayName(),
             'company' => $a['company'] ?? null,
             'vat_id' => $a['vat_id'] ?? null,
-            'vat_id_verified' => (int) ($a['vat_id_valid'] ?? 0) === 1,
+            'vat_id_verified' => $this->taxes->vatIdStatus($user) === 'verified',
             'address_line1' => $a['address_line1'] ?? null,
             'address_line2' => $a['address_line2'] ?? null,
             'postcode' => $a['postcode'] ?? null,
@@ -193,7 +192,7 @@ class InvoiceService
                 'service_name' => $service->name,
                 'due_date' => $periodStart->format('Y-m-d'),
                 'invoice_url' => $this->url('/invoices/' . $id),
-            ], null, $this->documents->attachments($id));
+            ], null, [], $id);
 
             return $invoice !== null ? (int) $invoice['id'] : null;
         });
@@ -388,7 +387,7 @@ class InvoiceService
                 'invoice_number' => (string) $invoice['number'],
                 'amount' => Money::format($net + $tax, (string) $invoice['currency']),
                 'document_url' => $this->url('/invoices/' . $id),
-            ], null, $this->documents->attachments($id));
+            ], null, [], $id);
         }
 
         return $id;

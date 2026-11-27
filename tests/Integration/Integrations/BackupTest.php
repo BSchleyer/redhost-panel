@@ -123,6 +123,12 @@ final class BackupTest extends IntegrationTestCase
         $disabled = $this->container($integrationId, ['max_backups' => 0]);
         self::assertArrayNotHasKey('backup_create', $runner->available($disabled));
 
+        // An unreachable backup storage hides only the backup actions.
+        $broken = $this->container($integrationId, ['backup_storage' => 'offline-pbs']);
+        $actions = $runner->available($broken);
+        self::assertArrayHasKey('start', $actions);
+        self::assertArrayNotHasKey('backup_create', $actions);
+
         $service = $this->container($integrationId);
         $vmid = 20000 + $service->id;
         $created = (int) strtotime((string) $service->attributes['created_at'] . ' UTC');

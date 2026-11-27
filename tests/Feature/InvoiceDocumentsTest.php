@@ -51,7 +51,7 @@ final class InvoiceDocumentsTest extends FeatureTestCase
     private function customer(string $country, ?string $vatId = null, string $language = 'de'): User
     {
         $user = $this->createUser(Role::CUSTOMER, [
-            'country' => $country, 'vat_id' => $vatId, 'company' => $vatId !== null ? 'Kunde GmbH' : null, 'language' => $language,
+            'country' => $country, 'vat_id' => $vatId, 'company' => $vatId !== null ? 'Example Trading GmbH' : null, 'language' => $language,
             'address_line1' => 'Musterweg 2', 'postcode' => '1010', 'city' => 'Wien',
         ]);
         if ($vatId !== null) {
@@ -184,6 +184,7 @@ final class InvoiceDocumentsTest extends FeatureTestCase
         $x = $this->xpath($xml);
         self::assertSame('381', $this->value($x, '//rsm:ExchangedDocument/ram:TypeCode'));
         self::assertSame((string) $this->db->fetchValue('SELECT number FROM nx_invoices WHERE id = ?', [$cancelled]), $this->value($x, '//ram:InvoiceReferencedDocument/ram:IssuerAssignedID'));
+        self::assertStringContainsString('nothing is payable', $this->value($x, '//ram:SpecifiedTradePaymentTerms/ram:Description'), 'A voided unpaid invoice promises no refund.');
         self::assertStringStartsWith('%PDF-', $documents->pdf((int) $storno['id']));
         $this->dump('cancellation', $documents->pdf((int) $storno['id']), 'pdf');
 
@@ -198,6 +199,7 @@ final class InvoiceDocumentsTest extends FeatureTestCase
         $this->app->container()->get(PaymentService::class)->recordRefund('credit', 'refund-test-1', $reference, 500, 'EUR');
         $correction = (array) $this->db->fetchOne('SELECT * FROM nx_invoices WHERE reference_invoice_id = ?', [$paid]);
         self::assertSame(500, (int) $correction['total']);
+        self::assertStringContainsString('refunded or credited', $this->value($this->xpath($documents->xml((int) $correction['id'])), '//ram:SpecifiedTradePaymentTerms/ram:Description'));
         self::assertSame(500, (int) $correction['subtotal'] + (int) $correction['tax']);
         self::assertSame(420, (int) $correction['subtotal']);
         $xml = $documents->xml((int) $correction['id']);
@@ -212,6 +214,7 @@ final class InvoiceDocumentsTest extends FeatureTestCase
     {
         $customer = $this->customer('AT', 'ATU12345678', 'en');
         $invoiceId = $this->order($customer)['invoice_id'];
+        self::assertNull($this->db->fetchValue('SELECT archived_at FROM nx_invoices WHERE id = ?', [$invoiceId]), 'Documents are not rendered inside the order transaction.');
 
         $this->actingAs($this->createUser());
         self::assertSame(404, $this->get('/invoices/' . $invoiceId . '/pdf')->status());
@@ -233,7 +236,10 @@ final class InvoiceDocumentsTest extends FeatureTestCase
         // Business customers get the PDF and the XRechnung file attached.
         $payload = (string) $this->db->fetchValue("SELECT payload FROM nx_jobs WHERE type = 'mail.send' AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.template')) = 'order_confirmation' ORDER BY id DESC LIMIT 1");
         $message = $this->app->container()->get(\Nebrix\Security\Encrypter::class)->decryptArray((string) json_decode($payload, true)['message'], 'mail-job');
-        self::assertSame(['application/pdf', 'application/xml'], array_column($message['attachments'], 'mime'));
+        self::assertSame([], $message['attachments']);
+        self::assertSame($invoiceId, $message['invoice_documents'], 'The worker attaches the documents when it sends the mail.');
+        self::assertSame(['application/pdf', 'application/xml'], array_column($this->app->container()->get(InvoiceDocuments::class)->attachments($invoiceId), 'mime'));
+        $this->app->container()->get(\Nebrix\Mail\SendMailJob::class)->handle(json_decode($payload, true));
     }
 
     public function testDashboardWarnsWhileInvoiceDetailsAreIncomplete(): void

@@ -146,8 +146,18 @@ class CancellationService
             throw new RuntimeException('The service is already terminated.');
         }
         $when = $effective->format('Y-m-d H:i:s');
+        $previous = $service->attributes['cancellation_id'] ?? null;
 
-        $this->db->transaction(function () use ($cancellationId, $service, $when, $actorId): void {
+        $this->db->transaction(function () use ($cancellationId, $service, $when, $actorId, $previous, $declaration): void {
+            // A service ends through one declaration: an earlier scheduled one is replaced.
+            if ($previous !== null && (int) $previous !== $cancellationId) {
+                $this->db->update('nx_cancellations', [
+                    'status' => self::STATUS_COMPLETED,
+                    'staff_note' => 'Superseded by declaration ' . $declaration['reference'] . '.',
+                    'processed_by' => $actorId,
+                    'processed_at' => $this->clock->nowString(),
+                ], ['id' => (int) $previous, 'status' => self::STATUS_SCHEDULED]);
+            }
             $this->services->update($service->id, ['cancel_at' => $when, 'cancellation_id' => $cancellationId]);
             $this->db->update('nx_cancellations', [
                 'status' => self::STATUS_SCHEDULED,
@@ -193,20 +203,48 @@ class CancellationService
             throw new RuntimeException('There is no pending cancellation for this service.');
         }
         $cancellationId = $service->attributes['cancellation_id'] !== null ? (int) $service->attributes['cancellation_id'] : null;
+        if (!$this->canWithdraw($service)) {
+            throw new RuntimeException('This cancellation was confirmed by our staff. Please contact support to take it back.');
+        }
         $this->db->transaction(function () use ($service, $cancellationId, $actorId): void {
             $this->services->update($service->id, ['cancel_at' => null, 'cancellation_id' => null]);
             if ($cancellationId !== null) {
-                $this->db->update('nx_cancellations', ['status' => self::STATUS_WITHDRAWN, 'processed_by' => $actorId, 'processed_at' => $this->clock->nowString()], ['id' => $cancellationId]);
+                $this->db->update('nx_cancellations', ['status' => self::STATUS_WITHDRAWN, 'processed_by' => $actorId, 'processed_at' => $this->clock->nowString()], ['id' => $cancellationId, 'status' => self::STATUS_SCHEDULED]);
             }
         });
         $this->audit->log($actorId, 'contract.cancellation_withdrawn', 'service', $service->id, ['cancellation' => $cancellationId], $ip);
     }
 
+    /**
+     * Whether the customer may take the cancellation of the service back
+     * themselves: only their own ordinary cancellation that took effect
+     * automatically. Cancellations scheduled by staff (guest declarations,
+     * extraordinary cancellations, withdrawals) are taken back through support.
+     */
+    public function canWithdraw(Service $service): bool
+    {
+        $cancelAt = $service->attributes['cancel_at'] ?? null;
+        if ($cancelAt === null || $cancelAt <= $this->clock->nowString()) {
+            return false;
+        }
+        $declaration = ($service->attributes['cancellation_id'] ?? null) !== null ? $this->find((int) $service->attributes['cancellation_id']) : null;
+
+        return $declaration === null
+            || ($declaration['kind'] === self::ORDINARY && $declaration['processed_by'] === null && $declaration['status'] === self::STATUS_SCHEDULED && (int) $declaration['user_id'] === $service->userId);
+    }
+
+    /**
+     * Rejects a declaration. A scheduled end of the service is removed, so
+     * the service continues (and is renewed) as before.
+     */
     public function reject(int $id, string $note, int $actorId): void
     {
         $declaration = $this->open($id);
-        $this->db->update('nx_cancellations', ['status' => self::STATUS_REJECTED, 'staff_note' => mb_substr($note, 0, 5000), 'processed_by' => $actorId, 'processed_at' => $this->clock->nowString()], ['id' => $id]);
-        $this->audit->log($actorId, 'contract.cancellation_rejected', 'cancellation', $id);
+        $this->db->transaction(function () use ($id, $note, $actorId): void {
+            $this->db->update('nx_cancellations', ['status' => self::STATUS_REJECTED, 'staff_note' => mb_substr($note, 0, 5000), 'processed_by' => $actorId, 'processed_at' => $this->clock->nowString()], ['id' => $id]);
+            $this->db->run('UPDATE `nx_services` SET `cancel_at` = NULL, `cancellation_id` = NULL WHERE `cancellation_id` = ?', [$id]);
+        });
+        $this->audit->log($actorId, 'contract.cancellation_rejected', 'cancellation', $id, ['was_scheduled' => $declaration['status'] === self::STATUS_SCHEDULED]);
         $this->mailer->queue((string) $declaration['email'], (string) $declaration['name'], 'cancellation_rejected', [
             'name' => (string) $declaration['name'],
             'reference' => (string) $declaration['reference'],
@@ -214,10 +252,16 @@ class CancellationService
         ]);
     }
 
-    /** Closes a declaration that staff handled manually (e.g. a withdrawal with refund). */
+    /**
+     * Closes a declaration that staff handled manually (e.g. a withdrawal
+     * with refund). Scheduled declarations complete automatically when the
+     * service ends; they can only be rejected.
+     */
     public function complete(int $id, string $note, int $actorId): void
     {
-        $this->open($id);
+        if ($this->open($id)['status'] === self::STATUS_SCHEDULED) {
+            throw new RuntimeException('This declaration is scheduled and completes automatically when the service ends.');
+        }
         $this->db->update('nx_cancellations', ['status' => self::STATUS_COMPLETED, 'staff_note' => $note !== '' ? mb_substr($note, 0, 5000) : null, 'processed_by' => $actorId, 'processed_at' => $this->clock->nowString()], ['id' => $id]);
         $this->audit->log($actorId, 'contract.cancellation_completed', 'cancellation', $id);
     }
@@ -228,8 +272,10 @@ class CancellationService
     public function executeDue(): int
     {
         $count = 0;
+        // Only services whose declaration is still scheduled (not rejected or replaced).
         foreach ($this->db->fetchAll(
-            "SELECT `id` FROM `nx_services` WHERE `cancel_at` IS NOT NULL AND `cancel_at` <= ? AND `status` IN ('active', 'suspended', 'pending', 'provisioning', 'failed')",
+            "SELECT s.`id` FROM `nx_services` s JOIN `nx_cancellations` c ON c.`id` = s.`cancellation_id` AND c.`status` = 'scheduled'
+              WHERE s.`cancel_at` IS NOT NULL AND s.`cancel_at` <= ? AND s.`status` IN ('active', 'suspended', 'pending', 'provisioning', 'failed')",
             [$this->clock->nowString()],
         ) as $row) {
             $service = $this->services->find((int) $row['id']);

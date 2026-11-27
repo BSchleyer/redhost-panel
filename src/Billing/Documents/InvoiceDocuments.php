@@ -41,6 +41,7 @@ class InvoiceDocuments
             'refers_to' => 'This document corrects invoice', 'customer_vat_id' => 'Your VAT ID', 'vat_id' => 'VAT ID', 'tax_number' => 'Tax no.', 'bank' => 'Bank account',
             'payment_text' => 'Please pay the invoice by %date% in the customer area.', 'transfer_text' => 'For bank transfers please state the invoice number %number%.',
             'correction_text' => 'The amount is refunded or credited to your customer account.',
+            'void_text' => 'The invoice has been cancelled before it was paid. Nothing is payable for it.',
         ],
         'de' => [
             'invoice' => 'Rechnung', 'cancellation' => 'Stornorechnung', 'correction' => 'Rechnungskorrektur',
@@ -51,6 +52,7 @@ class InvoiceDocuments
             'refers_to' => 'Dieser Beleg korrigiert die Rechnung', 'customer_vat_id' => 'Ihre USt-IdNr.', 'vat_id' => 'USt-IdNr.', 'tax_number' => 'Steuernr.', 'bank' => 'Bankverbindung',
             'payment_text' => 'Bitte begleichen Sie die Rechnung bis zum %date% im Kundenbereich.', 'transfer_text' => 'Bei Überweisung geben Sie bitte die Rechnungsnummer %number% an.',
             'correction_text' => 'Der Betrag wird Ihnen erstattet bzw. Ihrem Kundenkonto gutgeschrieben.',
+            'void_text' => 'Die Rechnung wurde vor der Zahlung storniert. Es ist kein Betrag zu zahlen.',
         ],
     ];
 
@@ -227,6 +229,8 @@ class InvoiceDocuments
             'labels' => $labels,
             'title' => $correction ? ($original !== null && (int) $invoice['total'] === (int) $original['total'] ? $labels['cancellation'] : $labels['correction']) : $labels['invoice'],
             'correction' => $correction,
+            // Cancellation of an unpaid invoice: nothing was paid, nothing is refunded.
+            'void' => $correction && $original !== null && $original['status'] === InvoiceRepository::STATUS_CANCELLED,
             'invoice' => $invoice,
             'billing' => $billing,
             'seller' => $seller,

@@ -37,6 +37,9 @@ class TaxService
     ) {
     }
 
+    /** Pause between two VIES requests of the scheduled re-check. */
+    private int $pauseMicroseconds = 200_000;
+
     public function decide(User $user): TaxDecision
     {
         $country = strtoupper(trim((string) ($user->attributes['country'] ?? '')));
@@ -83,10 +86,13 @@ class TaxService
 
     /**
      * Verifies the customer's VAT ID with VIES and stores the result.
-     * Returns the stored state: true (valid), false (invalid) or null
-     * (no VAT ID, or VIES not reachable – checked again later).
+     * Returns true (valid), false (invalid) or null (no VAT ID, or VIES not
+     * reachable – checked again later). While VIES is unavailable an earlier
+     * result for the same VAT ID is kept; only a definite answer changes it.
+     *
+     * @param bool $vatIdChanged the VAT ID was just entered or changed (no earlier result applies)
      */
-    public function verifyUser(User $user): ?bool
+    public function verifyUser(User $user, bool $vatIdChanged = true): ?bool
     {
         $vatId = trim((string) ($user->attributes['vat_id'] ?? ''));
         if ($vatId === '') {
@@ -100,6 +106,9 @@ class TaxService
             VatIdValidator::INVALID => false,
             default => null,
         };
+        if ($valid === null && !$vatIdChanged) {
+            return null; // keep the earlier result; the scheduler tries again
+        }
         $this->db->update('nx_users', [
             'vat_id_valid' => $valid === null ? null : ($valid ? 1 : 0),
             'vat_id_checked_at' => $valid === null ? null : $this->clock->nowString(),
@@ -113,7 +122,7 @@ class TaxService
      * Re-checks VAT IDs that were never checked successfully or not within
      * 30 days (scheduler).
      */
-    public function recheckStale(int $limit = 100): int
+    public function recheckStale(int $limit = 20): int
     {
         $rows = $this->db->fetchAll(
             "SELECT `id` FROM `nx_users` WHERE `vat_id` IS NOT NULL AND `vat_id` <> '' AND `status` = 'active'
@@ -121,14 +130,75 @@ class TaxService
             [$this->clock->now()->modify('-' . self::RECHECK_AFTER_DAYS . ' days')->format('Y-m-d H:i:s'), $limit],
         );
         $checked = 0;
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
+            if ($index > 0 && $this->pauseMicroseconds > 0) {
+                usleep($this->pauseMicroseconds); // VIES throttles bursts of requests
+            }
             $user = $this->users->find((int) $row['id']);
-            if ($user !== null && $this->verifyUser($user) !== null) {
+            if ($user !== null && $this->verifyUser($user, false) !== null) {
                 $checked++;
             }
         }
 
         return $checked;
+    }
+
+    /**
+     * Status of the customer's VAT ID for display and the reverse charge
+     * decision: none, unchecked, invalid, company_missing (a company name is
+     * needed), name_mismatch (VIES reports another holder) or verified.
+     */
+    public function vatIdStatus(User $user): string
+    {
+        if (trim((string) ($user->attributes['vat_id'] ?? '')) === '') {
+            return 'none';
+        }
+        $valid = $user->attributes['vat_id_valid'] ?? null;
+        if ($valid === null) {
+            return 'unchecked';
+        }
+        if ((int) $valid !== 1) {
+            return 'invalid';
+        }
+        $company = trim((string) ($user->attributes['company'] ?? ''));
+        if ($company === '') {
+            return 'company_missing';
+        }
+        $registered = trim((string) ($user->attributes['vat_id_name'] ?? ''));
+
+        // Some member states (e.g. DE, ES) do not disclose the holder's name.
+        return $registered === '' || self::namesMatch($company, $registered) ? 'verified' : 'name_mismatch';
+    }
+
+    /**
+     * Compares a company name with the name registered in VIES, ignoring
+     * case, punctuation, umlaut spelling and common legal forms.
+     */
+    public static function namesMatch(string $company, string $registered): bool
+    {
+        $normalize = static function (string $name): string {
+            $name = mb_strtolower($name);
+            $name = strtr($name, ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss', '&' => ' und ']);
+            $ascii = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) : false;
+            $name = is_string($ascii) && $ascii !== '' ? strtolower($ascii) : $name;
+            $tokens = preg_split('/[^a-z0-9]+/', $name) ?: [];
+            $legal = ['gmbh', 'mbh', 'gesmbh', 'ag', 'kg', 'ohg', 'gbr', 'ug', 'ek', 'e', 'k', 'v', 'co', 'und', 'and', 'haftungsbeschraenkt', 'haftungsbeschrankt',
+                'gesellschaft', 'mit', 'beschraenkter', 'beschrankter', 'haftung', 'ltd', 'limited', 'plc', 'llc', 'inc', 'sarl', 'sas', 'sa', 'srl', 'spa', 'bv', 'nv',
+                'oy', 'ab', 'as', 'aps', 'sp', 'z', 'o', 'zoo', 'kft', 'sro', 'doo', 'ou', 'sl', 'lda', 'the'];
+
+            return implode(' ', array_filter($tokens, static fn (string $token): bool => $token !== '' && !in_array($token, $legal, true)));
+        };
+        $a = $normalize($company);
+        $b = $normalize($registered);
+        if ($a === '' || $b === '') {
+            return false;
+        }
+        if ($a === $b || str_contains(' ' . $b . ' ', ' ' . $a . ' ') || str_contains(' ' . $a . ' ', ' ' . $b . ' ')) {
+            return true;
+        }
+        similar_text($a, $b, $percent);
+
+        return $percent >= 85.0;
     }
 
     private function hasVerifiedVatId(User $user, string $country): bool
@@ -137,6 +207,6 @@ class TaxService
 
         return $parsed !== null
             && EuVat::countryForPrefix($parsed[0]) === $country
-            && (int) ($user->attributes['vat_id_valid'] ?? 0) === 1;
+            && $this->vatIdStatus($user) === 'verified';
     }
 }

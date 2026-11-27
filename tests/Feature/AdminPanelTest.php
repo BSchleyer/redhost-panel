@@ -116,6 +116,26 @@ final class AdminPanelTest extends FeatureTestCase
         self::assertSame('#6d28d9', $this->app->container()->get(SettingsRepository::class)->string('branding.primary_color'));
     }
 
+    public function testCorrectionDocumentsNeedTheirOwnNumberPrefix(): void
+    {
+        $this->actingAs($this->createUser(Role::ADMIN));
+        $form = ['group' => 'billing'];
+        foreach (require dirname(__DIR__, 2) . '/config/settings.php' as $key => $definition) {
+            if ($definition['group'] === 'billing') {
+                $value = $definition['default'];
+                $form[str_replace('.', '__', $key)] = is_bool($value) ? ($value ? '1' : '') : (is_array($value) ? implode(',', $value) : (string) $value);
+            }
+        }
+        $settings = $this->app->container()->get(SettingsRepository::class);
+
+        $this->post('/admin/settings/general', ['billing__credit_note_prefix' => 'ST-'] + $form);
+        self::assertSame('ST-', $settings->string('billing.credit_note_prefix'), 'A distinct prefix is saved.');
+        $this->post('/admin/settings/general', ['billing__credit_note_prefix' => 'nx-'] + $form);
+        self::assertSame('ST-', $settings->string('billing.credit_note_prefix'), 'The invoice prefix is refused.');
+        $this->post('/admin/settings/general', ['billing__credit_note_prefix' => ''] + $form);
+        self::assertSame('ST-', $settings->string('billing.credit_note_prefix'), 'An empty prefix is refused.');
+    }
+
     public function testProductLifecycle(): void
     {
         $this->actingAs($this->createUser(Role::ADMIN));

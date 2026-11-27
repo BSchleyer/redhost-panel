@@ -186,4 +186,87 @@ final class CancellationTest extends FeatureTestCase
         self::assertSame(200, $call('/api/v1/services/' . $serviceId . '/cancel/withdraw')->status());
         self::assertNull($this->db->fetchValue('SELECT cancel_at FROM nx_services WHERE id = ?', [$serviceId]));
     }
+
+    public function testRejectedOrReplacedDeclarationsNeverEndTheService(): void
+    {
+        $customer = $this->createUser();
+        $serviceId = $this->service($customer);
+        $cancellations = $this->app->container()->get(CancellationService::class);
+        $services = $this->app->container()->get(ServiceRepository::class);
+
+        // A guest declaration scheduled by staff: the customer cannot take it back, staff can reject it.
+        $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'max@example.test', 'contract' => 'Root server']);
+        $declaration = (array) $this->db->fetchOne('SELECT * FROM nx_cancellations ORDER BY id DESC LIMIT 1');
+        $admin = $this->createUser(Role::ADMIN);
+        $this->actingAs($admin);
+        $this->post('/admin/cancellations/' . $declaration['id'], ['action' => 'schedule', 'service_id' => (string) $serviceId, 'effective_date' => '2026-06-01']);
+        self::assertSame('received', $this->db->fetchValue('SELECT status FROM nx_cancellations WHERE id = ?', [$declaration['id']]), 'An end date in the past is refused.');
+        $this->post('/admin/cancellations/' . $declaration['id'], ['action' => 'schedule', 'service_id' => (string) $serviceId]);
+        self::assertFalse($cancellations->canWithdraw($services->find($serviceId) ?? throw new \RuntimeException()));
+        $this->actingAs($customer);
+        $this->post('/services/' . $serviceId . '/cancellation/withdraw');
+        self::assertSame('2026-07-01 00:00:00', $this->db->fetchValue('SELECT cancel_at FROM nx_services WHERE id = ?', [$serviceId]));
+
+        $this->actingAs($admin);
+        $this->post('/admin/cancellations/' . $declaration['id'], ['action' => 'complete', 'note' => 'done']);
+        self::assertSame('scheduled', $this->db->fetchValue('SELECT status FROM nx_cancellations WHERE id = ?', [$declaration['id']]), 'Scheduled declarations complete automatically.');
+        $this->post('/admin/cancellations/' . $declaration['id'], ['action' => 'reject', 'note' => 'Minimum term not reached.']);
+        self::assertSame('rejected', $this->db->fetchValue('SELECT status FROM nx_cancellations WHERE id = ?', [$declaration['id']]));
+        self::assertNull($this->db->fetchValue('SELECT cancel_at FROM nx_services WHERE id = ?', [$serviceId]), 'Rejecting removes the end date.');
+
+        // Even a stale end date of a rejected declaration never terminates the service.
+        $this->db->update('nx_services', ['cancel_at' => '2026-06-01 00:00:00', 'cancellation_id' => $declaration['id']], ['id' => $serviceId]);
+        self::assertSame(0, $cancellations->executeDue());
+        self::assertSame('active', $this->db->fetchValue('SELECT status FROM nx_services WHERE id = ?', [$serviceId]));
+        $this->db->update('nx_services', ['cancel_at' => null, 'cancellation_id' => null], ['id' => $serviceId]);
+
+        // The customer's own cancellation; an already cancelled service is not offered again.
+        $this->actingAs($customer);
+        $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => $customer->email, 'service_id' => (string) $serviceId, 'effective' => 'earliest']);
+        $own = (int) $this->db->fetchValue('SELECT cancellation_id FROM nx_services WHERE id = ?', [$serviceId]);
+        self::assertTrue($cancellations->canWithdraw($services->find($serviceId) ?? throw new \RuntimeException()));
+        $count = (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations');
+        $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => $customer->email, 'service_id' => (string) $serviceId, 'effective' => 'earliest']);
+        self::assertSame($count, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations'));
+
+        // A later declaration that staff schedule replaces the earlier one.
+        $this->post('/cancel-contract', ['kind' => 'extraordinary', 'name' => 'Max', 'email' => $customer->email, 'contract' => 'Root server', 'reason' => 'Moving abroad']);
+        $extraordinary = (int) $this->db->fetchValue('SELECT MAX(id) FROM nx_cancellations');
+        $this->actingAs($admin);
+        $this->post('/admin/cancellations/' . $extraordinary, ['action' => 'schedule', 'service_id' => (string) $serviceId, 'effective_date' => '2026-06-15']);
+        self::assertSame('completed', $this->db->fetchValue('SELECT status FROM nx_cancellations WHERE id = ?', [$own]));
+        self::assertSame($extraordinary, (int) $this->db->fetchValue('SELECT cancellation_id FROM nx_services WHERE id = ?', [$serviceId]));
+    }
+
+    public function testOpenClaimsOfCancelledServicesAreNotCollectedAutomatically(): void
+    {
+        $customer = $this->createUser();
+        $this->db->update('nx_users', ['credit_balance' => 10000], ['id' => $customer->id]);
+        $serviceId = $this->service($customer, '2026-06-01 00:00:00');
+        $this->db->update('nx_services', ['status' => 'suspended'], ['id' => $serviceId]);
+        $this->db->update('nx_users', ['auto_pay_credit' => 0], ['id' => $customer->id]);
+        $invoiceId = $this->app->container()->get(\Nebrix\Billing\InvoiceService::class)->createRenewal($this->app->container()->get(ServiceRepository::class)->find($serviceId) ?? throw new \RuntimeException());
+        self::assertNotNull($invoiceId);
+        $this->db->update('nx_invoices', ['due_at' => '2026-06-01 00:00:00'], ['id' => $invoiceId]);
+
+        $this->actingAs($customer);
+        $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => $customer->email, 'service_id' => (string) $serviceId, 'effective' => 'earliest']);
+        self::assertSame('2026-06-10 12:00:00', $this->db->fetchValue('SELECT cancel_at FROM nx_services WHERE id = ?', [$serviceId]));
+        $this->db->update('nx_users', ['auto_pay_credit' => 1], ['id' => $customer->id]);
+
+        self::assertSame(0, $this->app->container()->get(\Nebrix\Billing\AutoPayment::class)->run());
+        self::assertSame(0, $this->app->container()->get(\Nebrix\Billing\PaymentReminders::class)->send());
+        self::assertSame('unpaid', $this->db->fetchValue('SELECT status FROM nx_invoices WHERE id = ?', [$invoiceId]));
+        self::assertSame(10000, (int) $this->db->fetchValue('SELECT credit_balance FROM nx_users WHERE id = ?', [$customer->id]));
+    }
+
+    public function testGuestsCannotFloodOneAddressWithReceipts(): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            self::assertSame(200, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'Victim@example.test', 'contract' => 'Contract ' . $i])->status());
+        }
+        self::assertSame(429, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'victim@example.test', 'contract' => 'Spam'])->status());
+        self::assertSame(200, $this->post('/cancel-contract', ['kind' => 'ordinary', 'name' => 'Max', 'email' => 'other@example.test', 'contract' => 'Root server'])->status());
+        self::assertSame(4, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_cancellations'));
+    }
 }

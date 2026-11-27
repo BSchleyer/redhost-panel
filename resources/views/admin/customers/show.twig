@@ -17,7 +17,7 @@
                 <dt>{{ 'Company'|t }}</dt><dd>{{ c.company|default('–') }}</dd>
                 <dt>{{ 'Address'|t }}</dt><dd>{{ c.address_line1|default('–') }}{% if c.address_line2 %}<br>{{ c.address_line2 }}{% endif %}<br>{{ c.postcode }} {{ c.city }} {{ c.country }}</dd>
                 <dt>{{ 'Phone'|t }}</dt><dd>{{ c.phone|default('–') }}</dd>
-                <dt>{{ 'VAT ID'|t }}</dt><dd>{{ c.vat_id|default('–') }}</dd>
+                <dt>{{ 'VAT ID'|t }}</dt><dd>{{ c.vat_id|default('–') }}{% if c.vat_id %} <span class="badge {{ vat_status == 'verified' ? 'badge-success' : (vat_status == 'invalid' ? 'badge-danger' : (vat_status == 'unchecked' ? 'badge-neutral' : 'badge-warning')) }}">{{ {'verified': 'verified', 'invalid': 'not valid', 'unchecked': 'not checked yet', 'company_missing': 'company name missing', 'name_mismatch': 'registered to a different name'}[vat_status]|default(vat_status)|t }}</span>{% if c.vat_id_name %}<br><span class="small muted">{{ 'Registered name'|t }}: {{ c.vat_id_name }}</span>{% endif %}{% endif %}</dd>
                 <dt>{{ 'Group'|t }}</dt><dd>{{ group ? group.name : '–' }}</dd>
                 <dt>{{ 'Registered'|t }}</dt><dd>{{ c.created_at|dt }}</dd>
                 <dt>{{ 'Last sign-in'|t }}</dt><dd>{{ c.last_login_at|dt }} {% if c.last_login_ip %}<span class="mono small">{{ c.last_login_ip }}</span>{% endif %}</dd>

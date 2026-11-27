@@ -78,6 +78,7 @@ final class ServiceController extends Controller
             'has_credentials' => $service->hasCredentials && in_array($service->status, [Service::STATUS_ACTIVE, Service::STATUS_SUSPENDED], true),
             'console' => $this->mayManage($request) && $this->consoles->supports($service),
             'now' => $this->container->get(\Nebrix\Core\Clock::class)->nowString(),
+            'can_withdraw_cancellation' => $this->container->get(\Nebrix\Contract\CancellationService::class)->canWithdraw($service),
         ]);
     }
 

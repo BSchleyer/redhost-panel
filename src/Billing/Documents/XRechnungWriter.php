@@ -51,6 +51,8 @@ final class XRechnungWriter
         $currency = (string) $invoice['currency'];
         $category = (string) ($invoice['tax_category'] ?: ((int) $invoice['tax'] > 0 ? TaxDecision::STANDARD : TaxDecision::OUTSIDE_SCOPE));
         $isCorrection = $invoice['type'] === InvoiceRepository::TYPE_CREDIT_NOTE;
+        // Cancellation of an unpaid invoice: nothing is refunded.
+        $isVoid = $isCorrection && $original !== null && $original['status'] === InvoiceRepository::STATUS_CANCELLED;
 
         // Context (BT-23, BT-24)
         $context = $this->ram($root, 'rsm:ExchangedDocumentContext', null, self::NS_RSM);
@@ -153,7 +155,7 @@ final class XRechnungWriter
             }
         } else {
             $this->ram($means, 'ram:TypeCode', 'ZZZ');
-            $this->ram($means, 'ram:Information', $isCorrection ? 'Refund or offset' : 'Payment via the customer area');
+            $this->ram($means, 'ram:Information', $isVoid ? 'No payment due' : ($isCorrection ? 'Refund or offset' : 'Payment via the customer area'));
         }
 
         $taxTotal = 0;
@@ -170,7 +172,7 @@ final class XRechnungWriter
         $paid = !$isCorrection && in_array($invoice['status'], [InvoiceRepository::STATUS_PAID, InvoiceRepository::STATUS_REFUNDED], true) ? $grand : 0;
         $terms = $this->ram($settlement, 'ram:SpecifiedTradePaymentTerms');
         $this->ram($terms, 'ram:Description', $isCorrection
-            ? 'The amount is refunded or credited to the customer account.'
+            ? ($isVoid ? 'The invoice has been cancelled before it was paid; nothing is payable.' : 'The amount is refunded or credited to the customer account.')
             : ($paid > 0 ? 'Paid.' : 'Payable by the due date via the customer area' . ($seller->iban !== '' ? ' or by bank transfer.' : '.')));
         if (!$isCorrection && $paid === 0) {
             $this->date($this->ram($terms, 'ram:DueDateDateTime'), (string) $invoice['due_at']);

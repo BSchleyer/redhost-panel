@@ -77,7 +77,7 @@
   {% if not has_period %}<p class="small">{{ labels.delivery_date }}</p>{% endif %}
   {% if invoice.tax_note %}<p><strong>{{ invoice.tax_note }}</strong></p>{% endif %}
   {% if correction %}
-    <p>{{ labels.correction_text }}</p>
+    <p>{{ void ? labels.void_text : labels.correction_text }}</p>
   {% elseif invoice.type != 'credit' %}
     <p>{{ labels.payment_text|replace({'%date%': due_date}) }}{% if seller.iban %} {{ labels.transfer_text|replace({'%number%': invoice.number}) }}{% endif %}</p>
   {% endif %}

@@ -22,6 +22,7 @@ final class ProfileController extends Controller
     {
         return $this->render($request, 'account/profile.twig', [
             'profile' => $this->user($request)->attributes,
+            'vat_status' => $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->vatIdStatus($this->user($request)),
             'languages' => array_intersect_key(
                 ['en' => 'English', 'de' => 'Deutsch'],
                 array_flip($this->settings->list('general.available_languages') ?: ['en']),
@@ -71,17 +72,31 @@ final class ProfileController extends Controller
         if (($data['vat_id'] ?? null) !== ($user->attributes['vat_id'] ?? null) || ($data['country'] ?? null) !== ($user->attributes['country'] ?? null)) {
             $updated = $this->users->find($user->id);
             if ($updated !== null && trim((string) ($data['vat_id'] ?? '')) !== '') {
-                $valid = $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($updated);
-                $this->flash($request, $valid === true ? 'success' : 'warning', match ($valid) {
-                    true => 'Your VAT ID has been verified.',
-                    false => 'Your VAT ID could not be confirmed by the EU VIES service. Please check it.',
-                    default => 'Your VAT ID could not be checked right now; we will try again automatically.',
-                });
+                $taxes = $this->container->get(\Nebrix\Billing\Tax\TaxService::class);
+                $taxes->verifyUser($updated, ($data['vat_id'] ?? null) !== ($user->attributes['vat_id'] ?? null));
+                $this->flashVatStatus($request, $taxes->vatIdStatus($this->users->find($user->id) ?? $updated));
             } elseif ($updated !== null) {
                 $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->verifyUser($updated);
+            }
+        } elseif (($data['company'] ?? null) !== ($user->attributes['company'] ?? null) && trim((string) ($data['vat_id'] ?? '')) !== '') {
+            // The company name decides whether the VAT ID belongs to the customer.
+            $updated = $this->users->find($user->id);
+            if ($updated !== null) {
+                $this->flashVatStatus($request, $this->container->get(\Nebrix\Billing\Tax\TaxService::class)->vatIdStatus($updated));
             }
         }
 
         return $this->redirect('/account/profile');
+    }
+
+    private function flashVatStatus(Request $request, string $status): void
+    {
+        $this->flash($request, $status === 'verified' ? 'success' : 'warning', match ($status) {
+            'verified' => 'Your VAT ID has been verified.',
+            'invalid' => 'Your VAT ID could not be confirmed by the EU VIES service. Please check it.',
+            'company_missing' => 'Please enter your company name: invoices without VAT (reverse charge) need it.',
+            'name_mismatch' => 'Your VAT ID is registered to a different company name. Enter the company name as registered, or contact our support.',
+            default => 'Your VAT ID could not be checked right now; we will try again automatically.',
+        });
     }
 }
