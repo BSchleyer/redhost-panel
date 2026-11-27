@@ -1,0 +1,96 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Security'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Account security'|t }}</h1><p class="muted">{{ 'Password, two-factor authentication and active sessions.'|t }}</p></div></div>
+
+{% if new_recovery_codes|length > 0 %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Your recovery codes'|t }}</h2></div>
+    <div class="card-body">
+        <div class="alert alert-warning">{{ 'These codes are shown only once. Each code can be used once if you lose access to your authenticator app.'|t }}</div>
+        <pre id="recovery-codes">{% for code in new_recovery_codes %}{{ code }}
+{% endfor %}</pre>
+        <button class="btn btn-sm btn-outline" type="button" data-copy="#recovery-codes">{{ 'Copy'|t }}</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Change password'|t }}</h2></div>
+        <div class="card-body">
+            <form method="post" action="/account/password" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('current_password', 'Current password', '', 'password', {required: true, autocomplete: 'current-password'}) }}
+                {{ f.input('password', 'New password', '', 'password', {required: true, autocomplete: 'new-password', help: 'At least 10 characters.'}) }}
+                {{ f.input('password_confirmation', 'Repeat new password', '', 'password', {required: true, autocomplete: 'new-password'}) }}
+                <button class="btn btn-primary" type="submit">{{ 'Change password'|t }}</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>{{ 'Two-factor authentication'|t }}</h2>
+            {% if auth_user.hasTwoFactor %}<span class="badge badge-success">{{ 'enabled'|t }}</span>{% else %}<span class="badge badge-neutral">{{ 'disabled'|t }}</span>{% endif %}
+        </div>
+        <div class="card-body">
+            {% if auth_user.hasTwoFactor %}
+                <p>{{ 'Remaining recovery codes'|t }}: <strong>{{ recovery_remaining }}</strong></p>
+                <form method="post" action="/account/two-factor/recovery-codes" novalidate class="mt-1">
+                    {{ csrf_field() }}
+                    {{ f.input('password', 'Confirm with your password', '', 'password', {autocomplete: 'current-password'}) }}
+                    <button class="btn btn-outline" type="submit">{{ 'Generate new recovery codes'|t }}</button>
+                </form>
+                <hr>
+                <form method="post" action="/account/two-factor/disable" novalidate data-confirm="{{ 'Disable two-factor authentication?'|t }}">
+                    {{ csrf_field() }}
+                    {{ f.input('password', 'Password', '', 'password', {autocomplete: 'current-password'}) }}
+                    {{ f.input('code', 'Authentication or recovery code', '', 'text', {autocomplete: 'one-time-code'}) }}
+                    <button class="btn btn-danger" type="submit">{{ 'Disable two-factor authentication'|t }}</button>
+                </form>
+            {% else %}
+                <p>{{ 'Protect your account with a second factor from an authenticator app (TOTP), e.g. Aegis, 2FAS, Google Authenticator or 1Password.'|t }}</p>
+                <a class="btn btn-primary" href="/account/two-factor/setup">{{ 'Enable two-factor authentication'|t }}</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Active sessions'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Device'|t }}</th><th>{{ 'IP address'|t }}</th><th>{{ 'Signed in'|t }}</th><th>{{ 'Last activity'|t }}</th></tr></thead>
+            <tbody>
+            {% for s in sessions %}
+                <tr><td>{{ s.user_agent|default('–') }} {% if s.is_current %}<span class="badge badge-info">{{ 'this device'|t }}</span>{% endif %}</td><td class="mono">{{ s.ip }}</td><td>{{ s.created_at|dt }}</td><td>{{ s.last_activity|dt }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer">
+        <form method="post" action="/account/sessions/logout-others" class="filters" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('password', 'Confirm with your password', '', 'password', {autocomplete: 'current-password'}) }}
+            <button class="btn btn-outline" type="submit">{{ 'Sign out all other sessions'|t }}</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Recent sign-ins'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Time'|t }}</th><th>{{ 'Result'|t }}</th><th>{{ 'IP address'|t }}</th><th>{{ 'Device'|t }}</th></tr></thead>
+            <tbody>
+            {% for l in logins %}
+                <tr><td>{{ l.created_at|dt }}</td><td>{% if l.success %}<span class="badge badge-success">{{ 'success'|t }}</span>{% else %}<span class="badge badge-danger">{{ l.reason|humanize|t }}</span>{% endif %}</td><td class="mono">{{ l.ip }}</td><td class="small">{{ l.user_agent }}</td></tr>
+            {% else %}
+                <tr><td colspan="4" class="empty">{{ 'No sign-ins recorded yet.'|t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

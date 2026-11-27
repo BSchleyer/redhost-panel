@@ -1,0 +1,5 @@
+{% extends 'layouts/customer.twig' %}
+{% block title %}{{ 'Dashboard'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Welcome, :name'|t({name: auth_user.displayName}) }}</h1></div></div>
+{% endblock %}

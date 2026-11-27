@@ -1,0 +1,13 @@
+{% extends 'layouts/auth.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Two-factor authentication'|t }}{% endblock %}
+{% block content %}
+<h1>{{ 'Two-factor authentication'|t }}</h1>
+<p class="muted">{{ 'Enter the 6-digit code from your authenticator app or one of your recovery codes.'|t }}</p>
+<form method="post" action="/two-factor" novalidate>
+    {{ csrf_field() }}
+    {{ f.input('code', 'Authentication code', '', 'text', {required: true, autocomplete: 'one-time-code', inputmode: 'numeric', autofocus: true}) }}
+    <button class="btn btn-primary btn-block" type="submit">{{ 'Verify'|t }}</button>
+</form>
+<div class="auth-links"><a href="/login">{{ 'Back to sign in'|t }}</a></div>
+{% endblock %}

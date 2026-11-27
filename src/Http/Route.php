@@ -6,6 +6,9 @@ namespace Nebrix\Http;
 
 final class Route
 {
+    /** Matches {name} or {name:pattern}; the pattern may contain one level of braces, e.g. [a-f0-9]{64}. */
+    private const PARAMETER_PATTERN = '/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::((?:[^{}]+|\{[^{}]*\})+))?\}/';
+
     private readonly string $regex;
 
     /** @var list<string> */
@@ -29,7 +32,7 @@ final class Route
     private function compile(string $path): string
     {
         $regex = preg_replace_callback(
-            '/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::([^}]+))?\}/',
+            self::PARAMETER_PATTERN,
             function (array $match): string {
                 $this->parameterNames[] = $match[1];
                 $pattern = $match[2] ?? '[^/]+';
@@ -65,7 +68,7 @@ final class Route
     public function build(array $params): string
     {
         return (string) preg_replace_callback(
-            '/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::[^}]+)?\}/',
+            self::PARAMETER_PATTERN,
             static function (array $match) use ($params): string {
                 if (!array_key_exists($match[1], $params)) {
                     throw new \InvalidArgumentException(sprintf('Missing route parameter "%s".', $match[1]));

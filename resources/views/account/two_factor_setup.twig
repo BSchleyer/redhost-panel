@@ -1,0 +1,28 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Enable two-factor authentication'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>{{ 'Enable two-factor authentication'|t }}</h1></div>
+<div class="card">
+    <div class="card-body grid grid-2">
+        <div>
+            <ol>
+                <li>{{ 'Scan the QR code with your authenticator app, or enter the key manually.'|t }}</li>
+                <li>{{ 'Enter the 6-digit code shown in the app to confirm.'|t }}</li>
+            </ol>
+            <p class="qr"><img src="{{ qr_data_uri }}" alt="{{ 'QR code for your authenticator app'|t }}" width="220" height="220"></p>
+            <p class="small muted">{{ 'Setup key'|t }}: <code>{{ secret }}</code></p>
+        </div>
+        <div>
+            <form method="post" action="/account/two-factor/enable" novalidate>
+                {{ csrf_field() }}
+                {{ f.input('code', 'Code from the app', '', 'text', {required: true, autocomplete: 'one-time-code', inputmode: 'numeric', autofocus: true}) }}
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="submit">{{ 'Confirm and enable'|t }}</button>
+                    <a href="/account/security" class="btn btn-outline">{{ 'Cancel'|t }}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

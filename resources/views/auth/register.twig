@@ -1,0 +1,30 @@
+{% extends 'layouts/auth.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Create an account'|t }}{% endblock %}
+{% block content %}
+<h1>{{ 'Create an account'|t }}</h1>
+<form method="post" action="/register" novalidate>
+    {{ csrf_field() }}
+    <div class="form-grid">
+        {{ f.input('first_name', 'First name', '', 'text', {required: true, autocomplete: 'given-name'}) }}
+        {{ f.input('last_name', 'Last name', '', 'text', {required: true, autocomplete: 'family-name'}) }}
+    </div>
+    {{ f.input('company', 'Company (optional)', '', 'text', {autocomplete: 'organization'}) }}
+    {{ f.input('email', 'E-mail address', '', 'email', {required: true, autocomplete: 'email'}) }}
+    {{ f.input('password', 'Password', '', 'password', {required: true, autocomplete: 'new-password', help: 'At least 10 characters. Use a passphrase that you do not use anywhere else.'}) }}
+    {{ f.input('password_confirmation', 'Repeat password', '', 'password', {required: true, autocomplete: 'new-password'}) }}
+    {% if require_legal %}
+        <div class="form-row">
+            <label class="checkbox"><input type="checkbox" name="accept_terms" value="1">
+                <span>{{ 'I accept the'|t }}
+                {% if brand.terms_url %}<a href="{{ brand.terms_url }}" target="_blank" rel="noopener">{{ 'terms and conditions'|t }}</a>{% else %}{{ 'terms and conditions'|t }}{% endif %}
+                {{ 'and the'|t }}
+                {% if brand.privacy_url %}<a href="{{ brand.privacy_url }}" target="_blank" rel="noopener">{{ 'privacy policy'|t }}</a>{% else %}{{ 'privacy policy'|t }}{% endif %}.</span>
+            </label>
+            {% if error('accept_terms') %}<div class="field-error">{{ error('accept_terms')|t }}</div>{% endif %}
+        </div>
+    {% endif %}
+    <button class="btn btn-primary btn-block" type="submit">{{ 'Create account'|t }}</button>
+</form>
+<div class="auth-links"><a href="/login">{{ 'Already have an account? Sign in'|t }}</a></div>
+{% endblock %}

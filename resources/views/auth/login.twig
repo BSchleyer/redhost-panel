@@ -1,0 +1,24 @@
+{% extends 'layouts/auth.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Sign in'|t }}{% endblock %}
+{% block content %}
+<h1>{{ 'Sign in'|t }}</h1>
+<p class="muted">{{ 'Sign in to manage your services.'|t }}</p>
+<form method="post" action="/login" novalidate>
+    {{ csrf_field() }}
+    {{ f.input('email', 'E-mail address', '', 'email', {required: true, autocomplete: 'username', autofocus: true}) }}
+    {{ f.input('password', 'Password', '', 'password', {required: true, autocomplete: 'current-password'}) }}
+    <button class="btn btn-primary btn-block" type="submit">{{ 'Sign in'|t }}</button>
+</form>
+{% if show_resend %}
+<form method="post" action="/email/resend" class="mt-2" novalidate>
+    {{ csrf_field() }}
+    <input type="hidden" name="email" value="{{ old('email') }}">
+    <button class="btn btn-outline btn-block" type="submit">{{ 'Send a new confirmation link'|t }}</button>
+</form>
+{% endif %}
+<div class="auth-links">
+    <a href="/password/forgot">{{ 'Forgot your password?'|t }}</a>
+    {% if setting('auth.registration_enabled') %}<a href="/register">{{ 'Create an account'|t }}</a>{% endif %}
+</div>
+{% endblock %}

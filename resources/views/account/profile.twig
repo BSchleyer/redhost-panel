@@ -1,0 +1,28 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'Profile'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'Profile'|t }}</h1><p class="muted">{{ 'Your contact and billing details. They are printed on invoices.'|t }}</p></div></div>
+<form method="post" action="/account/profile" novalidate>
+    {{ csrf_field() }}
+    <div class="card">
+        <div class="card-body">
+            <div class="form-grid">
+                {{ f.input('first_name', 'First name', profile.first_name, 'text', {required: true}) }}
+                {{ f.input('last_name', 'Last name', profile.last_name, 'text', {required: true}) }}
+                {{ f.input('company', 'Company', profile.company) }}
+                {{ f.input('vat_id', 'VAT ID', profile.vat_id) }}
+                {{ f.input('address_line1', 'Address', profile.address_line1) }}
+                {{ f.input('address_line2', 'Address line 2', profile.address_line2) }}
+                {{ f.input('postcode', 'Postcode', profile.postcode) }}
+                {{ f.input('city', 'City', profile.city) }}
+                {{ f.input('country', 'Country (ISO code, e.g. DE)', profile.country, 'text', {maxlength: 2}) }}
+                {{ f.input('phone', 'Phone', profile.phone, 'tel') }}
+                {{ f.select('language', 'Language', languages, profile.language|default('en')) }}
+                <div class="form-row"><label>{{ 'E-mail address'|t }}</label><input type="email" value="{{ profile.email }}" disabled><div class="help">{{ 'Contact support to change your e-mail address.'|t }}</div></div>
+            </div>
+        </div>
+        <div class="card-footer"><button class="btn btn-primary" type="submit">{{ 'Save profile'|t }}</button></div>
+    </div>
+</form>
+{% endblock %}

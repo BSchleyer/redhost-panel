@@ -1,0 +1,11 @@
+{% extends 'layouts/auth.twig' %}
+{% block title %}{{ 'Confirm your e-mail address'|t }}{% endblock %}
+{% block content %}
+<h1>{{ 'Confirm your e-mail address'|t }}</h1>
+<p>{{ 'We have sent a confirmation link to :email. Please open it to activate your account.'|t({email: auth_user.email}) }}</p>
+<form method="post" action="/email/verify/resend">
+    {{ csrf_field() }}
+    <button class="btn btn-primary btn-block" type="submit">{{ 'Send the link again'|t }}</button>
+</form>
+<form method="post" action="/logout" class="mt-2">{{ csrf_field() }}<button class="btn btn-outline btn-block" type="submit">{{ 'Sign out'|t }}</button></form>
+{% endblock %}

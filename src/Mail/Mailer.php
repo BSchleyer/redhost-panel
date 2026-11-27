@@ -1,0 +1,188 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nebrix\Mail;
+
+use Nebrix\Core\Config;
+use Nebrix\Queue\JobQueue;
+use Nebrix\Security\Encrypter;
+use Nebrix\Settings\SettingsRepository;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
+
+/**
+ * Sends e-mails through SMTP (PHPMailer) using the settings from the admin
+ * panel. Messages are queued as background jobs; the queued payload is
+ * encrypted because it can contain single-use links (verification, reset).
+ */
+class Mailer
+{
+    public const JOB_TYPE = 'mail.send';
+
+    public function __construct(
+        private readonly SettingsRepository $settings,
+        private readonly JobQueue $queue,
+        private readonly MailTemplates $templates,
+        private readonly Encrypter $encrypter,
+        private readonly LoggerInterface $logger,
+        private readonly Config $config,
+    ) {
+    }
+
+    /**
+     * @param array<string, scalar|null> $variables
+     */
+    public function queue(string $toEmail, ?string $toName, string $template, array $variables = []): void
+    {
+        $message = $this->templates->render($template, $variables) + [
+            'to' => $toEmail,
+            'to_name' => $toName ?? '',
+            'template' => $template,
+        ];
+
+        $this->queue->dispatch(self::JOB_TYPE, [
+            'template' => $template,
+            'message' => $this->encrypter->encryptArray($message, 'mail-job'),
+        ], null, 5);
+    }
+
+    /**
+     * @param array<string, mixed> $payload job payload created by queue()
+     */
+    public function sendQueued(array $payload): void
+    {
+        /** @var array{to: string, to_name: string, subject: string, html: string, text: string, template: string} $message */
+        $message = $this->encrypter->decryptArray((string) ($payload['message'] ?? ''), 'mail-job');
+        $this->deliver($message);
+    }
+
+    /**
+     * Sends immediately (used for the SMTP test in the admin panel).
+     *
+     * @param array<string, scalar|null> $variables
+     *
+     * @throws RuntimeException with a safe error description
+     */
+    public function sendNow(string $toEmail, ?string $toName, string $template, array $variables = []): void
+    {
+        $this->deliver($this->templates->render($template, $variables) + [
+            'to' => $toEmail,
+            'to_name' => $toName ?? '',
+            'template' => $template,
+        ]);
+    }
+
+    /**
+     * @param array{to: string, to_name: string, subject: string, html: string, text: string, template: string} $message
+     */
+    private function deliver(array $message): void
+    {
+        if (filter_var($message['to'], FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException('Invalid recipient address.');
+        }
+
+        if (!$this->settings->bool('mail.enabled')) {
+            // Development / not configured: record the message without its body in production.
+            $context = ['to' => $message['to'], 'subject' => $message['subject'], 'template' => $message['template']];
+            if ($this->config->string('app.env') === 'local') {
+                $context['body'] = $message['text'];
+            }
+            $this->logger->info('E-mail not sent (SMTP disabled in settings)', $context);
+
+            return;
+        }
+
+        $mail = $this->createMailer();
+        try {
+            $mail->addAddress($message['to'], $message['to_name']);
+            $mail->Subject = $message['subject'];
+            $mail->Body = $message['html'];
+            $mail->AltBody = $message['text'];
+            $mail->send();
+        } catch (PHPMailerException $exception) {
+            throw new RuntimeException('SMTP delivery failed: ' . $this->sanitizeError($mail->ErrorInfo ?: $exception->getMessage()), 0, $exception);
+        }
+
+        $this->logger->info('E-mail sent', ['to' => $message['to'], 'template' => $message['template']]);
+    }
+
+    /**
+     * Opens and closes an SMTP connection to validate host, encryption and
+     * credentials without sending a message.
+     *
+     * @throws RuntimeException
+     */
+    public function testConnection(): void
+    {
+        $mail = $this->createMailer();
+        try {
+            if (!$mail->smtpConnect()) {
+                throw new RuntimeException('Could not connect or authenticate: ' . $this->sanitizeError($mail->ErrorInfo));
+            }
+            $mail->smtpClose();
+        } catch (PHPMailerException $exception) {
+            throw new RuntimeException('SMTP connection failed: ' . $this->sanitizeError($exception->getMessage()), 0, $exception);
+        }
+    }
+
+    private function createMailer(): PHPMailer
+    {
+        $host = $this->settings->string('mail.host');
+        if ($host === '') {
+            throw new RuntimeException('No SMTP host is configured.');
+        }
+
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host = $host;
+        $mail->Port = $this->settings->int('mail.port') ?: 587;
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
+        $mail->Timeout = 15;
+        $mail->SMTPDebug = SMTP::DEBUG_OFF;
+        $mail->isHTML(true);
+
+        $encryption = $this->settings->string('mail.encryption');
+        if ($encryption === 'ssl') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($encryption === 'tls') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPSecure = '';
+            $mail->SMTPAutoTLS = false;
+        }
+
+        $username = $this->settings->string('mail.username');
+        if ($username !== '') {
+            $mail->SMTPAuth = true;
+            $mail->Username = $username;
+            $mail->Password = (string) $this->settings->get('mail.password');
+        }
+
+        $from = $this->settings->string('mail.from_address');
+        if ($from === '') {
+            throw new RuntimeException('No sender address is configured.');
+        }
+        $mail->setFrom($from, $this->settings->string('mail.from_name'));
+        $replyTo = $this->settings->string('general.support_email');
+        if ($replyTo !== '') {
+            $mail->addReplyTo($replyTo);
+        }
+
+        return $mail;
+    }
+
+    private function sanitizeError(string $error): string
+    {
+        // Never echo credentials back (some servers include the username in errors).
+        $password = (string) $this->settings->get('mail.password');
+        if ($password !== '') {
+            $error = str_replace($password, '[redacted]', $error);
+        }
+
+        return mb_substr(trim($error), 0, 300);
+    }
+}
