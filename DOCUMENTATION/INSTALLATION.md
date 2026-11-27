@@ -60,7 +60,14 @@ docker compose exec app php bin/nebrix user:create-admin --email=admin@example.c
 
 5. Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik, …) in front of port `APP_PORT` (default 8080) and add the proxy's address to `TRUSTED_PROXIES`.
 
-The compose file starts four services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, the database in `db-data`.
+The compose file starts five services: `app` (Apache + PHP 8.4, runs as `www-data` on port 8080), `worker` (`queue:work`), `scheduler` (`schedule:run` every 60 seconds), `console` (WebSocket proxy for server consoles on `127.0.0.1:8081`) and `db` (MariaDB, not published to the host). Uploaded branding files are kept in the `uploads` volume, the database in `db-data`.
+
+Reverse proxy: route everything to port 8080 and the console WebSocket path (`CONSOLE_WS_URL`, default `/console/ws`) to port 8081 with WebSocket upgrade, e.g. nginx:
+
+```nginx
+location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 4h; }
+location / { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto https; }
+```
 
 ## Option B – Manual installation
 
@@ -132,6 +139,10 @@ echo '* * * * * www-data cd /var/www/nebrix && php bin/nebrix schedule:run >> /d
 ```
 
    The worker exits after `--max-time` seconds (default 3600) so that code updates and memory are refreshed; the supervisor restarts it.
+
+7. Console proxy (only needed for Proxmox consoles) – a second unit with `ExecStart=/usr/bin/php bin/nebrix console:proxy --listen=127.0.0.1:8081`, and the reverse proxy forwards `/console/ws` to it (see the nginx example under Option A).
+
+8. Optional hardening: `php bin/nebrix db:triggers --install` creates triggers that reject changes to payment events, audit log and credit ledger (needs the `TRIGGER` privilege).
 
 ## After the installation
 

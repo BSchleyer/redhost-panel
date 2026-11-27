@@ -21,6 +21,14 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Test suite (unit, integration, feature) with mocked integrations and payment providers.
 - Documentation set in `DOCUMENTATION/`.
 
+### Added (infrastructure features)
+- Dedicated servers through the **Hetzner Robot** API: assignment from a server pool or ordering (opt-in, test mode by default), installation, firewall-based suspension, rescue system, resets, reverse DNS, reinstall, wipe queue on termination, optional cancellation.
+- **Proxmox**: IP pools with static IPv4 addressing (admin UI), reinstall with selectable templates, root password reset (guest agent / cloud-init), graphical **noVNC console** through the new `console:proxy` WebSocket relay.
+- **Plesk** webhosting (customers, subscriptions, suspension, single sign-on, password reset) and **INWX** domain registrations and transfers (prechecks before payment, registrant contacts, name servers, auth codes, renewal modes) behind a registrar interface.
+- Service actions with input fields and confirmation, staff remote actions, reinstall flow through the provisioning queue.
+- `legacy:import --only=services,tickets,history` for RED-Host services (Proxmox, TeamSpeak, Pterodactyl, Plesk), tickets and payment history.
+- Optional CAPTCHA (hCaptcha, Cloudflare Turnstile) on registration and password reset; `db:triggers` for append-only tables.
+
 ### Security
 - Removed committed secrets from the working tree (they remain in the history and must be rotated by the owner), insecure Docker defaults and phpMyAdmin.
 - Fixed the legacy vulnerabilities documented in AUDIT.md (session token design, impersonation, SSH command execution, unverified PayPal IPN, double-spend race, CSRF, XSS, IDOR, open redirects, SSRF, unprotected cron endpoints, plaintext third-party credentials).
@@ -31,7 +39,7 @@ Complete modernization of the RED-Host panel as **Nebrix**. The legacy PHP 7 app
 - Archived/unused dependencies (`paypal/rest-api-sdk-php`, duplicate Proxmox and TeamSpeak libraries).
 
 ### Known limitations
-- Integrations and payment providers were tested against mocks only; live/sandbox verification is pending.
-- No customer self-service reinstall, password reset or console for Proxmox guests; no IP address management (DHCP only).
-- Dedicated servers, webhosting and domains are fulfilled manually (no registrar/Plesk integration).
-- No public REST API.
+- Integrations and payment providers were tested against stateful fakes only; live/sandbox verification is pending.
+- LXC root passwords can only be changed by reinstalling (no Proxmox API for it); IPv6 is assigned by SLAAC only.
+- Hetzner: disks of terminated pool servers are not wiped automatically; server market (auction) orders are not supported.
+- No public REST API (planned next).

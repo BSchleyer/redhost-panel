@@ -28,12 +28,27 @@ Nebrix 2.0 is a **rewrite**. The legacy application is not updated in place; Neb
 
 The import is **idempotent** (matched by `nx_users.legacy_id`) and can be re-run; already imported users are skipped and balances are not booked twice. Accounts whose e-mail already exists in Nebrix or whose e-mail is invalid are reported as conflicts and skipped.
 
+### Services, tickets and history (`--only=services,tickets,history`)
+
+| Legacy | Nebrix |
+|---|---|
+| `vm_servers` (LXC/KVM on `vm_host_nodes`) | LXC / VPS services on the mapped Proxmox integration; node name and VMID (= legacy ID) recorded; root password imported **encrypted** |
+| `teamspeaks` | TeamSpeak services on the mapped integration (SID and port) |
+| `pterodactyl_servers` | game server services (server ID and identifier) |
+| `webspace` | webhosting services on the mapped Plesk integration (subscription ID, domain, FTP access encrypted) |
+| state active / suspended (`DISABLED`, `SUSPENDED`) | `active` / `suspended`; deleted and pending services are skipped |
+| `price`, `days`, `expire_at` | recurring amount (as gross, tax rate 0), billing cycle (30 → monthly, 90 → quarterly, 180 → every 6 months, 365 → annually, other runtimes → monthly with a warning), next due date |
+| `tickets`, `ticket_message` | tickets with messages (HTML removed, staff replies flagged); category as subject prefix; priority mapped |
+| `transactions` (successful), `user_transactions` | read-only history on the customer page (`nx_legacy_records`); balances are **not** booked again (the user import already took over the balance) |
+
+Hosts must be mapped explicitly to integrations you created first; unmapped hosts and Venocix servers are reported and skipped. Nothing is changed on the remote systems. Imported services are marked `legacy` so that the provisioners accept the recorded remote IDs (see INTEGRATIONS.md). Create products afterwards for new orders – imported services have no product.
+
 ## What is not migrated
 
-* **Services** (servers, TeamSpeak instances, game servers, webspaces): they must be linked to the new integrations and products. Create them in Nebrix manually (Admin → Services → activate manually, or re-provision) or write a site-specific import using `ServiceRepository::create()` with the remote identifiers (`remote` JSON, `external_id`). The automation contracts are described in [INTEGRATIONS.md](INTEGRATIONS.md); for Proxmox guests created by the legacy panel, the description marker `nebrix-service-<id>` must be added before Nebrix will manage (or delete) them.
-* **Invoices, transactions, tickets, logs**: keep the legacy database read-only for reference and accounting retention.
+* **Invoices**: the legacy panel had none (credit-based billing); renewals of imported services are invoiced by Nebrix from their next due date.
+* **Logs, news, cashbox clicks, command presets, software installers**: not taken over.
 * **Sessions, support PINs, API keys, cron keys**: obsolete; customers sign in again.
-* **Venocix, Plesk and paysafecard/Boltlayer** integrations: not part of Nebrix 2.0.
+* **Venocix and paysafecard/Boltlayer** integrations: not part of Nebrix 2.0.
 
 ## Migration steps
 
@@ -46,15 +61,25 @@ The import is **idempotent** (matched by `nx_users.legacy_id`) and can be re-run
 php bin/nebrix legacy:import --dry-run
 ```
 
-5. Import:
+5. Import the accounts:
 
 ```bash
 php bin/nebrix legacy:import
 ```
 
-6. Review imported staff accounts in Admin → Staff, reactivate those that should keep access and remove the `LEGACY_DB_*` variables.
-7. Recreate or link the services, then switch DNS/web server to Nebrix and put the legacy panel offline (do not leave it reachable – it contains the vulnerabilities listed in AUDIT.md).
-8. Inform customers: they can sign in with their e-mail and existing password; 2FA can be enabled under Account → Security.
+6. Create the integrations (Proxmox per legacy node/cluster, TeamSpeak per legacy host, Pterodactyl, Plesk), note their IDs (Admin → Integrations) and import services, tickets and history – dry run first. Example: legacy Proxmox nodes 1 and 2 belong to integration 3, TeamSpeak host 1 to integration 5:
+
+```bash
+php bin/nebrix legacy:import --only=services,tickets,history --proxmox-nodes=1:3,2:3 --teamspeak-hosts=1:5 --pterodactyl=4 --plesk=6 --dry-run
+```
+
+```bash
+php bin/nebrix legacy:import --only=services,tickets,history --proxmox-nodes=1:3,2:3 --teamspeak-hosts=1:5 --pterodactyl=4 --plesk=6
+```
+
+7. Review imported staff accounts in Admin → Staff, reactivate those that should keep access and remove the `LEGACY_DB_*` variables.
+8. Check the imported services (Admin → Services, live status), then switch DNS/web server to Nebrix and put the legacy panel offline (do not leave it reachable – it contains the vulnerabilities listed in AUDIT.md).
+9. Inform customers: they can sign in with their e-mail and existing password; 2FA can be enabled under Account → Security.
 
 ## Updating Nebrix
 

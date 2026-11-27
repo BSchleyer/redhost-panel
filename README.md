@@ -8,7 +8,7 @@ It is the modernized successor of the open-source **RED-Host Panel** by Björn S
 
 * **Customer panel** – store and ordering, services with live status and power actions, invoices and online payment, account credit, support tickets, profile, two-factor authentication and session management (English/German).
 * **Admin panel** – dashboard, customers and groups, products, orders, invoices, transactions and refunds, services, tickets, integrations, e-mail templates, branding, settings, staff with role-based permissions, audit log, background jobs.
-* **Automated provisioning** – Proxmox VE (KVM and LXC, API tokens, multiple clusters), Pterodactyl (Minecraft and other game servers), Nextcloud (storage accounts), TeamSpeak 3 (virtual servers). Dedicated servers, webhosting and domains are supported as manually fulfilled products.
+* **Automated provisioning** – Proxmox VE (KVM and LXC, API tokens, multiple clusters, IP pools, reinstall, password reset, noVNC console), Hetzner Robot (dedicated servers from a pool or ordered), Plesk (webhosting), INWX (domain registrations and transfers), Pterodactyl (Minecraft and other game servers), Nextcloud (storage accounts), TeamSpeak 3 (virtual servers). Products without an integration are fulfilled manually.
 * **Payments** – Stripe Checkout and PayPal (Orders v2) with verified webhooks, account credit, manual payments, refunds and dispute handling.
 * **Billing automation** – recurring renewals, overdue suspension, optional termination, idempotent job queue with retries.
 
@@ -49,7 +49,7 @@ Full instructions, including a manual installation: [INSTALLATION.md](DOCUMENTAT
 | [INSTALLATION.md](DOCUMENTATION/INSTALLATION.md) | Requirements, Docker and manual installation, worker and scheduler |
 | [CONFIGURATION.md](DOCUMENTATION/CONFIGURATION.md) | Environment variables, admin settings, scheduler tasks |
 | [ADMIN_GUIDE.md](DOCUMENTATION/ADMIN_GUIDE.md) | Using the administration area |
-| [INTEGRATIONS.md](DOCUMENTATION/INTEGRATIONS.md) | Proxmox, Pterodactyl, Nextcloud, TeamSpeak |
+| [INTEGRATIONS.md](DOCUMENTATION/INTEGRATIONS.md) | Proxmox (IP pools, console), Hetzner Robot, Plesk, INWX, Pterodactyl, Nextcloud, TeamSpeak |
 | [PAYMENTS.md](DOCUMENTATION/PAYMENTS.md) | Stripe, PayPal, credit, refunds, disputes |
 | [SECURITY.md](DOCUMENTATION/SECURITY.md) | Protections and remaining risks |
 | [ARCHITECTURE.md](DOCUMENTATION/ARCHITECTURE.md) | Code structure and main flows |

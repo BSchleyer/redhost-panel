@@ -9,6 +9,7 @@ Nebrix is a server-rendered PHP 8.3/8.4 application without a full-stack framewo
 | Web application | `public/index.php` (Apache/PHP-FPM) | Customer panel, admin panel, payment webhooks |
 | Worker | `bin/nebrix queue:work` | Provisioning, suspensions, terminations, e-mail delivery |
 | Scheduler | `bin/nebrix schedule:run` (cron, every minute) | Renewals, overdue suspension, health checks, data retention |
+| Console proxy (optional) | `bin/nebrix console:proxy` | WebSocket relay between noVNC in the browser and the Proxmox console |
 | Database | MariaDB 10.6+/11.x or MySQL 8.0+ | All state, including sessions, jobs and rate limits |
 
 No cache server or message broker is required. All three PHP processes share the same code base and database.
@@ -50,14 +51,19 @@ src/
   Controller/               Admin/, Customer/, Account/, Auth/, webhooks, health, branding CSS
   Core/                     Application, Container, Config, Env, Clock, ErrorHandler, LoggerFactory
   Customer/                 administrative account operations
+  Domain/                   registrar interface, registrant contacts, phone number formatting
   Database/                 Connection (PDO wrapper), Migrator
   Http/                     Request, Response, Router, Route, HttpKernel, Controller, middleware
-  Integration/              registry, repository, manager, API client, Proxmox/Pterodactyl/Nextcloud/TeamSpeak clients
+  Integration/              registry, repository, manager, API client; clients for Proxmox, Hetzner Robot, Plesk,
+                            INWX, Pterodactyl, Nextcloud, TeamSpeak
   Legacy/                   RED-Host importer
   Mail/                     Mailer (PHPMailer), MailTemplates, SendMailJob
+  Network/                  IP pools (IPv4 address management)
   Payment/                  PaymentService, gateways (Stripe, PayPal, credit), webhook deduplication
-  Provisioning/             Provisioner interface, provisioners, ProvisioningService, ServiceManager, job handlers
+  Provisioning/             Provisioner interface, provisioners (Proxmox, Hetzner, Plesk, domains, Pterodactyl,
+                            Nextcloud, TeamSpeak), service actions, ProvisioningService, ServiceManager, jobs
   Queue/                    JobQueue, Worker
+  RemoteConsole/            console sessions (single-use tokens) and the WebSocket proxy
   Repository/               users, roles, groups, products
   Scheduler/                periodic tasks
   Security/                 CSRF, password hashing/policy, encryption, rate limiting, URL/redirect guards, validator

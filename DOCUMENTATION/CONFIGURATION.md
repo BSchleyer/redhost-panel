@@ -28,6 +28,10 @@ Configuration is split into two layers:
 | `INTEGRATIONS_ALLOW_HTTP` | `false` | Allow plain-HTTP integration endpoints (lab setups only). |
 | `INTEGRATIONS_ALLOW_LOOPBACK` | `false` | Allow integrations on `127.0.0.0/8`/`::1` (same host). |
 | `INTEGRATIONS_TIMEOUT` | `20` | Timeout in seconds for integration API requests. |
+| `CONSOLE_WS_URL` | `APP_URL` with `ws(s)://` + `/console/ws` | Public WebSocket URL of the console proxy. |
+| `CONSOLE_LISTEN` | `0.0.0.0:8081` | Listen address of `console:proxy` (overridden by `--listen`). |
+| `CONSOLE_MAX_CONNECTIONS` / `CONSOLE_MAX_LIFETIME` | `100` / `14400` | Concurrent console connections and maximum session length in seconds. |
+| `CONSOLE_PORT` | `8081` | Host port of the console service in docker-compose (bound to 127.0.0.1). |
 | `LEGACY_DB_HOST`, `LEGACY_DB_PORT`, `LEGACY_DB_DATABASE`, `LEGACY_DB_USERNAME`, `LEGACY_DB_PASSWORD` | – | Optional, only for `legacy:import` when the RED-Host database is a separate database. |
 
 ### Key rotation
@@ -52,6 +56,9 @@ Company name, address, contact/support e-mail, phone, VAT ID, website, legal URL
 | Require acceptance of terms/privacy at registration | on |
 | Require two-factor authentication for staff | off – **recommended: on** |
 | Failed logins before lockout / lockout duration | 5 / 15 minutes |
+| CAPTCHA on registration and password reset (hCaptcha or Cloudflare Turnstile, site key, secret key) | off |
+
+With a CAPTCHA provider the widget script of the provider is loaded on the registration and password reset pages only (the Content Security Policy is extended for these pages). Tokens are verified server-side; if the provider cannot be reached the form is rejected.
 
 ### Billing
 | Setting | Default |

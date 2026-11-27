@@ -60,6 +60,21 @@ Report vulnerabilities privately to the repository owner. Do not open public iss
 * Credentials for customers' services (root passwords, panel logins, privilege keys) are encrypted and shown only on an explicit request; each view is written to the audit log.
 * The admin panel never executes server commands or PHP code; there is no update or shell feature.
 
+### Server consoles
+* The browser receives only a random 256-bit, single-use token valid for 60 seconds and the VNC password; Proxmox API credentials stay on the server (the upstream target is stored encrypted, the token as SHA-256 hash).
+* The console proxy checks the WebSocket handshake, the `Origin` (must equal `APP_URL`), redeems the token atomically, re-checks that service and user are active, pins the upstream address, verifies TLS per integration and the upstream `Sec-WebSocket-Accept`, and limits header size, handshake time, connections, session duration and buffers.
+* The console page extends the CSP only by the console WebSocket origin; opening a console is rate-limited and audit-logged.
+
+### Remote resources and orders
+* Provisioner actions are whitelisted per service; action input is validated (select fields only accept offered values). Reinstalls are rate-limited (3 per hour and service).
+* Hetzner: servers are only taken from the explicitly named pool, reserved under a lock, and every action checks the server name `nebrix-service-<id>`; ordering servers (costs) must be enabled explicitly and runs in test mode by default; an order is found by its comment instead of being placed twice. Terminated servers are not wiped automatically but moved to a wipe queue.
+* Plesk: XML requests are built with escaped values; responses with DTDs are rejected (no XXE); subscriptions of other customers are never adopted. Single sign-on links are one-time Plesk sessions shown as a link (no open redirect, CSP `form-action` stays `'self'`).
+* Domains: availability and registrant data are checked before payment; transfer auth codes are stored encrypted and removed after use; termination never deletes a domain immediately.
+* IP pools: an address is assigned to at most one service (row lock + unique key) and only released after the guest has been deleted.
+
+### Public forms
+* Optional CAPTCHA (hCaptcha/Turnstile) on registration and password reset, verified server-side (fail closed); the provider's sources are added to the CSP of these pages only.
+
 ### Payments
 * Payment success is never derived from a redirect: the return URL triggers a server-side lookup (Stripe session retrieval, PayPal capture) (C-07).
 * Webhooks are verified: Stripe with `Webhook::constructEvent` (HMAC-SHA256, 5-minute tolerance), PayPal with the `verify-webhook-signature` API and the configured webhook ID.
@@ -91,7 +106,9 @@ After implementation an independent review of the new code base was performed (r
 | TeamSpeak ServerQuery over raw TCP is unencrypted | Allow the query port only from the panel host and use a private network/VPN. SSH-based ServerQuery is a possible extension. |
 | Admin-edited e-mail templates may contain arbitrary HTML | Restricted to the `mail_templates.manage` permission; preview is sandboxed. |
 | `verify_tls=false` on an integration allows MITM | Use valid certificates (e.g. ACME on Proxmox); disable verification only in labs. |
-| Payment immutability is enforced in application code | For defence in depth add database triggers that reject `UPDATE`/`DELETE` on `nx_payment_events` and `nx_audit_log` if your database user may create triggers (see DATABASE.md). |
+| Payment immutability is enforced in application code | For defence in depth run `php bin/nebrix db:triggers --install` (rejects `UPDATE`/`DELETE` on payment events, audit log and credit ledger; needs the `TRIGGER` privilege). |
+| The console proxy is a long-running PHP process | Run it behind the TLS reverse proxy only (bind to 127.0.0.1), keep `CONSOLE_MAX_CONNECTIONS` appropriate; it connects to Proxmox synchronously, so a slow Proxmox host delays other console handshakes by up to 5 seconds. |
+| New integrations (Hetzner, Plesk, INWX) were tested against fakes only | Use Hetzner order test mode, INWX OTE and a staging Plesk server before going live. |
 | Rate limits and sessions live in the database | Sufficient for typical loads; for very large deployments move them to Redis behind the same interfaces. |
-| No WAF / bot protection on registration | Put the panel behind a reverse proxy with rate limiting; a CAPTCHA (hCaptcha/Turnstile) can be added to the registration form. |
+| Bots on public forms | Enable the CAPTCHA in Admin → Settings → Authentication and rate-limit at the reverse proxy. |
 | Integrations were tested against fakes only | Run the connection tests in the admin panel and test provisioning in a staging environment before going live (see INTEGRATIONS.md). |

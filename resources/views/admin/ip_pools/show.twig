@@ -12,9 +12,9 @@
             <td>{% if a.service_id %}<a href="/admin/services/{{ a.service_id }}">#{{ a.service_id }} {{ a.service_name }}</a>{% endif %}</td>
             <td class="small">{{ a.note }}</td>
             <td class="actions">{% if can('integrations.manage') and a.status != 'assigned' %}
-                <form method="post" action="/admin/ip-pools/{{ pool.id }}/addresses/{{ a.id }}" class="inline">{{ csrf_field() }}
+                <form method="post" action="/admin/ip-pools/{{ pool.id }}/addresses/{{ a.id }}" class="filters filters-inline">{{ csrf_field() }}
                     <input type="hidden" name="status" value="{{ a.status == 'free' ? 'reserved' : 'free' }}">
-                    {% if a.status == 'free' %}<input type="text" name="note" placeholder="{{ 'Reason'|t }}" aria-label="{{ 'Reason'|t }}" size="12">{% endif %}
+                    {% if a.status == 'free' %}<input type="text" name="note" class="input-inline" placeholder="{{ 'Reason'|t }}" aria-label="{{ 'Reason'|t }}" maxlength="255">{% endif %}
                     <button class="btn btn-sm btn-outline" type="submit">{{ a.status == 'free' ? 'Reserve'|t : 'Release'|t }}</button></form>
             {% endif %}</td></tr>
     {% endfor %}</tbody>

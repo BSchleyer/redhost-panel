@@ -2,7 +2,7 @@
 
 Integrations connect Nebrix to the systems that run customers' services. They are managed in **Admin → Integrations** (permission `integrations.manage`); several connections per type are possible (e.g. one Proxmox entry per cluster). Each product is linked to one integration.
 
-> **Test status.** All four integrations are covered by automated tests against **mocked API responses** (Guzzle mock handler) and, for TeamSpeak, a **local fake ServerQuery socket server**. They have **not** been tested against live Proxmox, Pterodactyl, Nextcloud or TeamSpeak installations during this modernization because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → suspension → unsuspension → termination on a staging system for every product type.
+> **Test status.** All integrations (Proxmox, Pterodactyl, Nextcloud, TeamSpeak, Hetzner Robot, Plesk, INWX) are covered by automated tests against **stateful fakes of their APIs** (mocked HTTP, a fake ServerQuery socket server and a fake console WebSocket server). They have **not** been tested against live systems because no credentials or test systems were available. Before going live, run the connection test in the admin panel and walk through order → provisioning → actions → suspension → unsuspension → termination on a staging system for every product type. Use the Hetzner order **test mode** and the INWX **OTE** system first.
 
 ## Common behaviour
 
@@ -14,10 +14,21 @@ Integrations connect Nebrix to the systems that run customers' services. They ar
 | Connection test | "Test connection" in the admin panel and `php bin/nebrix integrations:check`; the scheduler re-checks enabled integrations every 30 minutes and shows the health status. |
 | Logging | Every request is logged in `nx_integration_logs` (method, path, status, duration, error) without bodies or secrets; retention configurable. |
 | Provisioning | Runs in the queue worker (`service.provision`). Remote IDs and progress are stored **before/after each remote step**, so a retried job continues instead of creating duplicates. Temporary states (remote task still running) are retried with back-off; permanent errors mark the service `failed` and show the error to staff (Admin → Services → *Retry provisioning*). |
-| Customer actions | Power/maintenance actions are only offered for active services and only if the customer group allows self-service. Every action is checked server-side and audit-logged. |
+| Customer actions | Actions (power, password reset, reinstall, rDNS, name servers, …) are only offered for active services and only if the customer group allows self-service. Only actions the provisioner offers for the service are accepted; input fields are validated server-side (select fields only accept the offered values). Every action is audit-logged. Staff run the same actions under Admin → Services → *Remote actions*. |
+| Reinstall | Reinstalling (Proxmox, Hetzner) sets the service to `provisioning` and re-runs the regular, idempotent provisioning job, which first removes the old installation. Limited to 3 per service and hour for customers. |
 | Credentials of services | Generated passwords/keys are stored encrypted in `nx_services.credentials`; customers reveal them explicitly (logged in the audit log). |
 
-Product categories without an automated integration – **Dedicated server**, **Webhosting**, **Domain** – are fulfilled manually: the service is created in state `pending`, staff set it up and use Admin → Services → *Activate manually* (optionally storing access data, encrypted).
+A product is provisioned automatically when it has an integration and "Provision automatically" is on. Without an integration (any category) the service is created in state `pending`, staff set it up and use Admin → Services → *Activate manually* (optionally storing access data, encrypted).
+
+| Category | Integration |
+|---|---|
+| VPS/KVM, LXC | Proxmox VE |
+| Dedicated server | Hetzner Robot |
+| Webhosting | Plesk |
+| Domain | INWX (registrar interface for further registrars) |
+| Minecraft / game server | Pterodactyl |
+| Nextcloud storage | Nextcloud |
+| TeamSpeak 3 | TeamSpeak ServerQuery |
 
 ## Proxmox VE (VPS/KVM and LXC)
 
@@ -52,10 +63,15 @@ pveum acl modify / --tokens 'nebrix@pve!panel' --roles NebrixProvisioner
 
 Granting the role on `/` is the simplest option; for tighter scoping grant it on a resource pool (`/pool/<name>`), the target storages (`/storage/<id>`), the nodes (`/nodes`) and the bridge (`/sdn/zones/localnetwork`) instead.
 
-### Product configuration
-**VPS / KVM server** – Node (empty = node with the most free memory), template VM ID, target storage, CPU cores, memory, disk size, bridge, rate limit, first VM ID. Customers choose a hostname when ordering.
+Additional privileges for the console and the password reset: `VM.Console` (`vncproxy`/`vncwebsocket`) and the privilege for QEMU guest agent calls (`VM.Monitor` on Proxmox VE 8; newer versions use `VM.GuestAgent.*` privileges). Check the API viewer of your Proxmox version for `agent/set-user-password` and `vncproxy`.
 
-**LXC container** – Node, OS template (`local:vztmpl/debian-12-standard_….tar.zst`), root disk storage, cores, memory, swap, disk, bridge, rate limit, unprivileged flag, first container ID.
+### Product configuration
+**VPS / KVM server** – Node (empty = node with the most free memory), template VM ID, target storage, CPU cores, memory, disk size, bridge, rate limit, first VM ID, IP pool (empty = DHCP), additional templates for reinstall (`VM ID|Label` per line). Customers choose a hostname when ordering.
+
+**LXC container** – Node, OS template (`local:vztmpl/debian-12-standard_….tar.zst`), root disk storage, cores, memory, swap, disk, bridge, rate limit, unprivileged flag, first container ID, IP pool, additional OS templates for reinstall (`template|Label` per line).
+
+### IP pools (static addressing)
+Admin → IP pools manages IPv4 networks (CIDR /16–/32) with gateway, resolvers and an optional assignable range. Network, broadcast and gateway addresses are never assigned; single addresses can be reserved (e.g. for routers). A product with a pool gives each service one address: KVM via cloud-init (`ipconfig0 ip=…/prefix,gw=…`, `nameserver`), LXC via `net0 ip=…,gw=…` and `nameserver`. IPv6 stays on SLAAC (`ip6=auto`). The allocation is idempotent per service (row lock, unique key), survives reinstalls and is released after the guest has been deleted. When a pool is exhausted provisioning stops with a clear error.
 
 ### Lifecycle
 | Step | KVM | LXC |
@@ -64,14 +80,99 @@ Granting the role on `/` is the simplest option; for tighter scoping grant it on
 | VMID | `vmid_start + service ID` (deterministic). An existing guest on that VMID is adopted only if its description contains `nebrix-service-<id>` (written at creation); otherwise provisioning stops with a conflict and termination refuses to delete it. Use non-overlapping `vmid_start` ranges per product. | same |
 | Suspend / unsuspend | Stop / start the guest | same |
 | Terminate | Stop (if running) → delete the guest (`purge`) after the task finished | same |
-| Customer actions | Start, shut down, reboot, force stop; live status (state, uptime, CPU, memory, disk, network) | same |
+| Customer actions | Start, shut down, reboot, force stop, **reset root password** (QEMU guest agent; if the agent is not running via cloud-init at the next boot), **reinstall**, **console**; live status (state, uptime, CPU, memory, disk, network, IPv4) | Start, shut down, reboot, force stop, **reinstall**, **console** (the root password of a container can only be changed by reinstalling) |
+| Reinstall | Stop → delete (ownership checked) → clone the chosen template again with the same VMID and address, new root password | same with the chosen OS template |
 
 Requirements and limitations:
 * KVM templates must be **cloud-init enabled** (cloud-init drive attached, `qemu-guest-agent` recommended) and use `scsi0` as the boot disk.
-* IP addresses are assigned by **DHCP** on the bridge; IPAM/static IP pools are not implemented. Provide DHCP (or SDN with DHCP) on the chosen bridge.
-* Customer self-service reinstall, password reset and noVNC console are **not implemented**.
+* Without an IP pool, addresses come from **DHCP** on the bridge (provide DHCP or SDN with DHCP).
+* Guests imported from RED-Host (`legacy:import --only=services`) have no marker; the importer records their VMID and the provisioner accepts exactly that VMID.
 * Keep "Unprivileged container" enabled for LXC products: Proxmox allows only `root@pam` to set feature flags on privileged containers, and many privileged-container options are not available to API tokens.
 * Multi-cluster: create one integration per cluster and one product per cluster/plan.
+
+### Console (noVNC)
+Customers (and staff) open a graphical console from the service page. The browser never receives Proxmox credentials:
+
+1. The panel requests a VNC ticket (`POST …/vncproxy websocket=1`) and stores the upstream target (address, path with ticket, API token header) **encrypted** in `nx_console_sessions` under the SHA-256 hash of a random 256-bit token, valid for **60 seconds** and **once**.
+2. The page (noVNC 1.7.0, vendored) connects to `CONSOLE_WS_URL?token=…` and authenticates the VNC session with the ticket.
+3. `bin/nebrix console:proxy` redeems the token, checks that service and user are still active, connects to Proxmox (address pinned, TLS verified per integration, `Sec-WebSocket-Accept` checked) and relays the WebSocket frames unchanged. It checks the `Origin` (must be `APP_URL`), limits header size, handshake time (10 s), concurrent connections (`CONSOLE_MAX_CONNECTIONS`, default 100), session duration (`CONSOLE_MAX_LIFETIME`, default 4 h) and buffered bytes.
+
+Run the proxy as a service (docker-compose service `console`, or systemd) and route `CONSOLE_WS_URL` (default `wss://<panel>/console/ws`) from the TLS reverse proxy to it, e.g. nginx:
+
+```nginx
+location /console/ws { proxy_pass http://127.0.0.1:8081; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 4h; }
+```
+
+Opening a console is audit-logged and rate-limited (10 per 5 minutes per user).
+
+## Hetzner Robot (dedicated servers)
+
+### Connection settings
+| Field | Notes |
+|---|---|
+| Robot API URL | `https://robot-ws.your-server.de` (default) |
+| Webservice user / password | Create a separate webservice user in Robot (Settings → Webservice and app settings). Basic authentication over HTTPS. |
+| Pool prefix | Only servers whose Robot **server name** starts with this prefix (default `nebrix-free`) are handed out. |
+| Allow ordering new servers | Off by default. Products in *order* mode buy servers at Hetzner – this causes costs. |
+| Send orders in test mode | On by default: Hetzner validates the order without processing it; provisioning then stops with a clear message. |
+| Cancel ordered servers when terminated | Off by default. |
+| SSH key fingerprint for orders | Optional key stored in Robot, used for newly ordered servers before the customer installation. |
+
+### Product configuration
+Mode (*pool* or *order*), server model (pool: part of the Robot product name such as `AX41`; order: Robot order product ID such as `AX41-NVMe`), location (`FSN1`, `NBG1`, `HEL1`, empty = any), operating system image (exact name from the Robot Linux installation, e.g. `Debian 12 base`), additional images for reinstall (one per line). For manual fulfilment leave the integration empty and switch off "Provision automatically".
+
+### Lifecycle
+| Step | Behaviour |
+|---|---|
+| Pool assignment | Under a database lock the first ready, not cancelled server with the pool prefix, matching model and location that is not reserved by another service is reserved and renamed to `nebrix-service-<id>`. An empty pool stops provisioning with a clear error (add servers, retry). |
+| Order | Only with *Allow ordering*. The order carries the comment `nebrix-service-<id>`; a retry finds an existing order by that comment instead of ordering twice. Waits (10-minute retries) until Hetzner delivers the server. |
+| Installation | Activates the Linux installation (Hetzner generates the root password, stored encrypted), hardware reset, waits until the installer has booted and at least 10 minutes have passed. |
+| Suspend / unsuspend | Enables the Robot firewall without rules (incoming traffic dropped) after saving the current firewall; unsuspend restores it. The server keeps running. |
+| Terminate | Boots the rescue system (the customer's OS stops), optionally cancels ordered servers at the earliest date, and renames the server to `nebrix-wipe-<number>`. **Disks are not wiped automatically**: wipe the server, then rename it to the pool prefix to return it to the pool. |
+| Customer actions | Reboot (CTRL+ALT+DEL), hardware reset, power button, rescue system (password under access data), reverse DNS of the main IPv4, reinstall with an offered image. |
+| Status | Model, location, IPv4/IPv6, traffic; cached for 5 minutes because of the Robot API request limits. |
+
+Every action first checks that the server is still named `nebrix-service-<id>` (re-checked hourly). Admin → Integrations → *Remote resources* lists all Robot servers with their pool state (free, assigned, wipe, unmanaged).
+
+## Plesk (webhosting)
+
+### Connection settings
+Plesk URL (`https://host:8443`), shared IPv4 address for new subscriptions, **API secret key** created on the Plesk server:
+
+```bash
+plesk bin secret_key --create -ip-address <panel IP> -description Nebrix
+```
+
+The XML API (`/enterprise/control/agent.php`) is used; requests are built with escaped values and responses are parsed without DTDs.
+
+### Product configuration
+Name of the Plesk **service plan** (required for automatic provisioning). Customers enter the domain when ordering.
+
+### Lifecycle
+* One Plesk customer per Nebrix customer (external ID `nebrix-user-<id>`, login `nx<id>`, generated password), shared by all subscriptions of the customer; one subscription per service with FTP user `nx<service id>` and a generated password.
+* A subscription for the domain that belongs to another Plesk customer is never adopted.
+* Suspend/unsuspend set the subscription status (16 = suspended by admin / 0 = active); terminate deletes the subscription (the customer account stays).
+* Customer actions: **Open Plesk** (one-time login session; the panel shows a link page because the strict CSP does not allow form posts to redirect to other hosts) and **reset the Plesk password** (applies to all subscriptions of the customer).
+
+## INWX (domains)
+
+### Connection settings
+Environment (**OTE** test system by default, or live), INWX user name and password, default name servers (one per line), optional two-factor secret (Base32) – the panel then unlocks the session with a generated TOTP code.
+
+### Product configuration
+Top-level domain (e.g. `de`); product billing cycle *annually*. Customers enter the domain and, for transfers, the auth code.
+
+### Before the order
+* The domain must be a direct second-level domain of the product's TLD.
+* The customer profile must contain name, address, postcode, city, country and a phone number (converted to the EPP format `+CC.NUMBER`).
+* Availability is checked at INWX; registered domains can only be ordered with an auth code (transfer), free domains only without one.
+
+### Lifecycle
+* A registrant contact is created from the profile and reused as long as the data does not change; the same contact is used as admin, tech and billing contact.
+* Registration (`domain.create`, 1 year, auto-renew) or transfer (`domain.transfer`). The auth code is stored **encrypted** with the order and removed from the service after the transfer request.
+* A domain that is already in the INWX account but was not submitted by this service is never adopted.
+* Suspend: renewal mode *AUTOEXPIRE*; unsuspend: *AUTORENEW*; terminate: *AUTODELETE* (deleted at the end of the term, never immediately).
+* Customer actions: change name servers, show the auth code (stored under access data).
 
 ## Pterodactyl (Minecraft / game servers)
 
@@ -120,6 +221,10 @@ Slots. Customers choose a server name.
 * Terminate: stop and delete the virtual server.
 * Customer actions: start, stop, restart, create a new admin privilege key.
 * All parameter values are escaped according to the ServerQuery specification; command and parameter names are fixed in code.
+
+## Imported RED-Host services
+
+`legacy:import --only=services` links legacy LXC/KVM servers, TeamSpeak servers, game servers and webspaces to the integrations you map (see UPGRADE_GUIDE.md). These services are marked `legacy`: the provisioners accept the remote IDs recorded by the legacy database (Proxmox VMID, Pterodactyl server ID, Plesk subscription ID) although the objects carry no Nebrix marker.
 
 ## Adding a new integration type
 

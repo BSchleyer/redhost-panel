@@ -52,7 +52,8 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 
 * Category: VPS/KVM, LXC container, Dedicated server, Webhosting, Domain, Minecraft/game server, TeamSpeak 3, Nextcloud storage.
 * Name, URL slug, description, feature list, price, setup fee, currency, billing cycle (monthly, quarterly, every 6 months, annually, one-time), tax rate, stock (empty = unlimited), visibility and active flags, sort order, optional customer-group restriction.
-* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk for Proxmox; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. "Provision automatically" can be switched off to fulfil orders manually.
+* **Provisioning**: integration and category-specific settings (e.g. template, CPU, memory, disk, IP pool and reinstall templates for Proxmox; mode, model, location and images for Hetzner dedicated servers; service plan for Plesk; TLD for domains; nest/egg/limits for Pterodactyl; slots for TeamSpeak; quota for Nextcloud). All values are validated. For manual fulfilment leave the integration empty and switch off "Provision automatically" (the form does not accept automation without an integration).
+* For Hetzner pool products set the **stock** to the number of free pool servers so customers cannot order more than you have.
 * Products are not deleted; deactivate or hide them instead. Existing orders and services keep their price snapshot.
 
 ## Orders, invoices and transactions
@@ -66,7 +67,9 @@ Groups provide a percentage discount on orders and renewals and can disable orde
 
 * Filter by status and category; search by service name, customer e-mail or service ID.
 * Service page: configuration, remote identifiers, live status (where supported), access data (revealing it is audit-logged), invoices, related jobs and the last provisioning error.
-* Actions: suspend (with reason; the customer is notified), unsuspend, terminate (deletes the remote resource – confirm carefully), **retry provisioning** for failed services, **activate manually** (for categories without automation, optionally storing access data), customer-style power actions.
+* Actions: suspend (with reason; the customer is notified), unsuspend, terminate (deletes the remote resource – confirm carefully), **retry provisioning** for failed services, **activate manually** (for services without automation, optionally storing access data).
+* **Remote actions**: the actions the integration offers (power, password reset, reinstall, rescue system, reverse DNS, name servers, Plesk login, …) – the same as for customers, executed and audit-logged in the staff member's name.
+* **Console**: graphical console for Proxmox VMs and containers (requires the console proxy, see INSTALLATION.md).
 * Services are suspended automatically when their renewal invoice is unpaid after the grace period and reactivated when it is paid. Termination of long-suspended services happens only if enabled in the billing settings.
 
 ## Support tickets
@@ -75,7 +78,12 @@ Customers open tickets (optionally about one of their services). Staff reply, ch
 
 ## Integrations
 
-Add Proxmox clusters, Pterodactyl panels, Nextcloud instances and TeamSpeak servers; credentials are stored encrypted and never displayed again. The integration page shows health, the last check, the request log and (for Proxmox/Pterodactyl) available resources such as nodes. Disabled integrations are not used for provisioning.
+Add Proxmox clusters, Hetzner Robot accounts, Plesk servers, INWX accounts, Pterodactyl panels, Nextcloud instances and TeamSpeak servers; credentials are stored encrypted and never displayed again. The integration page shows health, the last check, the request log and available resources (Proxmox nodes, Pterodactyl nodes/eggs, TeamSpeak servers, Hetzner servers with their pool state). Disabled integrations are not used for provisioning.
+
+**Hetzner pool workflow**: name spare servers in Robot with the pool prefix (e.g. `nebrix-free-1`). Assigned servers are renamed to `nebrix-service-<id>`. After a termination the server appears as *wipe* (`nebrix-wipe-<number>`): wipe its disks, then rename it back to the pool prefix.
+
+### IP pools
+Admin → IP pools: create IPv4 pools (network, gateway, resolvers, optional range) and assign them to VPS/LXC products. The pool page shows every address with its status and service; free addresses can be reserved (and released) with a note. Pools that are used by products or still have assigned addresses cannot be deleted.
 
 ## E-mail templates
 

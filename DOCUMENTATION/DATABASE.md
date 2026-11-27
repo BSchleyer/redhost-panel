@@ -38,6 +38,7 @@ php bin/nebrix migrate
 | `000003_create_jobs_and_support_tables` | jobs, scheduler runs, tickets, ticket messages |
 | `000004_add_two_factor_replay_protection` | `nx_users.two_factor_last_slice` |
 | `000005_create_sequences_table` | gap-free counters for invoice and order numbers |
+| `000006_create_infrastructure_tables` | IP pools and addresses, console sessions, registrar contacts, legacy import mapping and history |
 
 ## Tables
 
@@ -71,6 +72,15 @@ php bin/nebrix migrate
 | `nx_credit_ledger` | Every change of a customer's credit balance with the resulting balance, reason, reference and actor. |
 | `nx_sequences` | Counters for invoice/order numbers (incremented inside the transaction with a row lock). |
 
+### Infrastructure
+| Table | Purpose |
+|---|---|
+| `nx_ip_pools`, `nx_ip_addresses` | IPv4 pools and their addresses (`free`, `assigned`, `reserved`); unique `(pool_id, address)`. |
+| `nx_console_sessions` | Single-use console tokens (SHA-256 hash), encrypted upstream target, expiry, use time; pruned after a day. |
+| `nx_registrar_contacts` | Registrant contacts created at the registrar per customer and contact data hash. |
+| `nx_legacy_map` | Imported RED-Host records → Nebrix entities (idempotent imports). |
+| `nx_legacy_records` | Read-only payment and balance history from RED-Host. |
+
 ### Background processing and support
 | Table | Purpose |
 |---|---|
@@ -101,7 +111,13 @@ Test restores regularly in a non-production environment.
 
 ## Optional hardening: append-only triggers
 
-The application has no code path that updates or deletes payment events or audit log entries. If your database user may create triggers, you can enforce this in the database as well (test on staging first):
+The application has no code path that updates or deletes payment events, audit log entries or credit ledger rows. If your database user may create triggers, enforce this in the database as well:
+
+```bash
+php bin/nebrix db:triggers --install
+```
+
+`db:triggers` shows the state, `--remove` removes them (e.g. before restoring a backup). The command creates these statements (shown for two tables):
 
 ```sql
 CREATE TRIGGER nx_payment_events_no_update BEFORE UPDATE ON nx_payment_events FOR EACH ROW

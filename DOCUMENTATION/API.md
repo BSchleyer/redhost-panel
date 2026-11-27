@@ -10,6 +10,7 @@ Nebrix currently has **no public REST API** for customers or resellers. All cust
 | `POST` | `/webhooks/stripe` | Stripe signature (`Stripe-Signature`, signing secret) | Stripe events – see [PAYMENTS.md](PAYMENTS.md). |
 | `POST` | `/webhooks/paypal` | PayPal transmission headers verified via PayPal's API and the configured webhook ID | PayPal events – see [PAYMENTS.md](PAYMENTS.md). |
 | `GET` | `/branding.css` | none | Brand colours as CSS custom properties (cacheable). |
+| `GET` (WebSocket) | `CONSOLE_WS_URL` (default `/console/ws?token=…`), served by `console:proxy` | single-use console token + `Origin` = `APP_URL` | Relay to the hypervisor's VNC WebSocket (see INTEGRATIONS.md). |
 
 Webhook responses:
 
@@ -37,7 +38,9 @@ There are no other unauthenticated endpoints that change state, and there is no 
 | `integrations:check` | Runs the connection test of every enabled integration. |
 | `queue:work [--once] [--max-jobs=N] [--max-time=SECONDS] [--sleep=3]` | Processes background jobs. |
 | `schedule:run [--force]` | Runs due scheduler tasks (every minute from cron). |
-| `legacy:import [--dry-run]` | Imports customer accounts and balances from a RED-Host database (see [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md)). |
+| `legacy:import [--dry-run] [--only=users,services,tickets,history] [--proxmox-nodes=…] [--teamspeak-hosts=…] [--pterodactyl=…] [--plesk=…]` | Imports accounts, services, tickets and payment history from a RED-Host database (see [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md)). |
+| `console:proxy [--listen=0.0.0.0:8081]` | WebSocket proxy for server consoles (long-running). |
+| `db:triggers [--install\|--remove]` | Shows, installs or removes the append-only triggers. |
 
 Exit code `0` means success; any other value indicates an error (printed to stderr).
 
@@ -60,7 +63,10 @@ Handlers implement `Nebrix\Queue\JobHandler` (optionally `FailureAwareJobHandler
 | Extension | Interface / location |
 |---|---|
 | Payment gateway | `Nebrix\Payment\PaymentGateway` – register in `GatewayRegistry`; record money only through `PaymentService` (`recordPayment`, `recordRefund`, `recordDispute`). |
-| Provisioning module | `Nebrix\Provisioning\Provisioner` – register in `ProvisionerRegistry`; see [INTEGRATIONS.md](INTEGRATIONS.md#adding-a-new-integration-type). |
+| Provisioning module | `Nebrix\Provisioning\Provisioner` – register in `ProvisionerRegistry`; see [INTEGRATIONS.md](INTEGRATIONS.md#adding-a-new-integration-type). Actions are `ServiceAction` objects (label, validated fields, confirmation, mode `sync`, `reinstall` or `redirect`). |
+| Console | `Nebrix\Provisioning\ConsoleProvider` (returns the upstream WebSocket target). |
+| Order checks | `Nebrix\Provisioning\OrderPrecheck` (validate an order before it is placed, e.g. domain availability). |
+| Domain registrar | `Nebrix\Domain\Registrar` (implemented by `Integration\Inwx\InwxClient`). |
 | Integration type | `Nebrix\Integration\IntegrationType` (fields) + client based on `Integration\Http\ApiClient`. |
 | Product category | `Nebrix\Catalog\ProductCategory` (provisioning fields and customer options with validation rules). |
 | Settings | `config/settings.php` (typed, validated, optionally secret). |
