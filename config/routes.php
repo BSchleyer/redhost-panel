@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Nebrix\Controller\Account;
 use Nebrix\Controller\Admin;
+use Nebrix\Controller\Api;
 use Nebrix\Controller\Auth;
 use Nebrix\Controller\BrandingController;
 use Nebrix\Controller\Customer;
@@ -22,6 +23,63 @@ return static function (Router $r): void {
     $r->get('/health', [HealthController::class, 'show']);
     $r->get('/branding.css', [BrandingController::class, 'stylesheet']);
     $r->get('/', [Auth\LoginController::class, 'home']);
+
+    // -------------------------------------------------------------- REST API
+    // Stateless: Bearer token instead of the session cookie, no CSRF, JSON
+    // errors. Every route requires a scope; admin scopes additionally require
+    // the matching staff permission (checked per request).
+    $r->group(['prefix' => '/api/v1', 'stateless' => true], static function (Router $r): void {
+        $r->get('', [Api\AccountController::class, 'index']);
+        $r->get('/openapi.json', [Api\AccountController::class, 'openApi']);
+
+        $r->group(['middleware' => ['api.auth', 'api.idempotent']], static function (Router $r): void {
+            $r->get('/me', [Api\AccountController::class, 'me'], ['middleware' => ['api.scope:account:read']]);
+
+            $r->get('/products', [Api\StoreController::class, 'products'], ['middleware' => ['api.scope:products:read']]);
+            $r->get('/products/{id:\d+}', [Api\StoreController::class, 'product'], ['middleware' => ['api.scope:products:read']]);
+            $r->get('/orders', [Api\StoreController::class, 'orders'], ['middleware' => ['api.scope:orders:read']]);
+            $r->get('/orders/{id:\d+}', [Api\StoreController::class, 'order'], ['middleware' => ['api.scope:orders:read']]);
+            $r->post('/orders', [Api\StoreController::class, 'placeOrder'], ['middleware' => ['api.scope:orders:create']]);
+
+            $r->get('/services', [Api\ServiceController::class, 'index'], ['middleware' => ['api.scope:services:read']]);
+            $r->get('/services/{id:\d+}', [Api\ServiceController::class, 'show'], ['middleware' => ['api.scope:services:read']]);
+            $r->get('/services/{id:\d+}/status', [Api\ServiceController::class, 'status'], ['middleware' => ['api.scope:services:read']]);
+            $r->get('/services/{id:\d+}/actions', [Api\ServiceController::class, 'actions'], ['middleware' => ['api.scope:services:read']]);
+            $r->post('/services/{id:\d+}/actions/{action:[a-z0-9_]{1,30}}', [Api\ServiceController::class, 'runAction'], ['middleware' => ['api.scope:services:manage']]);
+            $r->get('/services/{id:\d+}/credentials', [Api\ServiceController::class, 'credentials'], ['middleware' => ['api.scope:services:credentials']]);
+
+            $r->get('/invoices', [Api\InvoiceController::class, 'index'], ['middleware' => ['api.scope:invoices:read']]);
+            $r->get('/invoices/{id:\d+}', [Api\InvoiceController::class, 'show'], ['middleware' => ['api.scope:invoices:read']]);
+            $r->post('/invoices/{id:\d+}/pay', [Api\InvoiceController::class, 'pay'], ['middleware' => ['api.scope:invoices:pay']]);
+
+            $r->get('/tickets', [Api\TicketController::class, 'index'], ['middleware' => ['api.scope:tickets:read']]);
+            $r->get('/tickets/{id:\d+}', [Api\TicketController::class, 'show'], ['middleware' => ['api.scope:tickets:read']]);
+            $r->post('/tickets', [Api\TicketController::class, 'store'], ['middleware' => ['api.scope:tickets:write']]);
+            $r->post('/tickets/{id:\d+}/replies', [Api\TicketController::class, 'reply'], ['middleware' => ['api.scope:tickets:write']]);
+            $r->post('/tickets/{id:\d+}/close', [Api\TicketController::class, 'close'], ['middleware' => ['api.scope:tickets:write']]);
+
+            $r->group(['prefix' => '/admin'], static function (Router $r): void {
+                $r->get('/customers', [Api\Admin\CatalogController::class, 'customers'], ['middleware' => ['api.scope:admin:customers:read']]);
+                $r->get('/customers/{id:\d+}', [Api\Admin\CatalogController::class, 'customer'], ['middleware' => ['api.scope:admin:customers:read']]);
+                $r->get('/products', [Api\Admin\CatalogController::class, 'products'], ['middleware' => ['api.scope:admin:products:read']]);
+                $r->get('/orders', [Api\Admin\CatalogController::class, 'orders'], ['middleware' => ['api.scope:admin:orders:read']]);
+                $r->get('/orders/{id:\d+}', [Api\Admin\CatalogController::class, 'order'], ['middleware' => ['api.scope:admin:orders:read']]);
+                $r->get('/invoices', [Api\Admin\CatalogController::class, 'invoices'], ['middleware' => ['api.scope:admin:invoices:read']]);
+                $r->get('/invoices/{id:\d+}', [Api\Admin\CatalogController::class, 'invoice'], ['middleware' => ['api.scope:admin:invoices:read']]);
+
+                $r->get('/services', [Api\Admin\ServiceController::class, 'index'], ['middleware' => ['api.scope:admin:services:read']]);
+                $r->get('/services/{id:\d+}', [Api\Admin\ServiceController::class, 'show'], ['middleware' => ['api.scope:admin:services:read']]);
+                $r->post('/services/{id:\d+}/suspend', [Api\Admin\ServiceController::class, 'suspend'], ['middleware' => ['api.scope:admin:services:write']]);
+                $r->post('/services/{id:\d+}/unsuspend', [Api\Admin\ServiceController::class, 'unsuspend'], ['middleware' => ['api.scope:admin:services:write']]);
+                $r->post('/services/{id:\d+}/terminate', [Api\Admin\ServiceController::class, 'terminate'], ['middleware' => ['api.scope:admin:services:write']]);
+                $r->post('/services/{id:\d+}/retry', [Api\Admin\ServiceController::class, 'retry'], ['middleware' => ['api.scope:admin:services:write']]);
+
+                $r->get('/tickets', [Api\Admin\TicketController::class, 'index'], ['middleware' => ['api.scope:admin:tickets:read']]);
+                $r->get('/tickets/{id:\d+}', [Api\Admin\TicketController::class, 'show'], ['middleware' => ['api.scope:admin:tickets:read']]);
+                $r->post('/tickets/{id:\d+}/replies', [Api\Admin\TicketController::class, 'reply'], ['middleware' => ['api.scope:admin:tickets:write']]);
+            });
+        });
+    });
 
     // Payment webhooks: authenticated by provider signatures, therefore no CSRF token.
     $r->post('/webhooks/stripe', [WebhookController::class, 'stripe'], ['csrf' => false]);
@@ -89,6 +147,9 @@ return static function (Router $r): void {
         $r->post('/account/two-factor/disable', [Account\SecurityController::class, 'disableTwoFactor']);
         $r->post('/account/two-factor/recovery-codes', [Account\SecurityController::class, 'regenerateRecoveryCodes']);
         $r->post('/account/sessions/logout-others', [Account\SecurityController::class, 'logoutOtherSessions']);
+        $r->get('/account/api-tokens', [Account\ApiTokenController::class, 'index']);
+        $r->post('/account/api-tokens', [Account\ApiTokenController::class, 'store']);
+        $r->post('/account/api-tokens/{id:\d+}/revoke', [Account\ApiTokenController::class, 'revoke']);
     });
 
     // -------------------------------------------------------- administration
@@ -224,6 +285,12 @@ return static function (Router $r): void {
         });
 
         $r->get('/audit-log', [Admin\LogController::class, 'auditLog'], ['middleware' => ['permission:audit.view']]);
+
+        $r->group(['middleware' => ['permission:api_tokens.manage']], static function (Router $r): void {
+            $r->get('/api-tokens', [Admin\ApiTokenController::class, 'index']);
+            $r->post('/api-tokens/{id:\d+}/revoke', [Admin\ApiTokenController::class, 'revoke']);
+            $r->post('/api-tokens/user/{userId:\d+}/revoke', [Admin\ApiTokenController::class, 'revokeForUser']);
+        });
 
         $r->get('/jobs', [Admin\JobController::class, 'index'], ['middleware' => ['permission:jobs.view']]);
         $r->post('/jobs/{id:\d+}/retry', [Admin\JobController::class, 'retry'], ['middleware' => ['permission:jobs.manage']]);

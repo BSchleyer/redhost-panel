@@ -38,6 +38,7 @@
             {% if can('roles.manage') %}<a href="/admin/roles" class="{{ active('/admin/roles') }}">{{ 'Roles & permissions'|t }}</a>{% endif %}
             {% if can('staff.view') %}<a href="/admin/login-history" class="{{ active('/admin/login-history') }}">{{ 'Login history'|t }}</a>{% endif %}
             {% if can('audit.view') %}<a href="/admin/audit-log" class="{{ active('/admin/audit-log') }}">{{ 'Audit log'|t }}</a>{% endif %}
+            {% if can('api_tokens.manage') %}<a href="/admin/api-tokens" class="{{ active('/admin/api-tokens') }}">{{ 'API tokens'|t }}</a>{% endif %}
 
             <div class="nav-section">{{ 'Account'|t }}</div>
             <a href="/dashboard">{{ 'Customer area'|t }}</a>

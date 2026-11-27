@@ -101,6 +101,13 @@ return static function (Container $c, Config $config, string $basePath): void {
             'verified' => Middleware\EnsureEmailVerified::class,
             'staff' => Middleware\RequireStaff::class,
             'permission' => Middleware\RequirePermission::class,
+            'api.auth' => Nebrix\Api\Middleware\AuthenticateApiToken::class,
+            'api.scope' => Nebrix\Api\Middleware\RequireApiScope::class,
+            'api.idempotent' => Nebrix\Api\Middleware\IdempotentRequest::class,
+        ],
+        // REST API: no session, no CSRF (token-authenticated), JSON errors.
+        [
+            Nebrix\Api\Middleware\PrepareApiRequest::class,
         ],
     ));
 

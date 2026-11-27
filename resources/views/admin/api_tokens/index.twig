@@ -1,0 +1,39 @@
+{% extends 'layouts/admin.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'API tokens'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'API tokens'|t }}</h1><p class="muted">{{ 'Personal access tokens of all users. Users create tokens under Account → API tokens.'|t }}</p></div></div>
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="filters">
+            <div class="form-row"><label for="s">{{ 'E-mail, name or token prefix'|t }}</label><input id="s" type="search" name="search" value="{{ filters.search }}"></div>
+            {{ f.select('state', 'Status', {'': 'All', 'active': 'Active', 'inactive': 'Revoked or expired'}, filters.state, {'data-autosubmit': true}) }}
+            <button class="btn btn-outline" type="submit">{{ 'Filter'|t }}</button>
+        </form>
+    </div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>{{ 'User'|t }}</th><th>{{ 'Name'|t }}</th><th>{{ 'Token'|t }}</th><th>{{ 'Permissions'|t }}</th><th>{{ 'Last used'|t }}</th><th>{{ 'Expires'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+        <tbody>
+        {% for t in result.items %}
+            {% set active = t.revoked_at is null and t.expires_at > now %}
+            <tr>
+                <td>{{ t.email }}</td>
+                <td>{{ t.name }}{% if t.allowed_ips %}<div class="small muted">{{ 'IP-restricted'|t }}</div>{% endif %}</td>
+                <td class="mono">nbx_{{ t.token_prefix }}…</td>
+                <td class="small">{{ t.scope_list|join(', ') }}</td>
+                <td class="nowrap">{{ t.last_used_at ? t.last_used_at|dt : '–' }}{% if t.last_used_ip %}<div class="small muted mono">{{ t.last_used_ip }}</div>{% endif %}</td>
+                <td class="nowrap">{{ t.expires_at|dt }}</td>
+                <td>{% if t.revoked_at %}<span class="badge badge-neutral">{{ 'revoked'|t }}</span>{% elseif not active %}<span class="badge badge-neutral">{{ 'expired'|t }}</span>{% else %}<span class="badge badge-success">{{ 'active'|t }}</span>{% endif %}</td>
+                <td class="nowrap">
+                    {% if active %}
+                    <form method="post" action="/admin/api-tokens/{{ t.id }}/revoke" class="d-inline" data-confirm="{{ 'Revoke this token?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-danger" type="submit">{{ 'Revoke'|t }}</button></form>
+                    <form method="post" action="/admin/api-tokens/user/{{ t.user_id }}/revoke" class="d-inline" data-confirm="{{ 'Revoke all API tokens of this user?'|t }}">{{ csrf_field() }}<button class="btn btn-sm btn-outline" type="submit">{{ 'Revoke all of user'|t }}</button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}<tr><td colspan="8" class="empty">{{ 'No API tokens.'|t }}</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'partials/pagination.twig' with {total: result.total, per_page: 50} %}
+</div>
+{% endblock %}

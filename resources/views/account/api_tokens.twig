@@ -1,0 +1,73 @@
+{% extends 'layouts/customer.twig' %}
+{% import 'macros/forms.twig' as f %}
+{% block title %}{{ 'API tokens'|t }}{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>{{ 'API tokens'|t }}</h1><p class="muted">{{ 'Personal access tokens for the REST API. Send a token as "Authorization: Bearer …". Documentation:'|t }} <a href="/api/v1/openapi.json">/api/v1/openapi.json</a></p></div></div>
+
+{% if unavailable %}
+<div class="alert alert-info">{{ unavailable|t }}</div>
+{% endif %}
+
+{% if new_token %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Your new API token'|t }}</h2></div>
+    <div class="card-body">
+        <div class="alert alert-warning">{{ 'Copy the token now. It is shown only once and cannot be displayed again.'|t }}</div>
+        <pre id="new-api-token" class="mono">{{ new_token }}</pre>
+        <button class="btn btn-sm btn-outline" type="button" data-copy="#new-api-token">{{ 'Copy'|t }}</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header"><h2>{{ 'Your tokens'|t }}</h2></div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>{{ 'Name'|t }}</th><th>{{ 'Token'|t }}</th><th>{{ 'Permissions'|t }}</th><th>{{ 'Last used'|t }}</th><th>{{ 'Expires'|t }}</th><th>{{ 'Status'|t }}</th><th></th></tr></thead>
+            <tbody>
+            {% for token in tokens %}
+                {% set active = token.revokedAt is null and token.expiresAt > now %}
+                <tr>
+                    <td>{{ token.name }}{% if token.allowedIps|length > 0 %}<div class="small muted">{{ 'Only from'|t }}: {{ token.allowedIps|join(', ') }}</div>{% endif %}</td>
+                    <td class="mono">{{ token.maskedToken }}</td>
+                    <td class="small">{{ token.scopes|join(', ') }}</td>
+                    <td>{{ token.lastUsedAt ? token.lastUsedAt|dt : '–' }}{% if token.lastUsedIp %}<div class="small muted mono">{{ token.lastUsedIp }}</div>{% endif %}</td>
+                    <td>{{ token.expiresAt|dt }}</td>
+                    <td>{% if token.revokedAt %}<span class="badge badge-neutral">{{ 'revoked'|t }}</span>{% elseif not active %}<span class="badge badge-neutral">{{ 'expired'|t }}</span>{% else %}<span class="badge badge-success">{{ 'active'|t }}</span>{% endif %}</td>
+                    <td>
+                        {% if active %}
+                        <form method="post" action="/account/api-tokens/{{ token.id }}/revoke" data-confirm="{{ 'Revoke this token? Applications using it stop working immediately.'|t }}">
+                            {{ csrf_field() }}
+                            <button class="btn btn-sm btn-danger" type="submit">{{ 'Revoke'|t }}</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="muted">{{ 'You have not created any API tokens yet.'|t }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if not unavailable %}
+<div class="card">
+    <div class="card-header"><h2>{{ 'Create a token'|t }}</h2></div>
+    <div class="card-body">
+        <form method="post" action="/account/api-tokens" novalidate>
+            {{ csrf_field() }}
+            {{ f.input('name', 'Name', '', 'text', {required: true, maxlength: 100, help: 'For example the application or server that uses the token.'}) }}
+            {{ f.multiselect('scopes', 'Permissions', customer_scopes, [], {help: 'Grant only what the application needs.'}) }}
+            {% if admin_scopes|length > 0 %}
+                {{ f.multiselect('scopes', 'Administration permissions', admin_scopes, [], {help: 'Only work while your staff role has the matching permission.'}) }}
+            {% endif %}
+            {{ f.select('days', 'Valid for', lifetimes, '90') }}
+            {{ f.textarea('allowed_ips', 'Allowed IP addresses (optional)', '', {rows: 2, help: 'One address or CIDR range per line, e.g. 203.0.113.10 or 2001:db8::/48. Empty = any address.'}) }}
+            {{ f.input('password', 'Confirm with your password', '', 'password', {required: true, autocomplete: 'current-password'}) }}
+            <button class="btn btn-primary" type="submit">{{ 'Create token'|t }}</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

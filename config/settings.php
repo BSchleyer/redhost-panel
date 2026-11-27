@@ -99,4 +99,9 @@ return [
     'system.integration_log_retention_days' => ['group' => 'system', 'type' => 'int', 'default' => 30, 'label' => 'Keep integration logs for … days', 'rules' => 'required|int|min:1|max:365'],
     'system.login_history_retention_days' => ['group' => 'system', 'type' => 'int', 'default' => 180, 'label' => 'Keep login history for … days', 'rules' => 'required|int|min:7|max:3650'],
     'system.tickets_enabled' => ['group' => 'system', 'type' => 'bool', 'default' => true, 'label' => 'Enable support tickets'],
+
+    // ---------------------------------------------------------------- REST API
+    'api.enabled' => ['group' => 'api', 'type' => 'bool', 'default' => false, 'label' => 'Enable the REST API', 'help' => 'Token-authenticated JSON API under /api/v1 (documentation: /api/v1/openapi.json).'],
+    'api.customer_tokens' => ['group' => 'api', 'type' => 'bool', 'default' => true, 'label' => 'Customers may create API tokens', 'help' => 'When disabled, only staff tokens work.'],
+    'api.rate_limit' => ['group' => 'api', 'type' => 'int', 'default' => 120, 'label' => 'Requests per minute and token', 'rules' => 'required|int|min:10|max:6000'],
 ];

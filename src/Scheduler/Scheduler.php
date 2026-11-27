@@ -50,6 +50,7 @@ class Scheduler
         private readonly LoggerInterface $logger,
         private readonly PaymentService $payments,
         private readonly ConsoleSessions $consoleSessions,
+        private readonly \Nebrix\Api\ApiTokenService $apiTokens,
     ) {
     }
 
@@ -239,7 +240,8 @@ class Scheduler
             + $this->loginHistory->prune($this->settings->int('system.login_history_retention_days') ?: 180)
             + $this->integrationLogs->prune($this->settings->int('system.integration_log_retention_days') ?: 30)
             + $this->jobs->pruneCompleted(30)
-            + $this->consoleSessions->prune();
+            + $this->consoleSessions->prune()
+            + $this->apiTokens->pruneIdempotency();
 
         return sprintf('%d expired record(s) removed', $removed);
     }

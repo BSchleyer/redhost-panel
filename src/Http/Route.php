@@ -25,6 +25,7 @@ final class Route
         public readonly array $handler,
         public readonly array $middleware,
         public readonly bool $csrf,
+        public readonly bool $stateless = false,
     ) {
         $this->regex = $this->compile($path);
     }

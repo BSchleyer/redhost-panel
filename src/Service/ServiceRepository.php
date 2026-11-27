@@ -165,10 +165,47 @@ class ServiceRepository
     }
 
     /**
-     * @param array{status?: string, category?: string, search?: string, integration?: int} $filters
+     * @param array{status?: string, category?: string, search?: string, integration?: int, user_id?: int} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function paginate(array $filters, int $page, int $perPage = 25): array
+    {
+        [$whereSql, $params, $from] = $this->filterSql($filters);
+
+        return [
+            'items' => $this->db->fetchAll(
+                'SELECT s.`id`, s.`user_id`, s.`name`, s.`category`, s.`status`, s.`next_due_at`, s.`recurring_amount`, s.`currency`, s.`billing_cycle`, s.`created_at`, s.`last_error`,
+                        u.`email`, p.`name` AS product_name, i.`name` AS integration_name ' . $from . ' WHERE ' . $whereSql . ' ORDER BY s.`id` DESC LIMIT ? OFFSET ?',
+                [...$params, $perPage, max(0, ($page - 1) * $perPage)],
+            ),
+            'total' => (int) $this->db->fetchValue('SELECT COUNT(*) ' . $from . ' WHERE ' . $whereSql, $params),
+        ];
+    }
+
+    /**
+     * Same filters as paginate(), returning service models (REST API).
+     *
+     * @param array{status?: string, category?: string, search?: string, integration?: int, user_id?: int} $filters
+     * @return array{items: list<Service>, total: int}
+     */
+    public function paginateModels(array $filters, int $page, int $perPage = 25): array
+    {
+        [$whereSql, $params, $from] = $this->filterSql($filters);
+
+        return [
+            'items' => array_map(Service::fromRow(...), $this->db->fetchAll(
+                'SELECT s.* ' . $from . ' WHERE ' . $whereSql . ' ORDER BY s.`id` DESC LIMIT ? OFFSET ?',
+                [...$params, $perPage, max(0, ($page - 1) * $perPage)],
+            )),
+            'total' => (int) $this->db->fetchValue('SELECT COUNT(*) ' . $from . ' WHERE ' . $whereSql, $params),
+        ];
+    }
+
+    /**
+     * @param array{status?: string, category?: string, search?: string, integration?: int, user_id?: int} $filters
+     * @return array{0: string, 1: list<mixed>, 2: string}
+     */
+    private function filterSql(array $filters): array
     {
         $where = ['1 = 1'];
         $params = [];
@@ -184,22 +221,18 @@ class ServiceRepository
             $where[] = 's.`integration_id` = ?';
             $params[] = $filters['integration'];
         }
+        if (isset($filters['user_id'])) {
+            $where[] = 's.`user_id` = ?';
+            $params[] = $filters['user_id'];
+        }
         if (($filters['search'] ?? '') !== '') {
             $where[] = '(s.`name` LIKE ? OR u.`email` LIKE ? OR s.`id` = ?)';
             $like = '%' . addcslashes((string) $filters['search'], '%_\\') . '%';
             array_push($params, $like, $like, ctype_digit((string) $filters['search']) ? (int) $filters['search'] : 0);
         }
-        $whereSql = implode(' AND ', $where);
         $from = 'FROM `nx_services` s JOIN `nx_users` u ON u.`id` = s.`user_id` LEFT JOIN `nx_products` p ON p.`id` = s.`product_id` LEFT JOIN `nx_integrations` i ON i.`id` = s.`integration_id`';
 
-        return [
-            'items' => $this->db->fetchAll(
-                'SELECT s.`id`, s.`user_id`, s.`name`, s.`category`, s.`status`, s.`next_due_at`, s.`recurring_amount`, s.`currency`, s.`billing_cycle`, s.`created_at`, s.`last_error`,
-                        u.`email`, p.`name` AS product_name, i.`name` AS integration_name ' . $from . ' WHERE ' . $whereSql . ' ORDER BY s.`id` DESC LIMIT ? OFFSET ?',
-                [...$params, $perPage, max(0, ($page - 1) * $perPage)],
-            ),
-            'total' => (int) $this->db->fetchValue('SELECT COUNT(*) ' . $from . ' WHERE ' . $whereSql, $params),
-        ];
+        return [implode(' AND ', $where), $params, $from];
     }
 
     /**

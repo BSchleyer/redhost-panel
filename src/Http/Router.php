@@ -12,13 +12,16 @@ namespace Nebrix\Http;
  *  - middleware: list of middleware aliases (e.g. "auth", "permission:customers.view")
  *  - csrf: false to skip CSRF verification (only for signature-verified webhooks)
  *  - name: route name for URL generation
+ *  - stateless: true for token-authenticated API routes (no session, no CSRF,
+ *    JSON errors; uses the kernel's stateless middleware stack). Also a group
+ *    attribute.
  */
 final class Router
 {
     /** @var list<Route> */
     private array $routes = [];
 
-    /** @var list<array{prefix: string, middleware: list<string>}> */
+    /** @var list<array{prefix: string, middleware: list<string>, stateless: bool}> */
     private array $groupStack = [];
 
     /** @var array<string, Route> */
@@ -26,7 +29,7 @@ final class Router
 
     /**
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
      */
     public function get(string $path, array $handler, array $options = []): Route
     {
@@ -35,7 +38,7 @@ final class Router
 
     /**
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
      */
     public function post(string $path, array $handler, array $options = []): Route
     {
@@ -45,15 +48,17 @@ final class Router
     /**
      * @param list<string> $methods
      * @param array{0: class-string, 1: string} $handler
-     * @param array{middleware?: list<string>, csrf?: bool, name?: string} $options
+     * @param array{middleware?: list<string>, csrf?: bool, name?: string, stateless?: bool} $options
      */
     public function add(array $methods, string $path, array $handler, array $options = []): Route
     {
         $prefix = '';
         $middleware = [];
+        $stateless = $options['stateless'] ?? false;
         foreach ($this->groupStack as $group) {
             $prefix .= $group['prefix'];
             $middleware = array_merge($middleware, $group['middleware']);
+            $stateless = $stateless || $group['stateless'];
         }
 
         $fullPath = '/' . trim($prefix . '/' . trim($path, '/'), '/');
@@ -63,6 +68,7 @@ final class Router
             $handler,
             array_values(array_unique(array_merge($middleware, $options['middleware'] ?? []))),
             $options['csrf'] ?? true,
+            $stateless,
         );
 
         $this->routes[] = $route;
@@ -74,7 +80,7 @@ final class Router
     }
 
     /**
-     * @param array{prefix?: string, middleware?: list<string>} $attributes
+     * @param array{prefix?: string, middleware?: list<string>, stateless?: bool} $attributes
      * @param callable(self): void $callback
      */
     public function group(array $attributes, callable $callback): void
@@ -82,6 +88,7 @@ final class Router
         $this->groupStack[] = [
             'prefix' => isset($attributes['prefix']) ? '/' . trim($attributes['prefix'], '/') : '',
             'middleware' => $attributes['middleware'] ?? [],
+            'stateless' => $attributes['stateless'] ?? false,
         ];
 
         try {

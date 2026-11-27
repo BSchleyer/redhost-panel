@@ -152,6 +152,7 @@ class CustomerService
                 'two_factor_recovery_codes' => null,
             ]);
             $this->db->run('DELETE FROM `nx_user_tokens` WHERE `user_id` = ?', [$user->id]);
+            $this->db->run('UPDATE `nx_api_tokens` SET `revoked_at` = ? WHERE `user_id` = ? AND `revoked_at` IS NULL', [$this->clock->nowString(), $user->id]);
             $this->db->run('UPDATE `nx_login_history` SET `identifier` = NULL, `ip` = NULL, `user_agent` = NULL WHERE `user_id` = ?', [$user->id]);
             $this->sessions->destroyForUser($user->id);
         });

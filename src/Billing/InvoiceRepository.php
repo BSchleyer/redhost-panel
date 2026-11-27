@@ -104,7 +104,7 @@ class InvoiceRepository
     }
 
     /**
-     * @param array{status?: string, search?: string, type?: string} $filters
+     * @param array{status?: string, search?: string, type?: string, user_id?: int} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function paginate(array $filters, int $page, int $perPage = 25): array
@@ -118,6 +118,10 @@ class InvoiceRepository
         if (($filters['type'] ?? '') !== '') {
             $where[] = 'i.`type` = ?';
             $params[] = $filters['type'];
+        }
+        if (isset($filters['user_id'])) {
+            $where[] = 'i.`user_id` = ?';
+            $params[] = $filters['user_id'];
         }
         if (($filters['search'] ?? '') !== '') {
             $where[] = '(i.`number` LIKE ? OR u.`email` LIKE ?)';

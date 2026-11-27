@@ -108,7 +108,7 @@ class TicketRepository
     }
 
     /**
-     * @param array{status?: string, search?: string, assigned?: int} $filters
+     * @param array{status?: string, search?: string, assigned?: int, user_id?: int} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function paginate(array $filters, int $page, int $perPage = 25): array
@@ -124,6 +124,10 @@ class TicketRepository
         if (isset($filters['assigned'])) {
             $where[] = 't.`assigned_to` = ?';
             $params[] = $filters['assigned'];
+        }
+        if (isset($filters['user_id'])) {
+            $where[] = 't.`user_id` = ?';
+            $params[] = $filters['user_id'];
         }
         if (($filters['search'] ?? '') !== '') {
             $where[] = '(t.`subject` LIKE ? OR u.`email` LIKE ?)';

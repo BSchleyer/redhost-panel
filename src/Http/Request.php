@@ -179,6 +179,10 @@ final class Request
             $key = 'CONTENT_TYPE';
         }
         $value = $this->server[$key] ?? null;
+        // Apache with CGI/FPM passes the Authorization header only via a rewrite rule (REDIRECT_ prefix).
+        if ($value === null && $key === 'HTTP_AUTHORIZATION') {
+            $value = $this->server['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+        }
 
         return is_string($value) ? $value : null;
     }

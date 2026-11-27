@@ -22,6 +22,7 @@
             <div class="nav-section">{{ 'Account'|t }}</div>
             <a href="/account/profile" class="{{ active('/account/profile') }}">{{ 'Profile'|t }}</a>
             <a href="/account/security" class="{{ active('/account/security') }}">{{ 'Security'|t }}</a>
+            {% if setting('api.enabled') and (setting('api.customer_tokens') or can('admin.access')) %}<a href="/account/api-tokens" class="{{ active('/account/api-tokens') }}">{{ 'API tokens'|t }}</a>{% endif %}
             {% if can('admin.access') %}
             <div class="nav-section">{{ 'Staff'|t }}</div>
             <a href="/admin">{{ 'Administration'|t }}</a>

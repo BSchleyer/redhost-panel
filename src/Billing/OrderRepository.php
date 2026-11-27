@@ -90,7 +90,7 @@ class OrderRepository
     }
 
     /**
-     * @param array{status?: string, search?: string} $filters
+     * @param array{status?: string, search?: string, user_id?: int} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function paginate(array $filters, int $page, int $perPage = 25): array
@@ -100,6 +100,10 @@ class OrderRepository
         if (($filters['status'] ?? '') !== '') {
             $where[] = 'o.`status` = ?';
             $params[] = $filters['status'];
+        }
+        if (isset($filters['user_id'])) {
+            $where[] = 'o.`user_id` = ?';
+            $params[] = $filters['user_id'];
         }
         if (($filters['search'] ?? '') !== '') {
             $where[] = '(o.`number` LIKE ? OR u.`email` LIKE ?)';

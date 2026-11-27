@@ -50,6 +50,7 @@ final class Permission
     public const STAFF_MANAGE = 'staff.manage';
     public const ROLES_MANAGE = 'roles.manage';
     public const AUDIT_VIEW = 'audit.view';
+    public const API_TOKENS_MANAGE = 'api_tokens.manage';
 
     public const JOBS_VIEW = 'jobs.view';
     public const JOBS_MANAGE = 'jobs.manage';
@@ -109,6 +110,7 @@ final class Permission
                 self::STAFF_MANAGE => 'Create and edit staff accounts',
                 self::ROLES_MANAGE => 'Edit roles and permissions',
                 self::AUDIT_VIEW => 'View the audit log',
+                self::API_TOKENS_MANAGE => 'View and revoke the API tokens of all users',
             ],
             'System' => [
                 self::JOBS_VIEW => 'View background jobs and scheduled tasks',
