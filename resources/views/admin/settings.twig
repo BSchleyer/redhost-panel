@@ -32,8 +32,8 @@
 {% if page == 'payments' %}
 <div class="alert alert-info">
     {{ 'Webhook endpoints to register with the providers'|t }}:
-    <div class="mt-1"><strong>Stripe:</strong> <code id="wh-stripe">{{ webhook_urls.stripe }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-stripe">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, charge.refunded)</span></div>
-    <div class="mt-1"><strong>PayPal:</strong> <code id="wh-paypal">{{ webhook_urls.paypal }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-paypal">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.REFUNDED)</span></div>
+    <div class="mt-1"><strong>Stripe:</strong> <code id="wh-stripe">{{ webhook_urls.stripe }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-stripe">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, charge.refunded, refund.created, refund.updated, charge.dispute.created)</span></div>
+    <div class="mt-1"><strong>PayPal:</strong> <code id="wh-paypal">{{ webhook_urls.paypal }}</code> <button type="button" class="btn btn-sm btn-outline" data-copy="#wh-paypal">{{ 'Copy'|t }}</button> <span class="small">({{ 'events'|t }}: CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.DECLINED, PAYMENT.CAPTURE.REFUNDED, PAYMENT.CAPTURE.REVERSED, CUSTOMER.DISPUTE.CREATED)</span></div>
 </div>
 {% endif %}
 

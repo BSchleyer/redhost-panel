@@ -92,6 +92,29 @@ class ServiceRepository
     }
 
     /**
+     * Integer values of one remote-state key (e.g. a reserved voice port) held
+     * by the other live services of an integration.
+     *
+     * @return list<int>
+     */
+    public function reservedRemoteValues(int $integrationId, string $key, int $exceptServiceId): array
+    {
+        $rows = $this->db->fetchAll(
+            "SELECT `remote` FROM `nx_services` WHERE `integration_id` = ? AND `id` <> ? AND `status` NOT IN ('terminated', 'cancelled') AND `remote` IS NOT NULL",
+            [$integrationId, $exceptServiceId],
+        );
+        $values = [];
+        foreach ($rows as $row) {
+            $remote = json_decode((string) $row['remote'], true);
+            if (is_array($remote) && isset($remote[$key]) && is_numeric($remote[$key])) {
+                $values[] = (int) $remote[$key];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
      * Stores access data encrypted (never in plaintext, AUDIT H-08).
      *
      * @param array<string, scalar|null> $credentials

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Provisioning;
 
 use Nebrix\Auth\User;
+use Nebrix\Database\Connection;
 use Nebrix\Integration\Integration;
 use Nebrix\Integration\IntegrationException;
 use Nebrix\Integration\IntegrationManager;
@@ -16,15 +17,18 @@ use Nebrix\Service\ServiceRepository;
 /**
  * Virtual TeamSpeak 3 servers.
  *
- * Idempotency: the chosen voice port is persisted before "servercreate";
- * a retried job adopts an existing virtual server on that port instead of
- * creating a second one.
+ * Idempotency: the voice port is reserved in the database (under a lock,
+ * excluding ports reserved by other services of the integration) before
+ * "servercreate". A retried job adopts a virtual server on that port only if
+ * it carries the name this service requested; anything else on the port is
+ * treated as a conflict instead of being taken over.
  */
 final class TeamSpeakProvisioner implements Provisioner
 {
     public function __construct(
         private readonly IntegrationManager $integrations,
         private readonly ServiceRepository $services,
+        private readonly Connection $db,
     ) {
     }
 
@@ -61,18 +65,36 @@ final class TeamSpeakProvisioner implements Provisioner
             // Created by an earlier attempt before the sid was stored?
             if (isset($remote['port'])) {
                 foreach ($servers as $server) {
-                    if ((int) ($server['virtualserver_port'] ?? 0) === (int) $remote['port']) {
-                        $this->services->mergeRemote($service->id, ['sid' => (int) $server['virtualserver_id']]);
-
-                        return $this->result($integration, $service, (int) $server['virtualserver_id'], (int) $remote['port']);
+                    if ((int) ($server['virtualserver_port'] ?? 0) !== (int) $remote['port']) {
+                        continue;
                     }
+                    if ((string) ($server['virtualserver_name'] ?? '') !== $this->serverName($service)) {
+                        throw new IntegrationException(sprintf(
+                            'Voice port %d reserved for this service is used by another virtual server (ID %d). Resolve the conflict on the TeamSpeak server, then retry.',
+                            (int) $remote['port'],
+                            (int) ($server['virtualserver_id'] ?? 0),
+                        ));
+                    }
+                    $this->services->mergeRemote($service->id, ['sid' => (int) $server['virtualserver_id']]);
+
+                    return $this->result($integration, $service, (int) $server['virtualserver_id'], (int) $remote['port']);
                 }
             }
 
-            $port = $this->freePort($integration, array_map(static fn (array $s): int => (int) ($s['virtualserver_port'] ?? 0), $servers));
-            $this->services->mergeRemote($service->id, ['port' => $port]);
+            $used = array_map(static fn (array $s): int => (int) ($s['virtualserver_port'] ?? 0), $servers);
+            $port = isset($remote['port']) ? (int) $remote['port'] : $this->db->withLock(
+                'nebrix:ts3-port:' . $integration->id,
+                10,
+                function () use ($integration, $service, $used): int {
+                    $reserved = $this->services->reservedRemoteValues($integration->id, 'port', $service->id);
+                    $port = $this->freePort($integration, [...$used, ...$reserved]);
+                    $this->services->mergeRemote($service->id, ['port' => $port]);
 
-            $created = $client->createServer((string) $service->option('server_name', 'TeamSpeak #' . $service->id), (int) $service->config('slots', 32), $port);
+                    return $port;
+                },
+            );
+
+            $created = $client->createServer($this->serverName($service), (int) $service->config('slots', 32), $port);
             $this->services->mergeRemote($service->id, ['sid' => $created['sid'], 'port' => $created['port']]);
 
             $credentials = [
@@ -86,6 +108,12 @@ final class TeamSpeakProvisioner implements Provisioner
         } finally {
             $client->disconnect();
         }
+    }
+
+    private function serverName(Service $service): string
+    {
+        // Same truncation as ServerQueryClient::createServer().
+        return mb_substr((string) $service->option('server_name', 'TeamSpeak #' . $service->id), 0, 64);
     }
 
     private function result(Integration $integration, Service $service, int $sid, int $port): ProvisionResult

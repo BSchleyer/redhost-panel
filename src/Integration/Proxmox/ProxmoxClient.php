@@ -128,6 +128,18 @@ class ProxmoxClient
     }
 
     /**
+     * Current configuration of a guest (includes its description).
+     *
+     * @return array<string, mixed>
+     */
+    public function guestConfig(string $node, string $type, int $vmid): array
+    {
+        $data = $this->data($this->api->request('GET', $this->guestPath($node, $type, $vmid) . '/config', ['action' => $type . '.config.read']));
+
+        return is_array($data) ? $data : [];
+    }
+
+    /**
      * @param array<string, scalar> $params
      * @return string task UPID
      */

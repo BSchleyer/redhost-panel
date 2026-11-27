@@ -29,20 +29,24 @@ class CreditService
      *
      * @throws InsufficientCreditException when a deduction exceeds the balance
      */
-    public function adjust(int $userId, int $amount, string $reason, ?string $referenceType = null, ?string $referenceId = null, ?int $actorId = null): int
+    /**
+     * @param bool $allowNegative only for reversals of money that has already
+     *        left (refunded or charged-back top-ups): the balance may become a debt
+     */
+    public function adjust(int $userId, int $amount, string $reason, ?string $referenceType = null, ?string $referenceId = null, ?int $actorId = null, bool $allowNegative = false): int
     {
         if ($amount === 0) {
             throw new RuntimeException('Credit adjustments must not be zero.');
         }
 
-        return $this->db->transaction(function () use ($userId, $amount, $reason, $referenceType, $referenceId, $actorId): int {
+        return $this->db->transaction(function () use ($userId, $amount, $reason, $referenceType, $referenceId, $actorId, $allowNegative): int {
             $balance = $this->db->fetchValue('SELECT `credit_balance` FROM `nx_users` WHERE `id` = ? FOR UPDATE', [$userId]);
             if ($balance === null) {
                 throw new RuntimeException('Customer not found.');
             }
 
             $newBalance = (int) $balance + $amount;
-            if ($newBalance < 0) {
+            if ($newBalance < 0 && !$allowNegative) {
                 throw new InsufficientCreditException('The credit balance is not sufficient.');
             }
 

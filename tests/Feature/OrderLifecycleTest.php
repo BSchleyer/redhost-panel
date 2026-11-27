@@ -58,7 +58,7 @@ final class OrderLifecycleTest extends FeatureTestCase
             })
             ->on('POST', '/api2/json/nodes/pve1/lxc', function ($request): Psr7Response {
                 $form = FakeHttp::form($request);
-                $this->guests[(int) $form['vmid']] = ['name' => $form['hostname'], 'status' => 'running'];
+                $this->guests[(int) $form['vmid']] = ['name' => $form['hostname'], 'status' => 'running', 'description' => $form['description'] ?? ''];
                 $this->tasks['UPID:pve1:00000001:00000002:6553F00D:vzcreate:' . $form['vmid'] . ':nx@pve!t:'] = 'running';
 
                 return new Psr7Response(200, [], json_encode(['data' => array_key_last($this->tasks)], JSON_THROW_ON_ERROR));
@@ -68,6 +68,7 @@ final class OrderLifecycleTest extends FeatureTestCase
 
                 return new Psr7Response(200, [], json_encode(['data' => ['status' => $done ? 'stopped' : 'running', 'exitstatus' => $done ? 'OK' : null]], JSON_THROW_ON_ERROR));
             })
+            ->on('GET', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/config', fn ($r, array $m): Psr7Response => new Psr7Response(200, [], json_encode(['data' => ['description' => $this->guests[(int) $m['vmid']]['description'] ?? '']], JSON_THROW_ON_ERROR)))
             ->on('GET', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/status/current', fn ($r, array $m): Psr7Response => new Psr7Response(200, [], json_encode(['data' => ['status' => $this->guests[(int) $m['vmid']]['status'] ?? 'stopped', 'cpu' => 0.05, 'mem' => 100, 'maxmem' => 1000]], JSON_THROW_ON_ERROR)))
             ->on('POST', '/api2/json/nodes/pve1/lxc/(?<vmid>\d+)/status/(?<action>\w+)', function ($r, array $m): Psr7Response {
                 $this->guests[(int) $m['vmid']]['status'] = in_array($m['action'], ['stop', 'shutdown'], true) ? 'stopped' : 'running';
@@ -296,6 +297,26 @@ final class OrderLifecycleTest extends FeatureTestCase
         $this->post('/store/' . $last['slug'], ['hostname' => 'last2', 'accept_terms' => '1']);
         self::assertSame(0, (int) $this->db->fetchValue('SELECT stock FROM nx_products WHERE id = ?', [$last['id']]));
         self::assertSame(2, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_orders WHERE user_id = ?', [$this->customer->id]));
+    }
+
+    public function testFreeRenewalsAreSettledAutomatically(): void
+    {
+        $this->clock()->freeze(new DateTimeImmutable('2026-06-25 12:00:00'));
+        $serviceId = $this->app->container()->get(ServiceRepository::class)->create([
+            'user_id' => $this->customer->id, 'category' => 'dedicated', 'name' => 'Sponsored', 'status' => 'active',
+            'billing_cycle' => 'monthly', 'recurring_amount' => 0, 'tax_rate_bp' => 1900, 'currency' => 'EUR', 'next_due_at' => '2026-07-01 00:00:00', 'config' => [],
+        ]);
+        $scheduler = $this->app->container()->get(Scheduler::class);
+
+        $scheduler->createRenewalInvoices();
+
+        self::assertSame('paid', $this->db->fetchValue("SELECT status FROM nx_invoices WHERE service_id = ? AND type = 'renewal'", [$serviceId]));
+        self::assertSame('2026-08-01 00:00:00', $this->db->fetchValue('SELECT next_due_at FROM nx_services WHERE id = ?', [$serviceId]));
+        self::assertFalse($this->mailQueued('service_expiring'));
+
+        $this->clock()->freeze(new DateTimeImmutable('2026-07-10 12:00:00'));
+        $scheduler->suspendOverdue();
+        self::assertSame('active', $this->db->fetchValue('SELECT status FROM nx_services WHERE id = ?', [$serviceId]));
     }
 
     public function testInvalidOrderOptionsAreRejected(): void

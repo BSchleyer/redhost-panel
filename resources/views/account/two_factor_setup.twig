@@ -17,6 +17,7 @@
             <form method="post" action="/account/two-factor/enable" novalidate>
                 {{ csrf_field() }}
                 {{ f.input('code', 'Code from the app', '', 'text', {required: true, autocomplete: 'one-time-code', inputmode: 'numeric', autofocus: true}) }}
+                {{ f.input('password', 'Current password', '', 'password', {required: true, autocomplete: 'current-password'}) }}
                 <div class="form-actions">
                     <button class="btn btn-primary" type="submit">{{ 'Confirm and enable'|t }}</button>
                     <a href="/account/security" class="btn btn-outline">{{ 'Cancel'|t }}</a>

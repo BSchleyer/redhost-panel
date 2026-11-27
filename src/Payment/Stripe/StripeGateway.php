@@ -214,6 +214,14 @@ class StripeGateway implements PaymentGateway
 
                 return 'processed';
 
+            case 'charge.dispute.created':
+                if (!is_string($object['payment_intent'] ?? null)) {
+                    return 'ignored';
+                }
+                $outcome = $this->payments->recordDispute('stripe', (string) ($object['id'] ?? ''), $object['payment_intent'], (int) ($object['amount'] ?? 0) ?: null, isset($object['currency']) ? strtoupper((string) $object['currency']) : null, ['reason' => (string) ($object['reason'] ?? '')]);
+
+                return $outcome->status === PaymentOutcome::REJECTED ? 'ignored' : 'processed';
+
             case 'charge.refunded':
                 $intent = is_string($object['payment_intent'] ?? null) ? $object['payment_intent'] : null;
                 foreach ($object['refunds']['data'] ?? [] as $refund) {
@@ -229,13 +237,13 @@ class StripeGateway implements PaymentGateway
         }
     }
 
-    public function refund(array $transaction, int $amount, string $reason): PaymentOutcome
+    public function refund(array $transaction, int $amount, string $reason, string $idempotencyKey): PaymentOutcome
     {
         $refund = $this->client()->refunds->create([
             'payment_intent' => (string) $transaction['reference'],
             'amount' => $amount,
             'metadata' => ['transaction_id' => (string) $transaction['id'], 'reason' => mb_substr($reason, 0, 200)],
-        ], ['idempotency_key' => 'refund-' . $transaction['id'] . '-' . bin2hex(random_bytes(6))]);
+        ], ['idempotency_key' => $idempotencyKey]);
 
         if ($refund->status === 'succeeded') {
             return $this->payments->recordRefund('stripe', (string) $refund->id, (string) $transaction['reference'], (int) $refund->amount, strtoupper((string) $refund->currency), ['reason' => $reason]);

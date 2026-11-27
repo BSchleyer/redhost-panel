@@ -24,6 +24,7 @@
                 <td class="actions">{% if can('payments.refund') and t.type == 'payment' and t.status == 'completed' and t.refunded < t.amount and t.gateway != 'free' %}
                     <form method="post" action="/admin/transactions/{{ t.id }}/refund" class="filters" data-confirm="{{ 'Refund this amount to the customer?'|t }}" novalidate>
                         {{ csrf_field() }}
+                        <input type="hidden" name="refund_key" value="{{ refund_key }}">
                         <input type="text" name="amount" value="{{ ((t.amount - t.refunded) / 100)|number_format(2, '.', '') }}" aria-label="{{ 'Amount'|t }}" size="7">
                         <input type="text" name="reason" placeholder="{{ 'Reason'|t }}" aria-label="{{ 'Reason'|t }}" size="12">
                         <button class="btn btn-sm btn-outline" type="submit">{{ 'Refund'|t }}</button>

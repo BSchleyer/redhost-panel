@@ -65,10 +65,9 @@ final class StoreController extends Controller
         }
 
         $key = 'order:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 10)) {
+        if (!$this->limiter->attempt($key, 10, 3600)) {
             throw HttpException::tooManyRequests('You have placed many orders in a short time. Please try again later.');
         }
-        $this->limiter->hit($key, 3600);
 
         $options = [];
         foreach (array_keys(ProductCategory::get((string) $product['category'])['options']) as $name) {

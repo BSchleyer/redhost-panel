@@ -82,10 +82,11 @@ class CreditGateway implements PaymentGateway
         return PaymentOutcome::rejected('Not applicable.');
     }
 
-    public function refund(array $transaction, int $amount, string $reason): PaymentOutcome
+    public function refund(array $transaction, int $amount, string $reason, string $idempotencyKey): PaymentOutcome
     {
-        return $this->db->transaction(function () use ($transaction, $amount, $reason): PaymentOutcome {
-            $reference = 'credit-refund-' . $transaction['id'] . '-' . bin2hex(random_bytes(4));
+        return $this->db->transaction(function () use ($transaction, $amount, $reason, $idempotencyKey): PaymentOutcome {
+            // A repeated submission reuses the reference and is ignored as a duplicate.
+            $reference = 'credit-' . $idempotencyKey;
             $outcome = $this->payments->recordRefund('credit', $reference, (string) $transaction['reference'], $amount, (string) $transaction['currency'], ['reason' => $reason]);
             if ($outcome->status === PaymentOutcome::COMPLETED) {
                 $this->credit->adjust((int) $transaction['user_id'], $amount, 'Refund: ' . $reason, 'transaction', (string) $transaction['id']);

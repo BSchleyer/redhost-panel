@@ -275,6 +275,27 @@ class Connection
         }
     }
 
+    /**
+     * Runs the callback while holding a named database lock (GET_LOCK), so
+     * that several web requests or workers cannot run it concurrently.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public function withLock(string $name, int $timeoutSeconds, callable $callback): mixed
+    {
+        if ((int) $this->fetchValue('SELECT GET_LOCK(?, ?)', [$name, $timeoutSeconds]) !== 1) {
+            throw new \RuntimeException(sprintf('Could not acquire the lock "%s" within %d seconds.', $name, $timeoutSeconds));
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $this->fetchValue('SELECT RELEASE_LOCK(?)', [$name]);
+        }
+    }
+
     public function inTransaction(): bool
     {
         return $this->transactionDepth > 0;

@@ -159,6 +159,9 @@ class InvoiceService
             ]]);
 
             $invoice = $this->invoices->find($id);
+            if ($net + $tax === 0) {
+                return $id; // free renewal: settled by the caller, no payment reminder
+            }
             $this->mailer->queue($user->email, $user->displayName(), 'service_expiring', [
                 'name' => $user->displayName(),
                 'service_name' => $service->name,

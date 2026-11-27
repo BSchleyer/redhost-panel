@@ -72,6 +72,23 @@ class RateLimiter
         return max(0, (strtotime($expires . ' UTC') ?: 0) - $this->clock->now()->getTimestamp());
     }
 
+    /**
+     * Counts an attempt and reports whether it is still within the limit.
+     *
+     * The atomic increment decides, not a preceding read: concurrent requests
+     * cannot all pass a check before any of them is counted.
+     */
+    public function attempt(string $key, int $maxAttempts, int $decaySeconds): bool
+    {
+        return $this->hit($key, $decaySeconds) <= $maxAttempts;
+    }
+
+    /** Takes back one counted attempt (e.g. a successful sign-in from an IP). */
+    public function release(string $key): void
+    {
+        $this->db->run('UPDATE `nx_rate_limits` SET `hits` = IF(`hits` > 0, `hits` - 1, 0) WHERE `key_hash` = ?', [hash('sha256', $key)]);
+    }
+
     public function clear(string $key): void
     {
         $this->db->run('DELETE FROM `nx_rate_limits` WHERE `key_hash` = ?', [hash('sha256', $key)]);

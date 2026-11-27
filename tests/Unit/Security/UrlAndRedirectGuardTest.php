@@ -36,6 +36,11 @@ final class UrlAndRedirectGuardTest extends TestCase
         yield 'loopback' => ['https://127.0.0.1:8443'];
         yield 'ipv6 loopback' => ['https://[::1]/'];
         yield 'mapped metadata' => ['https://[::ffff:169.254.169.254]/'];
+        yield 'mapped public ipv4' => ['https://[::ffff:203.0.113.10]/'];
+        yield 'ipv4-compatible loopback' => ['https://[::127.0.0.1]/'];
+        yield 'nat64 metadata' => ['https://[64:ff9b::a9fe:a9fe]/'];
+        yield '6to4 loopback' => ['https://[2002:7f00:1::1]/'];
+        yield 'teredo' => ['https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/'];
         yield 'credentials in url' => ['https://user:pass@panel.example.com'];
         yield 'plain http' => ['http://panel.example.com'];
         yield 'file scheme' => ['file:///etc/passwd'];
@@ -56,6 +61,16 @@ final class UrlAndRedirectGuardTest extends TestCase
         $result = $this->guard(allowHttp: true, allowLoopback: true)->validateUrl('http://127.0.0.1:8080');
 
         self::assertSame('127.0.0.1', $result['ip']);
+    }
+
+    public function testIpv6LoopbackCanBeAllowedButEmbeddedIpv4FormsCannot(): void
+    {
+        $guard = $this->guard(allowLoopback: true);
+        self::assertSame('::1', $guard->validateUrl('https://[::1]:8443')['ip']);
+        self::assertSame('2001:db8::10', $guard->validateUrl('https://[2001:db8::10]/')['ip'], 'Ordinary global IPv6 addresses are allowed.');
+
+        $this->expectException(UnsafeUrlException::class);
+        $guard->validateUrl('https://[::127.0.0.1]/');
     }
 
     public function testMetadataStaysBlockedEvenWhenLoopbackIsAllowed(): void

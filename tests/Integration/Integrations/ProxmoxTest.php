@@ -20,7 +20,7 @@ final class ProxmoxTest extends IntegrationTestCase
 
     private int $integrationId;
 
-    /** @var array<int, array{name: string, status: string}> */
+    /** @var array<int, array{name: string, status: string, description?: string}> */
     private array $guests = [];
 
     /** @var array<string, string> upid => status */
@@ -52,12 +52,16 @@ final class ProxmoxTest extends IntegrationTestCase
             })
             ->on('POST', '/api2/json/nodes/(?<node>[^/]+)/lxc', function ($request, array $m): Response {
                 $form = FakeHttp::form($request);
-                $this->guests[(int) $form['vmid']] = ['name' => $form['hostname'], 'status' => 'running'];
+                $this->guests[(int) $form['vmid']] = ['name' => $form['hostname'], 'status' => 'running', 'description' => $form['description'] ?? ''];
                 $upid = 'UPID:' . $m['node'] . ':0000AAAA:0000BBBB:6553F00D:vzcreate:' . $form['vmid'] . ':nebrix@pve!panel:';
                 $this->tasks[$upid] = 'running';
 
                 return new Response(200, [], json_encode(['data' => $upid], JSON_THROW_ON_ERROR));
             })
+            ->on('GET', '/api2/json/nodes/(?<node>[^/]+)/(?<type>lxc|qemu)/(?<vmid>\d+)/config', fn ($request, array $m): Response => new Response(200, [], json_encode(['data' => [
+                'hostname' => $this->guests[(int) $m['vmid']]['name'] ?? '',
+                'description' => $this->guests[(int) $m['vmid']]['description'] ?? '',
+            ]], JSON_THROW_ON_ERROR)))
             ->on('GET', '/api2/json/nodes/(?<node>[^/]+)/tasks/(?<upid>[^/]+)/status', function ($request, array $m): Response {
                 $status = $this->tasks[rawurldecode($m['upid'])] ?? 'unknown';
 
@@ -103,6 +107,26 @@ final class ProxmoxTest extends IntegrationTestCase
         self::assertSame([], $this->http->history);
     }
 
+    public function testPrivilegedContainerIsCreatedWithoutFeatureFlags(): void
+    {
+        $owner = $this->createUser();
+        $service = $this->createService($owner, 'lxc', $this->integrationId, [
+            'ostemplate' => 'local:vztmpl/debian-12.tar.zst', 'storage' => 'local-lvm', 'cores' => 1, 'memory_mb' => 512,
+            'swap_mb' => 0, 'disk_gb' => 8, 'bridge' => 'vmbr0', 'rate_mbps' => 0, 'unprivileged' => false, 'vmid_start' => 20000,
+            '_options' => ['hostname' => 'legacy01'],
+        ]);
+
+        try {
+            $this->app->container()->get(ProxmoxProvisioner::class)->provision($service, $owner);
+            self::fail('Expected RetryLater while the task runs.');
+        } catch (RetryLaterException) {
+        }
+
+        $form = FakeHttp::form($this->http->requests('POST', '/api2/json/nodes/pve2/lxc')[0]);
+        self::assertSame('0', $form['unprivileged']);
+        self::assertArrayNotHasKey('features', $form, 'Only root@pam may set feature flags on privileged containers.');
+    }
+
     public function testLxcProvisioningIsResumableAndIdempotent(): void
     {
         $owner = $this->createUser();
@@ -129,6 +153,7 @@ final class ProxmoxTest extends IntegrationTestCase
         self::assertSame('local-lvm:20', $form['rootfs']);
         self::assertSame('name=eth0,bridge=vmbr0,ip=dhcp,ip6=auto,rate=50', $form['net0']);
         self::assertSame('1', $form['unprivileged']);
+        self::assertSame('nesting=1', $form['features']);
 
         // Second run while the task is still running: no new create call.
         try {
@@ -163,7 +188,7 @@ final class ProxmoxTest extends IntegrationTestCase
         $vmid = 20000 + $service->id;
         // Simulate: an earlier attempt created the guest but died before storing the task ID.
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['node' => 'pve1', 'vmid' => $vmid, 'type' => 'lxc', 'step' => 'create']);
-        $this->guests[$vmid] = ['name' => 'db01', 'status' => 'running'];
+        $this->guests[$vmid] = ['name' => 'db01', 'status' => 'running', 'description' => 'nebrix-service-' . $service->id . "\n"];
 
         $result = $this->app->container()->get(ProxmoxProvisioner::class)->provision($this->reload($service->id), $owner);
 
@@ -180,6 +205,34 @@ final class ProxmoxTest extends IntegrationTestCase
         $this->expectException(IntegrationException::class);
         $this->expectExceptionMessage('already used by another guest');
         $this->app->container()->get(ProxmoxProvisioner::class)->provision($service, $owner);
+    }
+
+    public function testGuestWithTheSameHostnameButAnotherOwnerIsNotAdopted(): void
+    {
+        $owner = $this->createUser();
+        $service = $this->createService($owner, 'lxc', $this->integrationId, ['ostemplate' => 'local:vztmpl/x.tar.zst', 'storage' => 's', 'disk_gb' => 5, 'vmid_start' => 20000, 'node' => 'pve1', '_options' => ['hostname' => 'victim-web']]);
+        // Another customer's guest (overlapping vmid_start of a second product) – the attacker chose its hostname.
+        $this->guests[20000 + $service->id] = ['name' => 'victim-web', 'status' => 'running', 'description' => 'nebrix-service-999999'];
+
+        try {
+            $this->app->container()->get(ProxmoxProvisioner::class)->provision($service, $owner);
+            self::fail('A guest of another service must not be adopted.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('already used by another guest', $exception->getMessage());
+        }
+
+        self::assertNotSame('done', $this->reload($service->id)->remote['step'] ?? null);
+        self::assertSame([], $this->http->requests('POST', '/api2/json/nodes/pve1/lxc'));
+
+        // Terminating the failed service must not delete the other customer's guest.
+        try {
+            $this->app->container()->get(ProxmoxProvisioner::class)->terminate($this->reload($service->id));
+            self::fail('Termination must refuse to delete a foreign guest.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('was not deleted', $exception->getMessage());
+        }
+        self::assertSame([], $this->http->requests('DELETE', '/api2/json/nodes/pve1/lxc/' . (20000 + $service->id)));
+        self::assertSame([], $this->http->requests('POST', '/api2/json/nodes/pve1/lxc/' . (20000 + $service->id) . '/status/stop'));
     }
 
     public function testPowerActionsAndStatus(): void

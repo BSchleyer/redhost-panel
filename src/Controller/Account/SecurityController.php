@@ -91,10 +91,15 @@ final class SecurityController extends Controller
     public function enableTwoFactor(Request $request): Response
     {
         $user = $this->user($request);
-        $data = $this->validate($request, ['code' => 'required|string|max:16']);
+        $data = $this->validate($request, ['code' => 'required|string|max:16', 'password' => 'required|string|max:1024']);
         $stored = $request->session()->get(self::SETUP_SECRET);
         if (!is_string($stored) || $user->hasTwoFactor()) {
             return $this->redirect('/account/security');
+        }
+        // A hijacked session must not be able to lock the owner out by
+        // binding the account to the attacker's authenticator.
+        if (!$this->auth->confirmPassword($user, (string) $data['password'])) {
+            throw ValidationException::withMessages(['password' => 'The password is incorrect.']);
         }
 
         $secret = $this->encrypter->decrypt($stored, 'session:2fa-setup:' . $user->id);

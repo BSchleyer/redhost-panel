@@ -12,6 +12,7 @@ use Nebrix\Core\Clock;
 use Nebrix\Database\Connection;
 use Nebrix\Integration\IntegrationLogger;
 use Nebrix\Integration\IntegrationManager;
+use Nebrix\Payment\PaymentService;
 use Nebrix\Provisioning\ServiceManager;
 use Nebrix\Queue\JobQueue;
 use Nebrix\Security\RateLimiter;
@@ -46,6 +47,7 @@ class Scheduler
         private readonly LoginHistory $loginHistory,
         private readonly IntegrationLogger $integrationLogs,
         private readonly LoggerInterface $logger,
+        private readonly PaymentService $payments,
     ) {
     }
 
@@ -138,8 +140,21 @@ class Scheduler
         $created = 0;
         foreach ($rows as $row) {
             $service = $this->services->find((int) $row['id']);
-            if ($service !== null && BillingCycle::isRecurring($service->billingCycle) && $this->invoices->createRenewal($service) !== null) {
-                $created++;
+            if ($service === null || !BillingCycle::isRecurring($service->billingCycle)) {
+                continue;
+            }
+            $invoiceId = $this->invoices->createRenewal($service);
+            if ($invoiceId === null) {
+                continue;
+            }
+            $created++;
+
+            // Free renewals (e.g. 100 % group discount) cannot be paid by any
+            // gateway; settle them like free orders so the service is not
+            // suspended as overdue.
+            $invoice = $this->db->fetchOne('SELECT `total`, `currency` FROM `nx_invoices` WHERE `id` = ?', [$invoiceId]);
+            if ($invoice !== null && (int) $invoice['total'] === 0) {
+                $this->payments->recordPayment('free', 'free-invoice-' . $invoiceId, $invoiceId, 0, (string) $invoice['currency']);
             }
         }
 

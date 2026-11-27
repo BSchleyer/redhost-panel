@@ -31,10 +31,18 @@ class UrlGuard
         'fe80::/10',            // IPv6 link-local
         'ff00::/8',             // IPv6 multicast
         'fd00:ec2::254/128',    // AWS IPv6 metadata
-        '::ffff:169.254.0.0/112',
-        '::ffff:127.0.0.0/104',
-        '::ffff:0.0.0.0/104',
+        // IPv6 forms that embed an IPv4 address: they can point at blocked or
+        // loopback IPv4 targets through translation, so they are never used
+        // for integrations (use the plain IPv4 address instead).
+        '::ffff:0:0/96',        // IPv4-mapped
+        '64:ff9b::/96',         // NAT64 well-known prefix
+        '64:ff9b:1::/48',       // NAT64 local-use prefix
+        '2002::/16',            // 6to4
+        '2001::/32',            // Teredo
     ];
+
+    /** IPv4-compatible IPv6 (::a.b.c.d, deprecated); ::1 is handled as loopback. */
+    private const IPV4_COMPATIBLE = '::/96';
 
     private const LOOPBACK = ['127.0.0.0/8', '::1/128'];
 
@@ -134,6 +142,9 @@ class UrlGuard
             if (IpRange::contains($range, $ip)) {
                 throw new UnsafeUrlException('The target address is in a blocked network range.');
             }
+        }
+        if (IpRange::contains(self::IPV4_COMPATIBLE, $ip) && !IpRange::contains('::1/128', $ip)) {
+            throw new UnsafeUrlException('The target address is in a blocked network range.');
         }
 
         if (!$this->allowLoopback) {

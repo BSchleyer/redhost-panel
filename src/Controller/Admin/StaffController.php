@@ -6,6 +6,7 @@ namespace Nebrix\Controller\Admin;
 
 use Nebrix\Auth\Role;
 use Nebrix\Auth\User;
+use Nebrix\Authorization\Gate;
 use Nebrix\Authorization\Permission;
 use Nebrix\Customer\CustomerService;
 use Nebrix\Http\Controller;
@@ -28,6 +29,7 @@ final class StaffController extends Controller
         private readonly UserRepository $users,
         private readonly RoleRepository $roles,
         private readonly CustomerService $accounts,
+        private readonly Gate $gate,
     ) {
     }
 
@@ -44,7 +46,7 @@ final class StaffController extends Controller
 
         return $this->render($request, 'admin/staff/form.twig', [
             'member' => null,
-            'roles' => $this->roles->staffOptions($this->user($request)->isSuperAdmin()),
+            'roles' => $this->assignableRoles($this->user($request)),
         ]);
     }
 
@@ -83,7 +85,7 @@ final class StaffController extends Controller
 
         return $this->render($request, 'admin/staff/form.twig', [
             'member' => $member,
-            'roles' => $this->roles->staffOptions($this->user($request)->isSuperAdmin()),
+            'roles' => $this->assignableRoles($this->user($request)),
         ]);
     }
 
@@ -174,6 +176,34 @@ final class StaffController extends Controller
         if ($member->isSuperAdmin() && !$actor->isSuperAdmin()) {
             throw HttpException::forbidden('Only super administrators can manage super administrator accounts.');
         }
+        if ($this->exceedsActor($actor, $member->roleId)) {
+            throw HttpException::forbidden('You cannot manage staff members who have permissions you do not have yourself.');
+        }
+    }
+
+    /**
+     * A role grants more than the actor holds (privilege escalation guard):
+     * staff managers may only hand out subsets of their own permissions.
+     */
+    private function exceedsActor(User $actor, int $roleId): bool
+    {
+        if ($actor->isSuperAdmin()) {
+            return false;
+        }
+
+        return array_diff($this->gate->permissionsForRole($roleId), $this->gate->permissionsForRole($actor->roleId)) !== [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function assignableRoles(User $actor): array
+    {
+        return array_filter(
+            $this->roles->staffOptions($actor->isSuperAdmin()),
+            fn (int $roleId): bool => !$this->exceedsActor($actor, $roleId),
+            ARRAY_FILTER_USE_KEY,
+        );
     }
 
     private function assertAssignableRole(User $actor, int $roleId): void
@@ -184,6 +214,9 @@ final class StaffController extends Controller
         }
         if ($role['slug'] === Role::SUPER_ADMIN && !$actor->isSuperAdmin()) {
             throw ValidationException::withMessages(['role_id' => 'Only super administrators can assign this role.']);
+        }
+        if ($this->exceedsActor($actor, $roleId)) {
+            throw ValidationException::withMessages(['role_id' => 'You cannot assign a role with permissions you do not have yourself.']);
         }
     }
 }

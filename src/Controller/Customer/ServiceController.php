@@ -101,10 +101,9 @@ final class ServiceController extends Controller
         }
 
         $key = 'service-action:' . $id;
-        if ($this->limiter->tooManyAttempts($key, 10)) {
+        if (!$this->limiter->attempt($key, 10, 300)) {
             throw HttpException::tooManyRequests();
         }
-        $this->limiter->hit($key, 300);
 
         try {
             $message = $provisioner->perform($service, (string) $data['action']);

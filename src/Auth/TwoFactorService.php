@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Auth;
 
 use Nebrix\Core\Clock;
+use Nebrix\Database\Connection;
 use Nebrix\Repository\UserRepository;
 use Nebrix\Security\Encrypter;
 use Nebrix\Settings\SettingsRepository;
@@ -28,6 +29,7 @@ class TwoFactorService
         private readonly Encrypter $encrypter,
         private readonly SettingsRepository $settings,
         private readonly Clock $clock,
+        private readonly Connection $db,
     ) {
     }
 
@@ -130,34 +132,41 @@ class TwoFactorService
             return false;
         }
 
-        $lastSlice = $user->attribute('two_factor_last_slice');
-        if ($lastSlice !== null && $timeslice <= (int) $lastSlice) {
-            return false; // replayed or older code
-        }
+        // Accept the time slice only if it is newer than the last accepted
+        // one, decided by a single conditional UPDATE: two parallel requests
+        // with the same code cannot both succeed (replay protection).
+        $accepted = $this->db->run(
+            'UPDATE `nx_users` SET `two_factor_last_slice` = ? WHERE `id` = ? AND (`two_factor_last_slice` IS NULL OR `two_factor_last_slice` < ?)',
+            [$timeslice, $user->id, $timeslice],
+        )->rowCount();
 
-        $this->users->update($user->id, ['two_factor_last_slice' => $timeslice]);
-
-        return true;
+        return $accepted === 1;
     }
 
     private function useRecoveryCode(User $user, string $input): bool
     {
-        $stored = json_decode((string) ($user->attribute('two_factor_recovery_codes') ?? '[]'), true);
-        if (!is_array($stored) || $stored === []) {
-            return false;
-        }
-
         $hash = self::hashCode($input);
-        foreach ($stored as $index => $candidate) {
-            if (is_string($candidate) && hash_equals($candidate, $hash)) {
-                unset($stored[$index]);
-                $this->users->update($user->id, ['two_factor_recovery_codes' => json_encode(array_values($stored), JSON_THROW_ON_ERROR)]);
 
-                return true;
+        // Re-read under a row lock so that a code can be consumed only once,
+        // even by parallel requests.
+        return $this->db->transaction(function () use ($user, $hash): bool {
+            $raw = $this->db->fetchValue('SELECT `two_factor_recovery_codes` FROM `nx_users` WHERE `id` = ? FOR UPDATE', [$user->id]);
+            $stored = json_decode(is_string($raw) ? $raw : '[]', true);
+            if (!is_array($stored) || $stored === []) {
+                return false;
             }
-        }
 
-        return false;
+            foreach ($stored as $index => $candidate) {
+                if (is_string($candidate) && hash_equals($candidate, $hash)) {
+                    unset($stored[$index]);
+                    $this->users->update($user->id, ['two_factor_recovery_codes' => json_encode(array_values($stored), JSON_THROW_ON_ERROR)]);
+
+                    return true;
+                }
+            }
+
+            return false;
+        });
     }
 
     /**

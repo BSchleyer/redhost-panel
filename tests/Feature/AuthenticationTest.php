@@ -98,6 +98,55 @@ final class AuthenticationTest extends FeatureTestCase
         $this->assertRedirect($this->get('/dashboard'), '/login');
     }
 
+    public function testLimitIsEnforcedByTheAtomicCounterNotByAPriorRead(): void
+    {
+        $limiter = $this->app->container()->get(\Nebrix\Security\RateLimiter::class);
+        $results = [];
+        for ($i = 0; $i < 7; $i++) {
+            $results[] = $limiter->attempt('test:parallel', 5, 60);
+        }
+        // Exactly five attempts pass, even when no request ever "checked" first.
+        self::assertSame([true, true, true, true, true, false, false], $results);
+
+        $limiter->release('test:parallel');
+        self::assertSame(6, $limiter->attempts('test:parallel'));
+    }
+
+    public function testOwnSuccessfulLoginDoesNotResetTheIpCounter(): void
+    {
+        $victimA = $this->createUser();
+        $victimB = $this->createUser();
+        $attacker = $this->createUser();
+        $this->login($victimA->email, 'guess-1');
+        $this->login($victimB->email, 'guess-2');
+        $this->login($victimB->email, 'guess-3');
+
+        $this->assertRedirect($this->login($attacker->email), '/dashboard');
+
+        $limiter = $this->app->container()->get(\Nebrix\Security\RateLimiter::class);
+        self::assertSame(3, $limiter->attempts('login:ip:' . $this->clientIp), 'Failed guesses from the IP keep counting after the attacker signs in to their own account.');
+        self::assertSame(2, $limiter->attempts('login:account:' . $victimB->email));
+        self::assertSame(0, $limiter->attempts('login:account:' . $attacker->email));
+    }
+
+    public function testRegistrationProbingIsRateLimited(): void
+    {
+        $existing = $this->createUser();
+        for ($i = 0; $i < 20; $i++) {
+            $this->post('/register', [
+                'first_name' => 'P', 'last_name' => 'R', 'email' => $existing->email,
+                'password' => 'Compiler-Pioneer-1906', 'password_confirmation' => 'Compiler-Pioneer-1906', 'accept_terms' => '1',
+            ]);
+        }
+        $response = $this->followRedirect($this->post('/register', [
+            'first_name' => 'P', 'last_name' => 'R', 'email' => $existing->email,
+            'password' => 'Compiler-Pioneer-1906', 'password_confirmation' => 'Compiler-Pioneer-1906', 'accept_terms' => '1',
+        ]));
+
+        self::assertStringContainsString('Too many registration attempts', $response->body());
+        self::assertStringNotContainsString('cannot be used', $response->body(), 'Once throttled, the form no longer reveals whether the address exists.');
+    }
+
     public function testSuspendedAccountsCannotSignIn(): void
     {
         $user = $this->createUser(Role::CUSTOMER, ['status' => User::STATUS_SUSPENDED]);
@@ -182,6 +231,49 @@ final class AuthenticationTest extends FeatureTestCase
         $this->login($user->email);
         $this->post('/two-factor', ['code' => $recoveryCodes[0]]);
         $this->assertRedirect($this->get('/dashboard'), '/login');
+    }
+
+    public function testParallelRequestsCannotReuseOneTotpOrRecoveryCode(): void
+    {
+        $user = $this->createUser();
+        $twoFactor = $this->app->container()->get(TwoFactorService::class);
+        $secret = $twoFactor->generateSecret();
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 12:00:00'));
+        $totp = new TwoFactorAuth(new BaconQrCodeProvider());
+        $recoveryCodes = $twoFactor->enable($user, $secret, $totp->getCode($secret, $this->clock()->now()->getTimestamp()));
+        self::assertIsArray($recoveryCodes);
+
+        // Both requests loaded the user before either accepted the code.
+        $users = $this->app->container()->get(UserRepository::class);
+        $first = $users->find($user->id);
+        $second = $users->find($user->id);
+        self::assertNotNull($first);
+        self::assertNotNull($second);
+
+        $this->clock()->freeze(new DateTimeImmutable('2026-03-01 12:00:31'));
+        $code = $totp->getCode($secret, $this->clock()->now()->getTimestamp());
+        self::assertTrue($twoFactor->verify($first, $code));
+        self::assertFalse($twoFactor->verify($second, $code), 'The same TOTP code is accepted only once.');
+
+        self::assertTrue($twoFactor->verify($first, $recoveryCodes[3]));
+        self::assertFalse($twoFactor->verify($second, $recoveryCodes[3]), 'A recovery code is consumed only once.');
+    }
+
+    public function testEnablingTwoFactorRequiresTheCurrentPassword(): void
+    {
+        $user = $this->createUser();
+        $this->actingAs($user);
+        $page = $this->get('/account/two-factor/setup')->body();
+        self::assertSame(1, preg_match('#<code>([A-Z2-7 ]+)</code>#', $page, $match));
+        $secret = str_replace(' ', '', $match[1]);
+        $code = (new TwoFactorAuth(new BaconQrCodeProvider()))->getCode($secret, $this->clock()->now()->getTimestamp());
+
+        $this->post('/account/two-factor/enable', ['code' => $code]);
+        $this->post('/account/two-factor/enable', ['code' => $code, 'password' => 'Wrong-Password-123']);
+        self::assertNull($this->db->fetchValue('SELECT two_factor_enabled_at FROM nx_users WHERE id = ?', [$user->id]));
+
+        $this->post('/account/two-factor/enable', ['code' => $code, 'password' => 'Valid-Password-123']);
+        self::assertNotNull($this->db->fetchValue('SELECT two_factor_enabled_at FROM nx_users WHERE id = ?', [$user->id]));
     }
 
     public function testTwoFactorSecretIsEncryptedAtRest(): void

@@ -75,7 +75,11 @@ class AuthService
         $maxAttempts = max(3, $this->settings->int('auth.max_login_attempts'));
         $lockoutSeconds = max(60, $this->settings->int('auth.lockout_minutes') * 60);
 
-        if ($this->limiter->tooManyAttempts($accountKey, $maxAttempts) || $this->limiter->tooManyAttempts($ipKey, self::IP_MAX_ATTEMPTS)) {
+        // Count the attempt before the password is checked, so that parallel
+        // requests cannot all pass the limit (each one is counted atomically).
+        $withinAccountLimit = $this->limiter->attempt($accountKey, $maxAttempts, $lockoutSeconds);
+        $withinIpLimit = $this->limiter->attempt($ipKey, self::IP_MAX_ATTEMPTS, self::IP_DECAY_SECONDS);
+        if (!$withinAccountLimit || !$withinIpLimit) {
             $this->history->record(null, $login, $ip, $request->userAgent(), false, 'throttled');
             $minutes = (int) ceil(max($this->limiter->availableIn($accountKey), $this->limiter->availableIn($ipKey)) / 60);
 
@@ -86,8 +90,6 @@ class AuthService
         $valid = $this->hasher->verify($password, $user?->passwordHash);
 
         if ($user === null || !$valid) {
-            $this->limiter->hit($accountKey, $lockoutSeconds);
-            $this->limiter->hit($ipKey, self::IP_DECAY_SECONDS);
             $this->history->record($user?->id, $login, $ip, $request->userAgent(), false, 'invalid_credentials');
 
             throw new AuthenticationException('These credentials do not match our records.');
@@ -113,7 +115,10 @@ class AuthService
             $this->users->update($user->id, ['password_hash' => $this->hasher->hash($password)]);
         }
 
+        // Correct password: forget the account's failures and take back this
+        // attempt from the IP counter (other failures from the IP still count).
         $this->limiter->clear($accountKey);
+        $this->limiter->release($ipKey);
         $session = $request->session();
 
         if ($user->hasTwoFactor()) {
@@ -157,7 +162,7 @@ class AuthService
         }
 
         $key = 'two_factor:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, self::TWO_FACTOR_MAX_ATTEMPTS)) {
+        if (!$this->limiter->attempt($key, self::TWO_FACTOR_MAX_ATTEMPTS, self::TWO_FACTOR_WINDOW_SECONDS)) {
             $this->clearTwoFactorChallenge($session);
             $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), false, 'two_factor_throttled');
 
@@ -165,7 +170,6 @@ class AuthService
         }
 
         if (!$this->twoFactor->verify($user, $code)) {
-            $this->limiter->hit($key, self::TWO_FACTOR_WINDOW_SECONDS);
             $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), false, 'two_factor_invalid');
 
             throw new AuthenticationException('The authentication code is invalid.');
@@ -195,7 +199,6 @@ class AuthService
             'last_login_ip' => $request->clientIp(),
         ]);
         $this->history->record($user->id, $user->email, $request->clientIp(), $request->userAgent(), true);
-        $this->limiter->clear('login:ip:' . $request->clientIp());
 
         if ($user->isStaff()) {
             $this->audit->log($user->id, 'staff.login', 'user', $user->id, [], $request->clientIp());
@@ -224,9 +227,10 @@ class AuthService
             throw new AuthenticationException('Registration is currently disabled.');
         }
 
-        $ipKey = 'register:ip:' . $request->clientIp();
-        if ($this->limiter->tooManyAttempts($ipKey, 5)) {
-            throw new AuthenticationException('Too many registrations from your network. Please try again later.');
+        // Every attempt counts (including rejected addresses), which bounds
+        // probing for registered e-mail addresses.
+        if (!$this->limiter->attempt('register:attempt:ip:' . $request->clientIp(), 20, 3600)) {
+            throw new AuthenticationException('Too many registration attempts from your network. Please try again later.');
         }
 
         $errors = PasswordPolicy::validate($data['password'], [$data['email'], (string) ($data['first_name'] ?? ''), (string) ($data['last_name'] ?? '')]);
@@ -239,7 +243,9 @@ class AuthService
             throw ValidationException::withMessages(['email' => 'This e-mail address cannot be used. If it is yours, please sign in or reset your password.']);
         }
 
-        $this->limiter->hit($ipKey, 3600);
+        if (!$this->limiter->attempt('register:ip:' . $request->clientIp(), 5, 3600)) {
+            throw new AuthenticationException('Too many registrations from your network. Please try again later.');
+        }
         $requireVerification = $this->settings->bool('auth.require_email_verification');
         $roleId = (int) $this->db->fetchValue('SELECT `id` FROM `nx_roles` WHERE `slug` = ?', [Role::CUSTOMER]);
         $now = $this->clock->nowString();
@@ -290,10 +296,9 @@ class AuthService
     public function resendVerification(Request $request, User $user): bool
     {
         $key = 'verify-resend:' . $user->id;
-        if ($user->isEmailVerified() || $this->limiter->tooManyAttempts($key, 3)) {
+        if ($user->isEmailVerified() || !$this->limiter->attempt($key, 3, 3600)) {
             return false;
         }
-        $this->limiter->hit($key, 3600);
         $this->sendVerification($user);
 
         return true;
@@ -306,10 +311,9 @@ class AuthService
     public function resendVerificationByEmail(Request $request, string $email): void
     {
         $ipKey = 'verify-resend:ip:' . $request->clientIp();
-        if ($this->limiter->tooManyAttempts($ipKey, 10)) {
+        if (!$this->limiter->attempt($ipKey, 10, 3600)) {
             return;
         }
-        $this->limiter->hit($ipKey, 3600);
 
         $user = $this->users->findByEmail($email);
         if ($user !== null && $user->status === User::STATUS_PENDING) {
@@ -348,11 +352,11 @@ class AuthService
         $ipKey = 'reset:ip:' . $request->clientIp();
         $emailKey = 'reset:email:' . $email;
 
-        if ($this->limiter->tooManyAttempts($ipKey, 10) || $this->limiter->tooManyAttempts($emailKey, 3)) {
+        $withinIpLimit = $this->limiter->attempt($ipKey, 10, 3600);
+        $withinEmailLimit = $this->limiter->attempt($emailKey, 3, 3600);
+        if (!$withinIpLimit || !$withinEmailLimit) {
             return;
         }
-        $this->limiter->hit($ipKey, 3600);
-        $this->limiter->hit($emailKey, 3600);
 
         $user = $this->users->findByEmail($email);
         if ($user === null || in_array($user->status, [User::STATUS_SUSPENDED, User::STATUS_CLOSED], true)) {
@@ -414,14 +418,15 @@ class AuthService
     public function changePassword(Request $request, User $user, #[\SensitiveParameter] string $current, #[\SensitiveParameter] string $new): void
     {
         $key = 'password-change:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 5)) {
+        if (!$this->limiter->attempt($key, 5, 900)) {
             throw ValidationException::withMessages(['current_password' => 'Too many attempts. Please try again later.']);
         }
 
         if (!$this->hasher->verify($current, $user->passwordHash)) {
-            $this->limiter->hit($key, 900);
             throw ValidationException::withMessages(['current_password' => 'The current password is incorrect.']);
         }
+
+        $this->limiter->clear($key);
 
         $errors = PasswordPolicy::validate($new, [$user->email, (string) $user->firstName, (string) $user->lastName]);
         if ($errors !== []) {
@@ -453,7 +458,7 @@ class AuthService
     public function confirmPassword(User $user, #[\SensitiveParameter] string $password): bool
     {
         $key = 'password-confirm:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 5)) {
+        if (!$this->limiter->attempt($key, 5, 900)) {
             return false;
         }
         if ($this->hasher->verify($password, $user->passwordHash)) {
@@ -461,7 +466,6 @@ class AuthService
 
             return true;
         }
-        $this->limiter->hit($key, 900);
 
         return false;
     }

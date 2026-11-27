@@ -72,11 +72,22 @@ class SessionStore
         );
     }
 
+    /**
+     * Persists the session.
+     *
+     * New and regenerated IDs are inserted; an existing session is only
+     * updated, never re-inserted. A request that loaded a session which was
+     * deleted while the request ran (logout elsewhere, password change,
+     * administrative revocation) therefore cannot bring it back.
+     */
     public function save(Session $session, string $ip, string $userAgent): void
     {
         $previous = $session->previousId();
         if ($previous !== null) {
-            $this->destroy($previous);
+            $deleted = $this->db->run('DELETE FROM `nx_sessions` WHERE `id` = ?', [self::hashId($previous)])->rowCount();
+            if ($deleted === 0 && !$session->isNew()) {
+                return; // revoked during this request – stays revoked under the new ID as well
+            }
         }
 
         if ($session->isEmpty() && ($session->isNew() || $previous !== null)) {
@@ -91,28 +102,28 @@ class SessionStore
         }
 
         $payload = json_encode($session->all(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $createdAt = $session->isNew() || $previous !== null
-            ? $now->format('Y-m-d H:i:s')
-            : gmdate('Y-m-d H:i:s', $session->createdAt());
 
+        if ($session->isNew() || $previous !== null) {
+            // A freshly generated ID is unknown to anyone else, so an upsert is
+            // safe here (it only matters if the same request saves twice).
+            $this->db->run(
+                'INSERT INTO `nx_sessions` (`id`, `user_id`, `ip`, `user_agent`, `payload`, `created_at`, `last_activity`)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE `user_id` = ?, `ip` = ?, `user_agent` = ?, `payload` = ?, `last_activity` = ?',
+                [
+                    self::hashId($session->id()), $session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'), $now->format('Y-m-d H:i:s'),
+                    $session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'),
+                ],
+            );
+
+            return;
+        }
+
+        // Zero affected rows means the session was deleted meanwhile; it is
+        // deliberately not recreated.
         $this->db->run(
-            'INSERT INTO `nx_sessions` (`id`, `user_id`, `ip`, `user_agent`, `payload`, `created_at`, `last_activity`)
-             VALUES (:id, :user_id, :ip, :ua, :payload, :created_at, :last_activity)
-             ON DUPLICATE KEY UPDATE `user_id` = :user_id2, `ip` = :ip2, `user_agent` = :ua2, `payload` = :payload2, `last_activity` = :last_activity2',
-            [
-                'id' => self::hashId($session->id()),
-                'user_id' => $session->userId(),
-                'ip' => $ip,
-                'ua' => $userAgent,
-                'payload' => $payload,
-                'created_at' => $createdAt,
-                'last_activity' => $now->format('Y-m-d H:i:s'),
-                'user_id2' => $session->userId(),
-                'ip2' => $ip,
-                'ua2' => $userAgent,
-                'payload2' => $payload,
-                'last_activity2' => $now->format('Y-m-d H:i:s'),
-            ],
+            'UPDATE `nx_sessions` SET `user_id` = ?, `ip` = ?, `user_agent` = ?, `payload` = ?, `last_activity` = ? WHERE `id` = ?',
+            [$session->userId(), $ip, $userAgent, $payload, $now->format('Y-m-d H:i:s'), self::hashId($session->id())],
         );
     }
 

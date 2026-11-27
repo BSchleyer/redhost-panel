@@ -218,6 +218,39 @@ final class AdminPanelTest extends FeatureTestCase
         self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_users WHERE email = 'support@example.test'"));
     }
 
+    public function testStaffManagersCannotGrantMorePermissionsThanTheyHold(): void
+    {
+        $roles = $this->app->container()->get(RoleRepository::class);
+        // A custom "support lead" role that may manage staff but not much else.
+        $leadRole = $roles->create('Support lead', null);
+        $roles->syncPermissions($leadRole, ['admin.access', 'staff.view', 'staff.manage', 'tickets.view', 'tickets.reply']);
+        $this->app->container()->get(\Nebrix\Authorization\Gate::class)->flush();
+        $lead = $this->createUser(Role::SUPPORT);
+        $this->db->update('nx_users', ['role_id' => $leadRole], ['id' => $lead->id]);
+        $lead = $this->app->container()->get(\Nebrix\Repository\UserRepository::class)->find($lead->id) ?? $lead;
+        $admin = $this->createUser(Role::ADMIN);
+        $this->actingAs($lead);
+
+        self::assertSame(200, $this->get('/admin/staff/create')->status(), 'The lead may manage staff in general.');
+
+        // Cannot create an account with the administrator role …
+        $this->post('/admin/staff', ['email' => 'mine@example.test', 'first_name' => 'M', 'last_name' => 'E', 'role_id' => (string) $roles->idForSlug(Role::ADMIN)]);
+        self::assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_users WHERE email = 'mine@example.test'"));
+        // … the form does not offer it …
+        self::assertStringNotContainsString('>Administrator<', $this->get('/admin/staff/create')->body());
+        // … and more powerful staff members cannot be edited or suspended.
+        self::assertSame(403, $this->get('/admin/staff/' . $admin->id . '/edit')->status());
+        self::assertSame(403, $this->post('/admin/staff/' . $admin->id, ['first_name' => 'A', 'last_name' => 'D', 'role_id' => (string) $admin->roleId, 'status' => 'suspended'])->status());
+        self::assertSame('active', $this->db->fetchValue('SELECT status FROM nx_users WHERE id = ?', [$admin->id]));
+
+        // A role with a subset of the lead's permissions can be assigned.
+        $helperRole = $roles->create('Ticket helper', null);
+        $roles->syncPermissions($helperRole, ['admin.access', 'tickets.view']);
+        $this->app->container()->get(\Nebrix\Authorization\Gate::class)->flush();
+        $this->post('/admin/staff', ['email' => 'helper@example.test', 'first_name' => 'H', 'last_name' => 'E', 'role_id' => (string) $helperRole]);
+        self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM nx_users WHERE email = 'helper@example.test'"));
+    }
+
     public function testSuperAdminsCanDemoteOthersButNotThemselves(): void
     {
         $first = $this->createUser(Role::SUPER_ADMIN);

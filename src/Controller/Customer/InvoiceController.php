@@ -79,10 +79,9 @@ final class InvoiceController extends Controller
         }
 
         $key = 'payment-start:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 20)) {
+        if (!$this->limiter->attempt($key, 20, 3600)) {
             throw HttpException::tooManyRequests();
         }
-        $this->limiter->hit($key, 3600);
 
         $base = rtrim($this->config->string('app.url'), '/');
         try {

@@ -92,11 +92,18 @@ class PayPalClient
     /**
      * Verifies a webhook through PayPal's verification API.
      *
+     * The event is forwarded exactly as received: re-encoding the decoded
+     * JSON could change escaping or number formatting and make PayPal's
+     * comparison fail.
+     *
      * @param array<string, string> $headers transmission headers (lower-case names)
-     * @param array<string, mixed> $event decoded webhook body
+     * @param string $rawEvent webhook request body as received (a JSON object)
      */
-    public function verifyWebhookSignature(array $headers, string $webhookId, array $event): bool
+    public function verifyWebhookSignature(array $headers, string $webhookId, string $rawEvent): bool
     {
+        if (!is_array(json_decode($rawEvent, true)) || !str_starts_with(ltrim($rawEvent), '{')) {
+            return false;
+        }
         foreach (['paypal-auth-algo', 'paypal-cert-url', 'paypal-transmission-id', 'paypal-transmission-sig', 'paypal-transmission-time'] as $required) {
             if (($headers[$required] ?? '') === '') {
                 return false;
@@ -106,15 +113,21 @@ class PayPalClient
             return false;
         }
 
-        $response = $this->send('POST', '/v1/notifications/verify-webhook-signature', ['json' => [
+        $placeholder = '"__nebrix_webhook_event_' . bin2hex(random_bytes(8)) . '__"';
+        $envelope = json_encode([
             'auth_algo' => $headers['paypal-auth-algo'],
             'cert_url' => $headers['paypal-cert-url'],
             'transmission_id' => $headers['paypal-transmission-id'],
             'transmission_sig' => $headers['paypal-transmission-sig'],
             'transmission_time' => $headers['paypal-transmission-time'],
             'webhook_id' => $webhookId,
-            'webhook_event' => $event,
-        ]]);
+            'webhook_event' => trim($placeholder, '"'),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+        $response = $this->send('POST', '/v1/notifications/verify-webhook-signature', [
+            'body' => str_replace($placeholder, trim($rawEvent), $envelope),
+            'headers' => ['Content-Type' => 'application/json'],
+        ]);
 
         return ($response['verification_status'] ?? '') === 'SUCCESS';
     }

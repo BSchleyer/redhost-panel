@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nebrix\Controller\Admin;
 
 use Nebrix\Authorization\Permission;
+use Nebrix\Billing\InvoiceRepository;
 use Nebrix\Billing\Money;
 use Nebrix\Database\Connection;
 use Nebrix\Http\Controller;
@@ -61,6 +62,7 @@ final class PaymentController extends Controller
             'total' => (int) $this->db->fetchValue('SELECT COUNT(*) FROM `nx_transactions` t JOIN `nx_users` u ON u.`id` = t.`user_id` WHERE ' . $whereSql, $params),
             'page' => $page,
             'filters' => ['gateway' => $request->string('gateway'), 'status' => $request->string('status'), 'type' => $request->string('type'), 'search' => $search],
+            'refund_key' => bin2hex(random_bytes(16)),
         ]);
     }
 
@@ -68,23 +70,50 @@ final class PaymentController extends Controller
     {
         $this->authorize($request, Permission::PAYMENTS_REFUND);
         $transaction = $this->db->fetchOne("SELECT * FROM `nx_transactions` WHERE `id` = ? AND `type` = 'payment' AND `status` = 'completed'", [$id]) ?? throw HttpException::notFound();
-        $data = $this->validate($request, ['amount' => 'required|decimal|min:0.01', 'reason' => 'required|string|max:255']);
+        $data = $this->validate($request, [
+            'amount' => 'required|decimal|min:0.01',
+            'reason' => 'required|string|max:255',
+            // Generated with the form: a double submission carries the same
+            // key, so the provider and the ledger treat it as one refund.
+            'refund_key' => 'required|regex:/^[a-f0-9]{32}$/',
+        ]);
         $amount = Money::parse((string) $data['amount'], (string) $transaction['currency']);
-
-        $refunded = (int) $this->db->fetchValue("SELECT COALESCE(SUM(`amount`), 0) FROM `nx_transactions` WHERE `parent_id` = ? AND `type` = 'refund' AND `status` = 'completed'", [$id]);
-        if ($amount <= 0 || $amount + $refunded > (int) $transaction['amount']) {
-            throw ValidationException::withMessages(['amount' => 'The refund cannot exceed the remaining paid amount.']);
-        }
-
         $gateway = $this->gateways->get((string) $transaction['gateway']) ?? throw HttpException::badRequest('This payment cannot be refunded automatically.');
 
+        // Serialise refunds of one payment so concurrent requests cannot both
+        // pass the remaining-amount check before either is recorded.
+        $lock = 'nebrix:refund:' . $id;
+        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, 10)', [$lock]) !== 1) {
+            $this->flash($request, 'error', 'Another refund for this payment is being processed. Please try again.');
+
+            return $this->redirect('/admin/transactions');
+        }
+
         try {
-            $outcome = $gateway->refund($transaction, $amount, (string) $data['reason']);
+            $refunded = (int) $this->db->fetchValue("SELECT COALESCE(SUM(`amount`), 0) FROM `nx_transactions` WHERE `parent_id` = ? AND `type` = 'refund' AND `status` = 'completed'", [$id]);
+            if ($amount <= 0 || $amount + $refunded > (int) $transaction['amount']) {
+                throw ValidationException::withMessages(['amount' => 'The refund cannot exceed the remaining paid amount.']);
+            }
+            // Refunding a credit top-up removes the credit again; credit that
+            // was already spent cannot be paid out a second time.
+            $invoiceType = $transaction['invoice_id'] !== null ? $this->db->fetchValue('SELECT `type` FROM `nx_invoices` WHERE `id` = ?', [(int) $transaction['invoice_id']]) : null;
+            if ($invoiceType === InvoiceRepository::TYPE_CREDIT) {
+                $balance = (int) $this->db->fetchValue('SELECT `credit_balance` FROM `nx_users` WHERE `id` = ?', [(int) $transaction['user_id']]);
+                if ($balance < $amount) {
+                    throw ValidationException::withMessages(['amount' => sprintf('The customer has already used part of this credit. At most %s can be refunded.', Money::format(max(0, $balance), (string) $transaction['currency']))]);
+                }
+            }
+
+            $outcome = $gateway->refund($transaction, $amount, (string) $data['reason'], 'refund-' . $id . '-' . $data['refund_key']);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->audit($request, 'payment.refund_failed', 'transaction', $id, ['amount' => $amount, 'error' => mb_substr($exception->getMessage(), 0, 200)]);
             $this->flash($request, 'error', 'The refund failed: ' . mb_substr($exception->getMessage(), 0, 200));
 
             return $this->redirect('/admin/transactions');
+        } finally {
+            $this->db->fetchValue('SELECT RELEASE_LOCK(?)', [$lock]);
         }
 
         $this->audit($request, 'payment.refunded', 'transaction', $id, ['amount' => $amount, 'reason' => $data['reason'], 'status' => $outcome->status]);

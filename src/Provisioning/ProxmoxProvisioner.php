@@ -19,7 +19,10 @@ use Nebrix\Service\ServiceRepository;
  * Idempotency: the VMID is deterministic (vmid_start + service ID) and the
  * node, VMID, current step and task UPID are persisted before each remote
  * call. A retried job resumes the state machine instead of creating a second
- * guest; an existing guest with a different name is treated as a conflict.
+ * guest. An existing guest is only adopted if its description carries the
+ * marker "nebrix-service-<id>" written at creation time; any other guest on
+ * the VMID is treated as a conflict (the hostname is customer-chosen and
+ * therefore not proof of ownership).
  */
 final class ProxmoxProvisioner implements Provisioner
 {
@@ -94,7 +97,7 @@ final class ProxmoxProvisioner implements Provisioner
             if ($step === 'create') {
                 $existing = $client->findGuest($vmid);
                 if ($existing !== null) {
-                    if ((string) ($existing['name'] ?? '') !== $this->hostname($service)) {
+                    if (!$this->isOwnGuest($client, $service, $existing, $node, $type)) {
                         throw new IntegrationException(sprintf('VM ID %d is already used by another guest ("%s"). Adjust "vmid_start" on the product.', $vmid, (string) ($existing['name'] ?? '?')));
                     }
                     // Created by an earlier attempt whose task completed.
@@ -176,13 +179,37 @@ final class ProxmoxProvisioner implements Provisioner
     }
 
     /**
+     * @param array<string, mixed> $guest entry from /cluster/resources
+     */
+    private function isOwnGuest(ProxmoxClient $client, Service $service, array $guest, string $node, string $type): bool
+    {
+        if (isset($guest['type']) && (string) $guest['type'] !== $type) {
+            return false;
+        }
+        if (isset($guest['node']) && (string) $guest['node'] !== $node) {
+            return false;
+        }
+
+        $config = $client->guestConfig($node, $type, (int) $guest['vmid']);
+        $marker = 'nebrix-service-' . $service->id;
+        foreach (preg_split('/\R/', (string) ($config['description'] ?? '')) ?: [] as $line) {
+            if (trim($line) === $marker) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array<string, scalar>
      */
     private function containerParameters(Service $service, int $vmid, string $password): array
     {
         $rate = (int) $service->config('rate_mbps', 0);
+        $unprivileged = (bool) $service->config('unprivileged', true);
 
-        return [
+        $parameters = [
             'vmid' => $vmid,
             'hostname' => $this->hostname($service),
             'ostemplate' => (string) $service->config('ostemplate'),
@@ -192,12 +219,19 @@ final class ProxmoxProvisioner implements Provisioner
             'rootfs' => sprintf('%s:%d', (string) $service->config('storage'), (int) $service->config('disk_gb', 10)),
             'net0' => sprintf('name=eth0,bridge=%s,ip=dhcp,ip6=auto%s', (string) $service->config('bridge', 'vmbr0'), $rate > 0 ? ',rate=' . $rate : ''),
             'password' => $password,
-            'unprivileged' => $service->config('unprivileged', true) ? 1 : 0,
-            'features' => 'nesting=1',
+            'unprivileged' => $unprivileged ? 1 : 0,
             'onboot' => 1,
             'start' => 1,
             'description' => 'nebrix-service-' . $service->id,
         ];
+
+        // Proxmox only lets root@pam set feature flags on privileged
+        // containers, so nesting is requested for unprivileged ones only.
+        if ($unprivileged) {
+            $parameters['features'] = 'nesting=1';
+        }
+
+        return $parameters;
     }
 
     /**
@@ -262,8 +296,13 @@ final class ProxmoxProvisioner implements Provisioner
             $this->services->mergeRemote($service->id, ['destroy_upid' => null]);
         }
 
-        if ($client->findGuest($vmid) === null) {
+        $existing = $client->findGuest($vmid);
+        if ($existing === null) {
             return;
+        }
+        // Never delete a guest this service does not own (e.g. after a VMID conflict).
+        if (!$this->isOwnGuest($client, $service, $existing, $node, $type)) {
+            throw new IntegrationException(sprintf('VM ID %d belongs to another guest ("%s"); it was not deleted. Check the Proxmox cluster.', $vmid, (string) ($existing['name'] ?? '?')));
         }
 
         if (($client->status($node, $type, $vmid)['status'] ?? '') === 'running') {

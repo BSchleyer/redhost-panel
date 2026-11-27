@@ -39,8 +39,10 @@ interface PaymentGateway
 
     /**
      * @param array<string, mixed> $transaction completed payment transaction
+     * @param string $idempotencyKey stable per refund request: a repeated
+     *        submission with the same key must not refund twice
      */
-    public function refund(array $transaction, int $amount, string $reason): PaymentOutcome;
+    public function refund(array $transaction, int $amount, string $reason, string $idempotencyKey): PaymentOutcome;
 
     public function testConnection(): HealthResult;
 }

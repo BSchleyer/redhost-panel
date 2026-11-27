@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Nebrix\Payment;
 
+use Nebrix\Billing\CreditService;
 use Nebrix\Billing\InvoiceRepository;
 use Nebrix\Billing\InvoiceService;
+use Nebrix\Billing\OrderRepository;
 use Nebrix\Core\Clock;
 use Nebrix\Core\LoggerFactory;
 use Nebrix\Database\Connection;
+use Nebrix\Provisioning\ServiceManager;
+use Nebrix\Service\Service;
+use Nebrix\Service\ServiceRepository;
 use PDOException;
 use Psr\Log\LoggerInterface;
 
@@ -32,6 +37,10 @@ class PaymentService
         private readonly InvoiceService $invoiceService,
         private readonly Clock $clock,
         private readonly LoggerInterface $logger,
+        private readonly CreditService $credit,
+        private readonly OrderRepository $orders,
+        private readonly ServiceRepository $services,
+        private readonly ServiceManager $serviceManager,
     ) {
     }
 
@@ -121,6 +130,111 @@ class PaymentService
     }
 
     /**
+     * Records a dispute / chargeback opened by the payer's bank or PayPal.
+     * The money may be lost, so the effects of the payment are reversed as
+     * for a full refund (services suspended, top-up credit removed); staff
+     * reactivate them if the dispute is won. Idempotent per dispute ID.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function recordDispute(string $gateway, string $disputeId, string $paymentReference, ?int $amount, ?string $currency, array $metadata = []): PaymentOutcome
+    {
+        return $this->db->transaction(function () use ($gateway, $disputeId, $paymentReference, $amount, $currency, $metadata): PaymentOutcome {
+            $payment = $this->db->fetchOne(
+                "SELECT * FROM `nx_transactions` WHERE `gateway` = ? AND `type` = 'payment' AND `reference` = ? AND `status` = 'completed' FOR UPDATE",
+                [$gateway, $paymentReference],
+            );
+            if ($payment === null) {
+                $this->event($gateway, 'dispute.unknown_payment', $disputeId, null, null, $amount, $currency, $metadata + ['payment_reference' => $paymentReference]);
+
+                return PaymentOutcome::rejected('The disputed payment is unknown.');
+            }
+
+            $known = $this->db->fetchValue("SELECT `id` FROM `nx_payment_events` WHERE `gateway` = ? AND `event_type` = 'payment.disputed' AND `reference` = ?", [$gateway, $disputeId]);
+            if ($known !== null) {
+                return PaymentOutcome::duplicate((int) $payment['id']);
+            }
+
+            $invoiceId = $payment['invoice_id'] !== null ? (int) $payment['invoice_id'] : null;
+            $this->event($gateway, 'payment.disputed', $disputeId, $invoiceId, (int) $payment['user_id'], $amount ?? (int) $payment['amount'], $currency ?? (string) $payment['currency'], $metadata + ['payment_reference' => $paymentReference]);
+
+            $refunded = (int) $this->db->fetchValue("SELECT COALESCE(SUM(`amount`), 0) FROM `nx_transactions` WHERE `parent_id` = ? AND `type` = 'refund' AND `status` = 'completed'", [(int) $payment['id']]);
+            $atRisk = min($amount ?? (int) $payment['amount'], (int) $payment['amount'] - $refunded);
+            $invoice = $invoiceId !== null ? $this->invoices->lock($invoiceId) : null;
+            if ($invoice !== null && $atRisk > 0) {
+                $this->reverseInvoiceEffects($gateway, $disputeId, $invoice, $atRisk, true, 'Payment disputed');
+            }
+            $this->logger->warning('Payment disputed', ['gateway' => $gateway, 'dispute' => $disputeId, 'invoice' => $invoiceId]);
+
+            return PaymentOutcome::completed((int) $payment['id'], true);
+        });
+    }
+
+    /**
+     * Undoes what a payment bought when the money goes back to the payer.
+     * Runs inside the refund/dispute transaction with the invoice locked.
+     *
+     * - Credit top-up: the refunded amount is removed from the balance (it
+     *   may become negative if the credit was already spent).
+     * - Order / renewal, fully refunded or disputed: active services are
+     *   suspended, not-yet-provisioned ones cancelled, the unfulfilled order
+     *   cancelled. Nothing is deleted; staff decide about termination.
+     *
+     * @param array<string, mixed> $invoice
+     */
+    private function reverseInvoiceEffects(string $gateway, string $reference, array $invoice, int $amount, bool $complete, string $reason): void
+    {
+        $invoiceId = (int) $invoice['id'];
+        $userId = (int) $invoice['user_id'];
+        $label = sprintf('%s (invoice %s)', $reason, (string) $invoice['number']);
+
+        if ($invoice['type'] === InvoiceRepository::TYPE_CREDIT) {
+            if (in_array($invoice['status'], [InvoiceRepository::STATUS_PAID, InvoiceRepository::STATUS_REFUNDED], true) && $amount > 0) {
+                $balance = $this->credit->adjust($userId, -$amount, $label, 'invoice', (string) $invoiceId, null, true);
+                $this->event($gateway, 'credit.reversed', $reference, $invoiceId, $userId, $amount, (string) $invoice['currency'], ['balance_after' => $balance]);
+            }
+
+            return;
+        }
+
+        if (!$complete) {
+            return; // partial refunds (goodwill) keep the services running
+        }
+
+        $serviceIds = [];
+        if ($invoice['type'] === InvoiceRepository::TYPE_RENEWAL && $invoice['service_id'] !== null) {
+            $serviceIds[] = (int) $invoice['service_id'];
+        } elseif ($invoice['type'] === InvoiceRepository::TYPE_ORDER && $invoice['order_id'] !== null) {
+            $orderId = (int) $invoice['order_id'];
+            $this->orders->update($orderId, ['status' => OrderRepository::STATUS_CANCELLED, 'cancelled_at' => $this->clock->nowString()]);
+            foreach ($this->db->fetchAll('SELECT s.`id` FROM `nx_services` s JOIN `nx_order_items` oi ON oi.`id` = s.`order_item_id` WHERE oi.`order_id` = ?', [$orderId]) as $row) {
+                $serviceIds[] = (int) $row['id'];
+            }
+        }
+
+        $affected = ['suspended' => [], 'cancelled' => [], 'review' => []];
+        foreach ($serviceIds as $serviceId) {
+            $service = $this->services->find($serviceId);
+            if ($service === null) {
+                continue;
+            }
+            if ($service->status === Service::STATUS_ACTIVE) {
+                $this->serviceManager->suspend($service, $label, null);
+                $affected['suspended'][] = $serviceId;
+            } elseif ($service->status === Service::STATUS_PENDING) {
+                $this->services->update($serviceId, ['status' => Service::STATUS_CANCELLED, 'cancelled_at' => $this->clock->nowString()]);
+                $affected['cancelled'][] = $serviceId;
+            } elseif (in_array($service->status, [Service::STATUS_PROVISIONING, Service::STATUS_FAILED], true)) {
+                $affected['review'][] = $serviceId;
+            }
+        }
+
+        if ($affected !== ['suspended' => [], 'cancelled' => [], 'review' => []]) {
+            $this->event($gateway, 'services.reversed', $reference, $invoiceId, $userId, null, null, $affected);
+        }
+    }
+
+    /**
      * Records a completed refund (idempotent per refund reference).
      *
      * @param array<string, mixed> $metadata
@@ -170,10 +284,12 @@ class PaymentService
                 $invoice = $this->invoices->lock((int) $payment['invoice_id']);
                 if ($invoice !== null) {
                     $refunded = (int) $invoice['amount_refunded'] + $amount;
+                    $fullyRefunded = $refunded >= (int) $invoice['total'];
                     $this->invoices->update((int) $invoice['id'], [
                         'amount_refunded' => $refunded,
-                        'status' => $refunded >= (int) $invoice['total'] ? InvoiceRepository::STATUS_REFUNDED : $invoice['status'],
+                        'status' => $fullyRefunded ? InvoiceRepository::STATUS_REFUNDED : $invoice['status'],
                     ]);
+                    $this->reverseInvoiceEffects($gateway, $refundReference, $invoice, $amount, $fullyRefunded, 'Payment refunded');
                 }
             }
 

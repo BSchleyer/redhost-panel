@@ -90,6 +90,35 @@ final class CoreDatabaseTest extends DatabaseTestCase
         self::assertNotNull($store->load($session->id()));
     }
 
+    public function testRevokedSessionIsNotRecreatedByAnInFlightRequest(): void
+    {
+        $store = $this->app->container()->get(SessionStore::class);
+        $user = $this->createUser();
+        $session = $store->create();
+        $session->setUserId($user->id);
+        $session->put('x', 1);
+        $store->save($session, '127.0.0.1', 'phpunit');
+
+        // Two requests of an attacker load the session ...
+        $inFlight = $store->load($session->id());
+        $regenerating = $store->load($session->id());
+        self::assertNotNull($inFlight);
+        self::assertNotNull($regenerating);
+
+        // ... the owner signs out everywhere meanwhile ...
+        self::assertSame(1, $store->destroyForUser($user->id));
+
+        // ... and the in-flight requests finish with changed session data.
+        $inFlight->flash('notice', 'changed');
+        $store->save($inFlight, '198.51.100.7', 'attacker');
+        $regenerating->regenerate();
+        $store->save($regenerating, '198.51.100.7', 'attacker');
+
+        self::assertNull($store->load($session->id()));
+        self::assertNull($store->load($regenerating->id()));
+        self::assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM nx_sessions WHERE user_id = ?', [$user->id]));
+    }
+
     public function testSettingsAreTypedValidatedAndSecretsEncrypted(): void
     {
         $settings = $this->app->container()->get(SettingsRepository::class);

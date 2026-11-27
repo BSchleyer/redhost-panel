@@ -265,12 +265,52 @@ final class PterodactylNextcloudTeamSpeakTest extends IntegrationTestCase
         $service = $this->createService($owner, 'teamspeak', $integrationId, ['slots' => 10]);
         // An earlier attempt stored the port and created the server, then crashed before storing the sid.
         $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['port' => 9989]);
-        $this->teamspeak->servers[5] = ['port' => 9989, 'name' => 'TeamSpeak', 'slots' => 10, 'status' => 'online', 'autostart' => 1];
+        $this->teamspeak->servers[5] = ['port' => 9989, 'name' => 'TeamSpeak #' . $service->id, 'slots' => 10, 'status' => 'online', 'autostart' => 1];
 
         $result = $this->app->container()->get(TeamSpeakProvisioner::class)->provision($this->reload($service->id), $owner);
 
         self::assertSame('ts3:5', $result->externalId);
         self::assertCount(1, $this->teamspeak->servers);
+    }
+
+    public function testTeamSpeakNeverAdoptsAForeignServerOnTheReservedPort(): void
+    {
+        $integrationId = $this->teamspeakIntegration();
+        $owner = $this->createUser();
+        $service = $this->createService($owner, 'teamspeak', $integrationId, ['slots' => 10, '_options' => ['server_name' => 'Mine']]);
+        // The earlier servercreate failed; meanwhile someone else's server appeared on the reserved port.
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($service->id, ['port' => 9989]);
+        $this->teamspeak->servers[7] = ['port' => 9989, 'name' => 'Other customer', 'slots' => 10, 'status' => 'online', 'autostart' => 1];
+
+        try {
+            $this->app->container()->get(TeamSpeakProvisioner::class)->provision($this->reload($service->id), $owner);
+            self::fail('A foreign server must not be adopted.');
+        } catch (IntegrationException $exception) {
+            self::assertStringContainsString('used by another virtual server', $exception->getMessage());
+        }
+
+        self::assertArrayNotHasKey('sid', $this->reload($service->id)->remote);
+        self::assertCount(1, $this->teamspeak->servers);
+    }
+
+    public function testTeamSpeakSkipsPortsReservedByOtherServices(): void
+    {
+        $integrationId = $this->teamspeakIntegration();
+        $owner = $this->createUser();
+        // Service A reserved 9987, but its servercreate failed (no server exists yet).
+        $first = $this->createService($owner, 'teamspeak', $integrationId, ['slots' => 10]);
+        $this->app->container()->get(ServiceRepository::class)->mergeRemote($first->id, ['port' => 9987]);
+
+        $second = $this->createService($this->createUser(), 'teamspeak', $integrationId, ['slots' => 10]);
+        $result = $this->app->container()->get(TeamSpeakProvisioner::class)->provision($second, $owner);
+
+        self::assertSame(9988, $result->credentials['port'], 'The port reserved by service A is not handed out again.');
+        self::assertSame(9988, (int) $this->reload($second->id)->remote['port']);
+
+        // A's retry creates its own server on its reserved port.
+        $retry = $this->app->container()->get(TeamSpeakProvisioner::class)->provision($this->reload($first->id), $owner);
+        self::assertSame(9987, $retry->credentials['port']);
+        self::assertCount(2, $this->teamspeak->servers);
     }
 
     public function testTeamSpeakFailsWhenNoPortIsLeft(): void

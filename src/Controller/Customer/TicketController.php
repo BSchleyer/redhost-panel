@@ -63,10 +63,9 @@ final class TicketController extends Controller
         }
 
         $key = 'ticket-create:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 5)) {
+        if (!$this->limiter->attempt($key, 5, 3600)) {
             throw HttpException::tooManyRequests('You have opened several tickets in a short time. Please wait before opening another one.');
         }
-        $this->limiter->hit($key, 3600);
 
         $id = $this->tickets->create($user->id, (string) $data['subject'], (string) $data['message'], $data['service_id'] !== null ? (int) $data['service_id'] : null, (string) $data['priority']);
         $this->flash($request, 'success', 'Your request has been submitted. We will get back to you as soon as possible.');
@@ -90,10 +89,9 @@ final class TicketController extends Controller
         $data = $this->validate($request, ['message' => 'required|string|min:2|max:20000']);
 
         $key = 'ticket-reply:' . $user->id;
-        if ($this->limiter->tooManyAttempts($key, 30)) {
+        if (!$this->limiter->attempt($key, 30, 3600)) {
             throw HttpException::tooManyRequests();
         }
-        $this->limiter->hit($key, 3600);
 
         $this->tickets->addMessage((int) $ticket['id'], $user->id, false, (string) $data['message']);
         $this->flash($request, 'success', 'Your reply has been sent.');

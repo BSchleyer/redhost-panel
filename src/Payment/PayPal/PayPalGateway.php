@@ -210,7 +210,7 @@ class PayPalGateway implements PaymentGateway
         }
 
         try {
-            $verified = $this->client()->verifyWebhookSignature($headers, $this->settings->string('payments.paypal.webhook_id'), $event);
+            $verified = $this->client()->verifyWebhookSignature($headers, $this->settings->string('payments.paypal.webhook_id'), $payload);
         } catch (PayPalException $exception) {
             $this->logger->error('PayPal webhook verification request failed', ['message' => $exception->getMessage()]);
 
@@ -267,7 +267,8 @@ class PayPalGateway implements PaymentGateway
                 return 'processed';
 
             case 'PAYMENT.CAPTURE.REFUNDED':
-                // The resource is the refund; its "up" link points to the capture.
+            case 'PAYMENT.CAPTURE.REVERSED':
+                // The resource is the refund/reversal; its "up" link points to the capture.
                 $captureId = null;
                 foreach ($resource['links'] ?? [] as $link) {
                     if (($link['rel'] ?? '') === 'up' && preg_match('#/captures/([A-Z0-9-]+)#i', (string) ($link['href'] ?? ''), $m) === 1) {
@@ -275,25 +276,41 @@ class PayPalGateway implements PaymentGateway
                     }
                 }
                 if ($captureId === null || ($resource['status'] ?? '') !== 'COMPLETED') {
+                    $this->logger->warning('PayPal refund/reversal event without a usable capture reference', ['event' => $event['id'] ?? null, 'type' => $event['event_type']]);
+
                     return 'ignored';
                 }
                 $currency = strtoupper((string) ($resource['amount']['currency_code'] ?? ''));
-                $this->payments->recordRefund('paypal', (string) $resource['id'], $captureId, Money::parse((string) ($resource['amount']['value'] ?? '0'), $currency), $currency);
+                $this->payments->recordRefund('paypal', (string) $resource['id'], $captureId, Money::parse((string) ($resource['amount']['value'] ?? '0'), $currency), $currency, $event['event_type'] === 'PAYMENT.CAPTURE.REVERSED' ? ['reason' => 'reversal'] : []);
 
                 return 'processed';
+
+            case 'CUSTOMER.DISPUTE.CREATED':
+                $currency = isset($resource['dispute_amount']['currency_code']) ? strtoupper((string) $resource['dispute_amount']['currency_code']) : null;
+                $amount = $currency !== null ? Money::parse((string) ($resource['dispute_amount']['value'] ?? '0'), $currency) : null;
+                $handled = false;
+                foreach ($resource['disputed_transactions'] ?? [] as $transaction) {
+                    $captureId = (string) ($transaction['seller_transaction_id'] ?? '');
+                    if ($captureId !== '') {
+                        $outcome = $this->payments->recordDispute('paypal', (string) ($resource['dispute_id'] ?? ''), $captureId, $amount ?: null, $currency, ['reason' => (string) ($resource['reason'] ?? '')]);
+                        $handled = $handled || $outcome->status !== PaymentOutcome::REJECTED;
+                    }
+                }
+
+                return $handled ? 'processed' : 'ignored';
 
             default:
                 return 'ignored';
         }
     }
 
-    public function refund(array $transaction, int $amount, string $reason): PaymentOutcome
+    public function refund(array $transaction, int $amount, string $reason, string $idempotencyKey): PaymentOutcome
     {
         $currency = (string) $transaction['currency'];
         $refund = $this->client()->refundCapture((string) $transaction['reference'], [
             'amount' => ['value' => Money::toDecimal($amount, $currency), 'currency_code' => $currency],
             'note_to_payer' => mb_substr($reason, 0, 255),
-        ], 'refund-' . $transaction['id'] . '-' . bin2hex(random_bytes(6)));
+        ], $idempotencyKey);
 
         if (($refund['status'] ?? '') === 'COMPLETED') {
             return $this->payments->recordRefund('paypal', (string) $refund['id'], (string) $transaction['reference'], $amount, $currency, ['reason' => $reason]);
