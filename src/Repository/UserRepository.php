@@ -19,6 +19,7 @@ class UserRepository
         'first_name', 'last_name', 'company', 'vat_id', 'address_line1', 'address_line2', 'postcode', 'city',
         'country', 'phone', 'language', 'two_factor_secret', 'two_factor_enabled_at', 'two_factor_recovery_codes',
         'two_factor_last_slice', 'password_changed_at', 'last_login_at', 'last_login_ip', 'legal_accepted_at', 'notes', 'legacy_id',
+        'auto_pay_credit',
     ];
 
     public function __construct(

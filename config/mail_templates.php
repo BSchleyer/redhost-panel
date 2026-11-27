@@ -76,6 +76,12 @@ return [
         'subject' => 'Your service "{{ service_name }}" is due for renewal',
         'html' => '<p>Hello {{ name }},</p><p>your service <strong>{{ service_name }}</strong> is due for renewal on {{ due_date }}. Please pay the renewal invoice to avoid an interruption.</p><p><a class="button" href="{{ invoice_url }}">Pay renewal invoice</a></p>',
     ],
+    'invoice_reminder' => [
+        'name' => 'Payment reminder',
+        'variables' => ['name', 'invoice_number', 'invoice_total', 'due_date', 'invoice_url'],
+        'subject' => 'Payment reminder: invoice {{ invoice_number }}',
+        'html' => '<p>Hello {{ name }},</p><p>invoice {{ invoice_number }} over {{ invoice_total }} is due on {{ due_date }} and has not been paid yet. Please pay it in time – services with unpaid renewal invoices are suspended after the due date.</p><p><a class="button" href="{{ invoice_url }}">Pay invoice</a></p><p>If you have already paid, please ignore this e-mail.</p>',
+    ],
     'ticket_reply' => [
         'name' => 'Support ticket reply',
         'variables' => ['name', 'ticket_subject', 'ticket_url'],

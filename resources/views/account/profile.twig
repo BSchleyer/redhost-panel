@@ -19,6 +19,7 @@
                 {{ f.input('country', 'Country (ISO code, e.g. DE)', profile.country, 'text', {maxlength: 2}) }}
                 {{ f.input('phone', 'Phone', profile.phone, 'tel') }}
                 {{ f.select('language', 'Language', languages, profile.language|default('en')) }}
+                {{ f.checkbox('auto_pay_credit', 'Pay renewals automatically from my credit balance', profile.auto_pay_credit is defined ? profile.auto_pay_credit == 1 : true, {help: 'Renewal invoices are settled from your account credit as soon as it covers them.'}) }}
                 <div class="form-row"><label>{{ 'E-mail address'|t }}</label><input type="email" value="{{ profile.email }}" disabled><div class="help">{{ 'Contact support to change your e-mail address.'|t }}</div></div>
             </div>
         </div>

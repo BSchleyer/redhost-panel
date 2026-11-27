@@ -51,6 +51,8 @@ class Scheduler
         private readonly PaymentService $payments,
         private readonly ConsoleSessions $consoleSessions,
         private readonly \Nebrix\Api\ApiTokenService $apiTokens,
+        private readonly \Nebrix\Billing\AutoPayment $autoPayment,
+        private readonly \Nebrix\Billing\PaymentReminders $reminders,
     ) {
     }
 
@@ -62,6 +64,9 @@ class Scheduler
         return [
             'queue.release_stale' => [5, fn (): string => sprintf('%d job(s) released', $this->jobs->releaseStale())],
             'billing.renewal_invoices' => [15, $this->createRenewalInvoices(...)],
+            // Before the overdue check: credit topped up in the meantime still pays the renewal.
+            'billing.auto_pay_credit' => [15, fn (): string => sprintf('%d invoice(s) paid from credit', $this->autoPayment->run())],
+            'billing.payment_reminders' => [60, fn (): string => sprintf('%d reminder(s) sent', $this->reminders->send())],
             'billing.suspend_overdue' => [15, $this->suspendOverdue(...)],
             'billing.terminate_suspended' => [60, $this->terminateLongSuspended(...)],
             'billing.cancel_stale_orders' => [60, $this->cancelStaleOrders(...)],
@@ -158,6 +163,8 @@ class Scheduler
             $invoice = $this->db->fetchOne('SELECT `total`, `currency` FROM `nx_invoices` WHERE `id` = ?', [$invoiceId]);
             if ($invoice !== null && (int) $invoice['total'] === 0) {
                 $this->payments->recordPayment('free', 'free-invoice-' . $invoiceId, $invoiceId, 0, (string) $invoice['currency']);
+            } else {
+                $this->autoPayment->run($invoiceId);
             }
         }
 

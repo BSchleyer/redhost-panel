@@ -47,7 +47,9 @@ final class ProfileController extends Controller
             'country' => 'nullable|country',
             'phone' => 'nullable|string|max:50',
             'language' => 'required|in:' . $languages,
+            'auto_pay_credit' => 'bool',
         ]);
+        $data['auto_pay_credit'] = $data['auto_pay_credit'] ? 1 : 0;
 
         $this->users->update($user->id, $data);
         $this->audit($request, 'account.profile_updated', 'user', $user->id);
